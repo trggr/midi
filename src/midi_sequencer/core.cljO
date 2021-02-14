@@ -1,0 +1,40 @@
+(ns midi-sequencer.core
+  (:gen-class))
+
+(def chromatic-scale '([60 250] [62 250 {:vol_adj +2}] [64 250 {:vol_adj +2}] [65 250 {:vol_adj +2}] [67 250 {:vol_adj +2}] [69 250 {:vol_adj +2}]
+[71 250 {:vol_adj +2}] [72 250 {:vol_adj +2}] [72 250] [71 250 {:vol_adj -2}] [69 250 {:vol_adj -2}] [67 250 {:vol_adj -2}] [65 250 {:vol_adj -2}]
+[64 250 {:vol_adj -2}] [62 250 {:vol_adj -2}] [60 500 {:vol_adj -2}]))
+
+(defn getSynthPlayer [channelNbr instrumentNbr]
+  "Initialize synthesizer and return play function"
+  (let [synth (javax.sound.midi.MidiSystem/getSynthesizer)]
+    (do
+      (.open synth) ; Open synth before using
+        (let [channels (.getChannels synth)
+              instruments (.. synth getDefaultSoundbank getInstruments)]
+          (do
+            (let [channel (nth channels channelNbr)
+                  instrument (nth instruments instrumentNbr)]
+              (println "Instrument" instrumentNbr "is" (.getName instrument))
+              (.loadInstrument synth instrument)
+              (.programChange channel instrumentNbr) ; Lots of blogs never mentioned this!
+              (fn [volume note duration] ; play function
+                (do
+                  (.noteOn channel note volume)
+                  (Thread/sleep duration)
+                  (.noteOff channel note)))))))))
+
+(defn play [synthPlayer accVolume seqNotes]
+  "Play note sequence at specified starting volume on player obtained via getSynthPlayer"
+  (if (or (nil? seqNotes) (empty? seqNotes)) nil
+    (let [[note duration {:keys [vol_adj] :or {vol_adj 0}}] (first seqNotes)
+          volume (+ accVolume vol_adj)]
+      (do
+        (synthPlayer volume note duration) ; invoke function returned from getSynthPlayer
+        (recur synthPlayer volume (rest seqNotes))))))
+
+(defn -main
+  "Right now we play the chromatic scale using the instrument provided"
+  [instrument & args]
+  (let [synthPlayer (getSynthPlayer 2 (Integer/parseInt instrument))]
+    (play synthPlayer 80 chromatic-scale)))
