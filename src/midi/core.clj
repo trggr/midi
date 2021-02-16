@@ -1,5 +1,4 @@
-(ns midi-sequencer.core
-  (:gen-class))
+(ns midi.core)
 
 (def notedb {:c  60, :c#  61, :d  62, :d# 63, :e 64, :f 65, :f# 66, :g 67 :g# 68, :a 69, :a# 70, :b 71,
              :C  60, :C#  61, :D  62, :D# 63, :E 64, :F 65, :F# 66, :G 67 :G# 68, :A 69, :A# 70, :B 71,
@@ -91,8 +90,8 @@
         (doseq [n chord]
              (.noteOff c n)))))
 
-(defn play-song
-   ([score] (play-song score {}))
+(defn play-song2
+   ([score] (play-song2 score {}))
    ([score opts]
        (let [vol   (or (opts :vol)   60)
              tempo (/ 60000 (or (opts :bpm)  120))
@@ -103,6 +102,22 @@
           (print c)
           (flush)
           (f (chorddb c) tempo vol)))))
+
+(defn play-song
+   ([score] (play-song score {}))
+   ([score opts]
+       (let [vol   (or (opts :vol)   60)
+             tempo (/ 60000 (or (opts :bpm)  120))
+             instr (or (opts :instr) 0)
+             chan  (or (opts :chan)  2)
+             f     (chord-player-factory chan instr)]
+       (doseq [c (partition 4 score)]
+          (println c)
+          (let [[x1 x2 x3 x4] c]
+            (f (chorddb x1) tempo (* vol 0.7))
+            (f (chorddb x2) tempo vol)
+            (f (chorddb x3) tempo (* vol 0.7))
+            (f (chorddb x4) tempo (* vol 0.9)))))))
 
 (defn score-helper [xs]
    (loop [acc [] cur "" ts xs]
@@ -147,7 +162,16 @@
   "F6     / / / | Fm6   / /  / | Cmaj7  / Em7-5  / | A7     /  /  / "
   "Dm7    / / / | G7    / /  / | C6     / Ebdim7 / | Dm7    /  G7 /")))
 
-(defn -main [& other]
-  (map play-song [all-the-things-you-are all-of-me]))
+(def let-it-be (score (str
+  "C  / / / | G  / / / | Am  / /  / | F  /  /  / "
+  "C  / / / | G  / / / | F   / /  / | C  /  /  / "
+  "C  / / / | G  / / / | Am  / /  / | F  /  /  / "
+  "C  / / / | G  / / / | F   / /  / | C  /  /  / "
+  "Am / / / | G  / / / | F   / /  / | C  /  /  / "
+  "C  / / / | G  / / / | F   / /  / | C  /  /  / ")))
 
-(-main)
+(defn -main [& args]
+   (play-song all-of-me {:bpm 100})
+   (play-song all-the-things-you-are {:instr 26})
+   (play-song let-it-be {:instr 20}))
+
