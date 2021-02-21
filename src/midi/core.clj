@@ -60,7 +60,7 @@
                   (concat durations durations)
                   (repeat 14 80))))
 
-(defn player-factory [chan instr]
+(defn note-player [chan instr]
    "Returns player function for a given channel and instrument"
    (let [synth (javax.sound.midi.MidiSystem/getSynthesizer)
          _     (.open synth)
@@ -74,7 +74,7 @@
          (Thread/sleep dur)
          (.noteOff c note))))
 
-(defn chord-player-factory [chan instr]
+(defn chord-player [chan instr]
   "Returns player function for a given channel and instrument"
   (let [synth (javax.sound.midi.MidiSystem/getSynthesizer)
         _     (.open synth)
@@ -90,18 +90,28 @@
         (doseq [n chord]
              (.noteOff c n)))))
 
-(defn play-song2
-   ([score] (play-song2 score {}))
-   ([score opts]
-       (let [vol   (or (opts :vol)   60)
-             tempo (/ 60000 (or (opts :bpm)  120))
-             instr (or (opts :instr) 0)
-             chan  (or (opts :chan)  2)
-             f     (chord-player-factory chan instr)]
-       (doseq [c score]
-          (print c)
-          (flush)
-          (f (chorddb c) tempo vol)))))
+(defn chord-bass-player [bchan binstr cchan cinstr]
+  "Returns player function for a given channel and instrument"
+  (let [synth  (javax.sound.midi.MidiSystem/getSynthesizer)
+        _      (.open synth)
+        chans  (-> synth .getChannels)
+        instrs (-> synth .getDefaultSoundbank .getInstruments)
+        bch    (nth chans cchan)
+        cch    (nth chans cchan)
+        bi     (nth instrs binstr)
+        ci     (nth instrs cinstr)]
+     (println (format "Bass: %s, Chords: %s" (.getName bi) (.getName ci)))
+     (.loadInstrument synth bi)
+     (.loadInstrument synth ci)
+     (.programChange bch binstr)
+     (.programChange cch cinstr)
+     (fn [notes dur vol]
+         (let [{bass :bass, chord :chord} notes]
+            (when (not (nil? bass)) (.noteOn bch bass vol))
+            (doseq [n chord]        (.noteOn cch n (* vol 0.7)))
+            (Thread/sleep dur)
+            (when (not (nil? bass)) (.noteOff bch bass))
+            (doseq [n chord]        (.noteOff cch n))))))
 
 (defn play-song
    ([score] (play-song score {}))
@@ -110,14 +120,33 @@
              tempo (/ 60000 (or (opts :bpm)  120))
              instr (or (opts :instr) 0)
              chan  (or (opts :chan)  2)
-             f     (chord-player-factory chan instr)]
-       (doseq [c (partition 4 score)]
-          (println c)
-          (let [[x1 x2 x3 x4] c]
-            (f (chorddb x1) tempo (* vol 0.7))
+             f     (chord-bass-player 3 33 chan instr)]
+       (doseq [bar (partition 4 score)]
+          (println bar)
+          (doseq [i (range 4)]
+             (let [chord (chorddb (nth bar i))
+                   [r x3 x5] chord
+                   bass (- (case i 0 r 1 x3 2 x5 3 r) 24)]
+                 (f {:bass bass, :chord chord} tempo vol)))))))
+
+(defn play-song2
+   ([score] (play-song2 score {}))
+   ([score opts]
+       (let [vol   (or (opts :vol)   60)
+             tempo (/ 60000 (or (opts :bpm)  120))
+             instr (or (opts :instr) 0)
+             chan  (or (opts :chan)  2)
+             f     (chord-player chan instr)
+             bass  (note-player 3 33)] ; acoustic bass
+       (doseq [bar (partition 4 score)]
+          (println bar)
+          (let [[x1 x2 x3 x4] bar]
+            (bass (- (first (chorddb x1)) 24) tempo vol)
+;            (f (chorddb x1) tempo (* vol 0.7))
             (f (chorddb x2) tempo vol)
             (f (chorddb x3) tempo (* vol 0.7))
             (f (chorddb x4) tempo (* vol 0.9)))))))
+
 
 (defn score-helper [xs]
    (loop [acc [] cur "" ts xs]
@@ -132,14 +161,6 @@
      (clojure.string/replace "|" "")
      (clojure.string/split  #"\s+")
      score-helper))
-
-;(defn play-scales [& args]
-;  (let [chan  2
-;        instr 21
-;        f     (player-factory chan instr)]
-;      (doseq [k [c-major d-major e-major f-major]]
-;        (doseq [[note dur vol] (scale k)]
-;            (f note dur vol)))))
 
 (def all-the-things-you-are (score (str
   "Fm7    / / / | Bbm7  / /  / | Eb7    / / / | Abmaj7 /  /  / "
@@ -171,7 +192,7 @@
   "C  / / / | G  / / / | F   / /  / | C  /  /  / ")))
 
 (defn -main [& args]
-   (play-song all-of-me {:bpm 100})
+;   (play-song all-of-me {:bpm 100})
    (play-song all-the-things-you-are {:instr 26})
    (play-song let-it-be {:instr 20}))
 
