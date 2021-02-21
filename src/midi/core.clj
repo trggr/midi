@@ -126,7 +126,10 @@
           (doseq [i (range 4)]
              (let [chord (chorddb (nth bar i))
                    [r x3 x5] chord
-                   bass (- (case i 0 r 1 x3 2 x5 3 r) 24)]
+                   bass (- (case i 0 r
+                                   1 (+ 2 r)
+                                   2 x3 
+                                   3 x5) 24)]
                  (f {:bass bass, :chord chord} tempo vol)))))))
 
 (defn play-song2
@@ -183,6 +186,37 @@
   "F6     / / / | Fm6   / /  / | Cmaj7  / Em7-5  / | A7     /  /  / "
   "Dm7    / / / | G7    / /  / | C6     / Ebdim7 / | Dm7    /  G7 /")))
 
+(def autumn-leaves (score (str
+  "Am7    / / / | D7    / / / | Gmaj7  /  /  / | Cmaj7  /  /  / "
+  "F#m7-5 / / / | B7    / / / | Em     /  /  / | Em     /  /  / "
+  "Am7    / / / | D7    / / / | Gmaj7  /  /  / | Cmaj7  /  /  / "
+  "F#m7-5 / / / | B7    / / / | Em     /  /  / | Em     /  /  / "
+  "F#m7-5 / / / | B7    / / / | Em     /  /  / | Em     /  /  / "
+  "Am7    / / / | D7    / / / | Gmaj7  /  /  / | Gmaj7  /  /  / "
+  "F#m7-5 / / / | B11-9 / / / | Em7    /  A7 / | Dm7    /  G7 / "
+  "F#m7-5 / / / | B11-9 / / / | Em     /  /  / | Em     /  /  / ")))
+
+(def all-by-myself (score (str
+  "Cmaj7  / / /    | C6    / / /   | D7     /  /  /      | Am7   /  D7 / "
+  "G7     / / /    | Dm7   / G7 /  | Em7   /  A7  /      | Dm    /  G7 / "
+  "Cmaj7  / / /    | C6    / / /   | F#m7  /   B7  /     | E7    /  /  / "
+  "Am7   / Am7-5 / | D7    / / /   | Dm7     /  Dm7-5  / | G7    /  /  / "
+  "Cmaj7  / / /    | C6    / / /   | D7     /  /  /      | Am7   /  D7 / "
+  "G7     / / /    | Dm7   / G7 /  | E7   /  E7+5  /     | E7    /  /  / "
+  "Fmaj7  / / /    | F#dim7 / / /  | Cmaj7  / B7+5 /     | Em7-5 /  A7 / "
+  "Am7   / D7 /    | Dm7    / G7 / | C6    /  Am7  /     | Dm7   /  G7 / ")))
+
+(def in-a-sentimental-mood (score (str
+  "Dm     / Dmmaj7 / | Dm7  / Dm6  /  | Gm   /  Gmmaj7 /  | Gm7   /  Gm6 A7 "
+  "Dm     / / /      | D7   / / /     | Gm7   /  Gb7  /   | Fmaj7 /  /  / "
+  "Dm     / Dmmaj7 / | Dm7  / Dm6  /  | Gm   /  Gmmaj7 /  | Gm7   /  Gm6 A7 "
+  "Dm     / / /      | D7   / / /     | Gm7   /  Gb7  /   | Fmaj7 /  Ebm7 Ab7 "
+  "Dbmaj7  / Bbm7 /  | Ebm7  / Ab7  / | Dbmaj7 /  Bb7 /   | Eb7   /  Ab7 / "
+  "Dbmaj7  / Bbm7 /  | Ebm7  / Ab7  / | Gm7   /  / /      | C7    /  / / "
+  "Dm     / Dmmaj7 / | Dm7  / Dm6  /  | Gm   /  Gmmaj7 /  | Gm7   /  Gm6 A7 "
+  "Dm     / / /      | D7   / / /     | Gm7   /  C11-9  / | Fmaj7 /  /  / "
+)))
+
 (def let-it-be (score (str
   "C  / / / | G  / / / | Am  / /  / | F  /  /  / "
   "C  / / / | G  / / / | F   / /  / | C  /  /  / "
@@ -192,7 +226,12 @@
   "C  / / / | G  / / / | F   / /  / | C  /  /  / ")))
 
 (defn -main [& args]
+   (repeatedly
+      (play-song in-a-sentimental-mood {:bpm 62}))
+;   (play-song all-by-myself {:bpm 120})
+;   (play-song autumn-leaves {:bpm 100})
 ;   (play-song all-of-me {:bpm 100})
-   (play-song all-the-things-you-are {:instr 26})
-   (play-song let-it-be {:instr 20}))
+;   (play-song all-the-things-you-are {:instr 26})
+;   (play-song let-it-be {:instr 20})
+)
 
