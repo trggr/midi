@@ -1,3 +1,5 @@
+(ns midi.core)
+
 (def meta-message-type {
        0x03 :track-name
        0x04 :instrument-name
@@ -34,9 +36,12 @@
    (for [i (range start end)]
       (nth b i)))
 
-(def midifile (java.io.File. "FALL_01.MID"))
+(def midifile (java.io.File. "days12.mid"))
 (def sq (javax.sound.midi.MidiSystem/getSequence midifile))
 (def tracks (.getTracks sq))
+
+(defn ascii [n]
+   (if (<= 0 n 255) (char n) \?))
 
 (defn message-data [m]
    (cond (instance? javax.sound.midi.MetaMessage m)
@@ -47,13 +52,14 @@
                  :ty    (keyword (format "%02X" ty)),
                  :msg   (meta-message-type ty),
                  :data  data
-                 :txt   (apply str (map char data))})
+                 :txt   (apply str (map ascii data))})
          (instance? javax.sound.midi.ShortMessage m)
                 {:event :short,
                  :ch  (.getChannel m),
                  :cmd (short-message-status (.getCommand m))
-                 :d1  (keyword (format "%02X" (.getData1 m))),
-                 :d2  (keyword (format "%02X" (.getData2 m)))}
+                 :d1  (.getData1 m) ; (keyword (format "%02X" (.getData1 m))),
+                 :d2  (.getData1 m) ; (keyword (format "%02X" (.getData2 m)))
+                }
          (instance? javax.sound.midi.ShortMessage m)
                 {:event :sysex}
          :else
@@ -68,38 +74,102 @@
             (message-data msg))))
 
 (defn get-events [track]
-   (let [len (.size track)]
-     (map #(.get track %) (range len))))
+     (map #(.get track %) (range (.size track))))
 
 (defn de-uglify [xs]  
    (println (clojure.string/join \newline
                 (for [row xs]
                     (clojure.string/join \tab row)))))
 
+(def deu de-uglify)
+
 (defn track-info [track]
    (mapv event-info (get-events track)))
 
-;(println "Track1")
-;(de-uglify (-> (.getTracks sq) first  track-info))
-;(println "Track2")
-;(de-uglify (-> (.getTracks sq) second track-info))
-;
-;(println "Track3")
-;(de-uglify (-> (.getTracks sq) (nth 2) track-info))
-; (de-uglify (map (juxt :tick :status :len :event :ty :msg :cmd :txt :d1 :d2) y))
-; (def db {:tracks (mapv track-info (take 1 (.getTracks sq)))})
-;(def db (let [tracks (.getTracks sq)]
-;           (for [i (range (count tracks))]
-;              [i (track-info (nth tracks i))])))
+;; DB structure
+; {:division-ty :mseclen :ticklen :ntracks
+; :track0 :track1 :track2 . . . :track9)
 
-(def db {:ticklen     (.getTickLength sq)
-         :mseclen     (.getMicrosecondLength sq)
-         :division-ty (.getDivisionType sq)})
+(def db {:ticklen  (.getTickLength sq)
+         :mseclen  (.getMicrosecondLength sq)
+         :divty    (.getDivisionType sq)
+         :ntracks  (count tracks)})
 
 (def db (reduce (fn [acc [k v]] (assoc acc k v))
                 db
                 (map-indexed #(vector (keyword (str "track" %1))
-                                      (track-info %2))
-                             (.getTracks sq))))
+                                      (track-info %2)) tracks)))
+
+(def db (assoc db :tracks (map track-info tracks)))
+
+
+(def trackdb (->> (db :tracks) flatten))
+
+(def tape (concat (->> (filter #(= :note-on (:cmd %)) trackdb)
+                       (map (juxt :tick :ch :d1 :d2)))
+                  (->> (filter #(= :note-off (:cmd %)) trackdb)
+                       (map (juxt :tick :ch :d1 (constantly 0))))))
+
+;                 (filter #(= :note-off (:cmd %)) trackdb)
+;
+;(->> (db :tracks)
+;               flatten
+;               (filter #(= :note-on (:cmd %)))
+;               (map (juxt :tick :ch :cmd :d1 :d2))
+;
+;
+;))
+
+;(doseq [time (sort (set (map first tape)))]
+;   (filter #(= (first %) time)
+;   (let [[t1 t2 t3 t4 t5 t6 t7 t8 t9 t10 t11] 
+
+(def tape2 (->> tape (group-by first) (sort-by first)))
+
+(defn note-player [instr]
+   (let [synth    (javax.sound.midi.MidiSystem/getSynthesizer)
+         _        (.open synth)
+         channels (-> synth .getChannels)
+         i        (-> synth .getDefaultSoundbank .getInstruments (nth instr))]
+      (println "Playing" (.getName i))
+      (.loadInstrument synth i)
+;      (.programChange c instr)
+      (fn [c note vol]
+         (let [ch (nth channels c)]
+            (.noteOn ch note vol)))))
+
+
+(defn play [tape]
+   (let [play-note (note-player 1)]
+      (doseq [[tc notes] tape]
+         (Thread/sleep (* tc 10))
+         (println "Sleep" tc (map (fn [[_ ch note vel]] [ch note vel]) notes))
+         (doseq [[_ ch note vel] notes]
+            (play-note ch note vel)))))
+
+;       
+;      (play-timecode notes)))
+
+(sort-by first (group-by first tape)
+
+(sort-by first tape)
+
+; midi.core=> (de-uglify (take 20 (sort-by first tape)))
+; 360	0	:note-on	:48	:7D
+; 360	1	:note-on	:48	:7D
+; 360	2	:note-on	:48	:7D
+; 419	0	:note-on	:48	:00
+; 419	1	:note-on	:48	:00
+; 419	2	:note-on	:48	:00
+
+(map (juxt :tick :cmd :d1 :d2) (filter #(contains? #{:note-on :note-off} (:cmd %)) (db :track1)))
+
+(def y
+       (loop [prior 0, acc [], xs tape2]
+           (if-not (seq xs)
+              acc
+              (let [[tc notes] (first xs)]
+                  (recur tc (conj acc [(- tc prior) notes]) (rest xs))))))
+
 
 
