@@ -32,6 +32,13 @@
        0xD0 :channel-pressure
        0xE0 :pitch-bend})
 
+(def division-type {
+       javax.sound.midi.Sequence/PPQ          "PPQ"
+       javax.sound.midi.Sequence/SMPTE_24     "SMPTE_24"
+       javax.sound.midi.Sequence/SMPTE_25     "SMPTE_25"
+       javax.sound.midi.Sequence/SMPTE_30DROP "SMPTE_30DROP"
+       javax.sound.midi.Sequence/SMPTE_30     "SMPTE_30"})
+
 (defn slice [b start end]
    (for [i (range start end)]
       (nth b i)))
@@ -52,7 +59,7 @@
                 {:event :meta,
                  :ty    (keyword (format "%02X" ty)),
                  :msg   (meta-message-type ty),
-                 :data  data
+                 :data  (map #(keyword (format "%02X" %)) data)
                  :txt   (apply str (map ascii data))})
          (instance? javax.sound.midi.ShortMessage m)
                 {:event :short,
@@ -112,11 +119,22 @@
 ; {:division-ty :mseclen :ticklen :ntracks
 ; :track0 :track1 :track2 . . . :track9)
 
-(def db {:ticklen (.getTickLength sq)
-         :mseclen (.getMicrosecondLength sq)
-         :divty   (.getDivisionType sq)
-         :ntracks (count tracks)
-         :tracks  (map track-info tracks)})
+;BPM                = 60,000,000/MicroTempo
+;MicrosPerPPQN      = MicroTempo/TimeBase
+;MicrosPerMIDIClock = MicroTempo/24
+;PPQNPerMIDIClock   = TimeBase/24
+;MicrosPerSubFrame  = 1000000 * Frames * SubFrames
+;SubFramesPerQuarterNote = MicroTempo/(Frames * SubFrames)
+;SubFramesPerPPQN = SubFramesPerQuarterNote/TimeBase
+;MicrosPerPPQN    = SubFramesPerPPQN * Frames * SubFrames 
+
+
+(def db {:ticklen  (.getTickLength sq)
+         :mseclen  (.getMicrosecondLength sq)
+         :divty    (.getDivisionType sq)
+         :division (division-type (.getDivisionType sq))
+         :ntracks  (count tracks)
+         :tracks   (map track-info tracks)})
 
 ;(def db (reduce (fn [acc [k v]] (assoc acc k v))
 ;                db
