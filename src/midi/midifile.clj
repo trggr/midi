@@ -43,8 +43,11 @@
    (for [i (range start end)]
       (nth b i)))
 
-;; (def midifile (java.io.File. "days12.mid"))
-(def midifile (java.io.File. "chesnuts.mid"))
+; (def midifile (java.io.File. "days12.mid"))
+; (def midifile (java.io.File. "chesnuts.mid"))
+; (def midifile (java.io.File. "alliwant.mid"))
+(def midifile (java.io.File. "bohemian.mid"))
+
 (def sq (javax.sound.midi.MidiSystem/getSequence midifile))
 (def tracks (.getTracks sq))
 
@@ -126,7 +129,6 @@
 ;SubFramesPerPPQN = SubFramesPerQuarterNote/TimeBase
 ;MicrosPerPPQN    = SubFramesPerPPQN * Frames * SubFrames 
 
-
 (def db (let [nticks         (.getTickLength sq)                  ; duration of sequence in MIDI ticks
               nmcseconds     (.getMicrosecondLength sq)           ; duration of sequence in microseconds
               tick-duration  (/ (double nmcseconds) nticks 1000)] ; each tick in milliseconds
@@ -137,20 +139,6 @@
            :division-nm   (division-type (.getDivisionType sq))
            :ntracks       (count tracks)
            :tracks        (map track-info tracks)}))
-
-;{:nticks        (.getTickLength sq)           ; Duration of this sequence, expressed in MIDI ticks.
-;         :nmicroseconds (.getMicrosecondLength sq)    ; Duration of this sequence, expressed in microseconds.
-;         :division-cd   (.getDivisionType sq)
-;         :division-nm   (division-type (.getDivisionType sq))
-;         :ntracks       (count tracks)
-;         :tracks        (map track-info tracks)})
-;
-;(def tickduration-in-milliseconds  (/ (double (db :nmicroseconds)) (db :nticks) 1000))
-
-;(def db (reduce (fn [acc [k v]] (assoc acc k v))
-;                db
-;                (map-indexed #(vector (keyword (str "track" %1))
-;                                      (track-info %2)) tracks)))
 
 (def tape
    (let [ts    (->> (db :tracks) flatten)
@@ -167,23 +155,6 @@
                       (recur tc (conj acc [(* dur (- tc prior)) notes]) (rest xs)))))))
 
 (def db2 (dissoc db :tracks))
-
-; midi.core=> (de-uglify (take 20 (sort-by first tape)))
-; 360	0	:note-on	:48	:7D
-; 360	1	:note-on	:48	:7D
-; 360	2	:note-on	:48	:7D
-; 419	0	:note-on	:48	:00
-; 419	1	:note-on	:48	:00
-; 419	2	:note-on	:48	:00
-;
-;(map (juxt :tick :cmd :d1 :d2) (filter #(contains? #{:note-on :note-off} (:cmd %)) (db :track1)))
-
-;(def y
-;       (loop [prior 0, acc [], xs tape2]
-;           (if-not (seq xs)
-;              acc
-;              (let [[tc notes] (first xs)]
-;                  (recur tc (conj acc [(- tc prior) notes]) (rest xs))))))
 
 (in-ns 'midi.core)
 
