@@ -66,7 +66,7 @@
                  :ch  (.getChannel m),
                  :cmd (short-message-status (.getCommand m))
                  :d1  (.getData1 m) ; (keyword (format "%02X" (.getData1 m))),
-                 :d2  (.getData1 m) ; (keyword (format "%02X" (.getData2 m)))
+                 :d2  (.getData2 m) ; (keyword (format "%02X" (.getData2 m)))
                 }
          (instance? javax.sound.midi.ShortMessage m)
                 {:event :sysex}
@@ -110,14 +110,12 @@
 (defn play [tape]
    (let [play-note (note-player 1)]
       (doseq [[tc notes] tape]
-         (Thread/sleep (* tc 10))
-         (println "Sleep" tc (map (fn [[_ ch note vel]] [ch note vel]) notes))
+         (Thread/sleep tc)
+         (print tc)
          (doseq [[_ ch note vel] notes]
-            (play-note ch note vel)))))
-
-;; DB structure
-; {:division-ty :mseclen :ticklen :ntracks
-; :track0 :track1 :track2 . . . :track9)
+            (print " " ch note vel)
+            (play-note ch note vel))
+         (println))))
 
 ;BPM                = 60,000,000/MicroTempo
 ;MicrosPerPPQN      = MicroTempo/TimeBase
@@ -129,12 +127,25 @@
 ;MicrosPerPPQN    = SubFramesPerPPQN * Frames * SubFrames 
 
 
-(def db {:ticklen  (.getTickLength sq)
-         :mseclen  (.getMicrosecondLength sq)
-         :divty    (.getDivisionType sq)
-         :division (division-type (.getDivisionType sq))
-         :ntracks  (count tracks)
-         :tracks   (map track-info tracks)})
+(def db (let [nticks         (.getTickLength sq)                  ; duration of sequence in MIDI ticks
+              nmcseconds     (.getMicrosecondLength sq)           ; duration of sequence in microseconds
+              tick-duration  (/ (double nmcseconds) nticks 1000)] ; each tick in milliseconds
+          {:nticks  nticks,
+           :nmicroseconds nmcseconds,
+           :tick-duration tick-duration
+           :division-cd   (.getDivisionType sq)
+           :division-nm   (division-type (.getDivisionType sq))
+           :ntracks       (count tracks)
+           :tracks        (map track-info tracks)}))
+
+;{:nticks        (.getTickLength sq)           ; Duration of this sequence, expressed in MIDI ticks.
+;         :nmicroseconds (.getMicrosecondLength sq)    ; Duration of this sequence, expressed in microseconds.
+;         :division-cd   (.getDivisionType sq)
+;         :division-nm   (division-type (.getDivisionType sq))
+;         :ntracks       (count tracks)
+;         :tracks        (map track-info tracks)})
+;
+;(def tickduration-in-milliseconds  (/ (double (db :nmicroseconds)) (db :nticks) 1000))
 
 ;(def db (reduce (fn [acc [k v]] (assoc acc k v))
 ;                db
@@ -147,21 +158,15 @@
                             (map (juxt :tick :ch :d1 :d2)))
                        (->> (filter #(= :note-off (:cmd %)) ts)
                             (map (juxt :tick :ch :d1 (constantly 0)))))
-         tape2 (->> tape (group-by first) (sort-by first))]
+         tape2 (->> tape (group-by first) (sort-by first))
+         dur   (db :tick-duration)]
            (loop [prior 0, acc [], xs tape2]
                (if-not (seq xs)
                   acc
                   (let [[tc notes] (first xs)]
-                      (recur tc (conj acc [(- tc prior) notes]) (rest xs)))))))
+                      (recur tc (conj acc [(* dur (- tc prior)) notes]) (rest xs)))))))
 
-
-
-;       
-;      (play-timecode notes)))
-;
-;(sort-by first (group-by first tape)
-;
-;(sort-by first tape)
+(def db2 (dissoc db :tracks))
 
 ; midi.core=> (de-uglify (take 20 (sort-by first tape)))
 ; 360	0	:note-on	:48	:7D
