@@ -172,8 +172,6 @@
                   (let [[tc notes] (first xs)]
                       (recur tc (conj acc [(* dur (- tc prior)) notes]) (rest xs)))))))
 
-(def db2 (dissoc db :tracks))
-
 (in-ns 'midi.core)
 
 
@@ -181,4 +179,28 @@
 ;; PPQ = 96?
 
 ; (filter #(= :set-tempo (get % :msg)) (-> db :tracks first))
+
+(def bpms (filter #(= :set-tempo (get % :msg)) (-> db :tracks first)))
+
+(def bpms (->> db
+               :tracks
+               first
+               (filter #(= :set-tempo (get % :msg)))
+               (mapv (juxt :tick :val))))
+
+(def last-real-tick (->> db :tracks flatten (filter #(contains? #{:note-on :note-off} (:cmd %))) (map :tick) (reduce max)))
+(def bpms (conj bpms [last-real-tick 0]))
+
+(defn weighted-bpm [acc [[pt pb] & xs]]
+   (if-not (seq xs)
+      acc
+      (let [[t b] (first xs)]
+         (recur (+ acc (* pb (- t pt)))
+                xs))))
+
+(def db (assoc db :ppq (/ (get db :dur-in-microseconds) (weighted-bpm 0.0 bpms))))
+
+(def db2 (dissoc db :tracks))
+
+
 
