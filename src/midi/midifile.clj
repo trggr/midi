@@ -48,9 +48,10 @@
       (nth b i)))
 
 ; (def midifile (java.io.File. "days12.mid"))
-; (def midifile (java.io.File. "chesnuts.mid"))
+(def midifile (java.io.File. "chesnuts.mid"))
 ; (def midifile (java.io.File. "alliwant.mid"))
-(def midifile (java.io.File. "bohemian.mid"))
+; (def midifile (java.io.File. "bohemian.mid"))
+; (def midifile (java.io.File. "nocturne_e_flat.mid"))
 
 (def sq (javax.sound.midi.MidiSystem/getSequence midifile))
 (def tracks (.getTracks sq))
@@ -169,7 +170,8 @@
          tempos (->> (filter #(contains? #{:set-tempo :time-signature} (:msg %)) ts) (map (juxt :tick :msg :val)))
          _      (println (deu (take 20 tempos)))
          tape2  (sort-by (juxt first second) (concat tempos notes))]
-         _      (println (deu (take 20 tape2)))
+           (def debug tape2)
+           (println (deu (take 20 tape2)))
            (loop [prior 0, ppq 96, bpm 120, acc [], xs tape2]
                (if-not (seq xs)
                   acc
@@ -177,7 +179,7 @@
                       (cond (= :set-tempo cmd)
                                 (recur tc ppq val acc others)
                             (= :time-signature cmd)
-                                (recur tc (* (nth val 1) (nth val 1) (nth val 2)) bpm acc others)
+                                (recur tc (* (Math/pow 2 (nth val 1)) (nth val 2)) bpm acc others)
                             :else
                                 (recur tc ppq bpm (conj acc [(/ (* 60000. (- tc prior)) bpm ppq) val]) others)))))))
 
@@ -187,4 +189,7 @@
 (play (take 20 tape))
 
 (in-ns 'midi.core)
+
+(defn view [coll t d]
+   (deu (take t (drop d coll))))
 
