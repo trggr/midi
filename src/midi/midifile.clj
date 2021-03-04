@@ -1,16 +1,35 @@
 (ns midi.core)
 
+(defn ascii [n]
+   (if (<= 0 n 255) (char n) \?))
+
 (def meta-message-type {
-       0x03 :track-name
-       0x04 :instrument-name
-       0x05 :lyrics
-       0x06 :marker
-       0x20 :channel-prefix
-       0x2F :end-of-track
-       0x51 :set-tempo
-       0x54 :smpte-offset
-       0x58 :time-signature
-       0x59 :key-signature})
+       0x03 [:track-name       #(apply str (map ascii %))]
+       0x04 [:instrument-name  #(apply str (map ascii %))]
+       0x05 [:lyrics           #(apply str (map ascii %))]
+       0x06 [:marker           #(apply str (map ascii %))]
+       0x20 [:channel-prefix   #(apply str (map ascii %))]
+       0x2F [:end-of-track     #(apply str (map ascii %))]
+       0x51 [:set-tempo        (fn [[a b c]] (/ 60000000. (+ (* a 65536) (* b 256) c)))] ; convert to BPM
+       0x54 [:smpte-offset     #(apply str (map ascii %))]
+       0x58 [:time-signature   #(apply str (map ascii %))]
+       0x59 [:key-signature    #(apply str (map ascii %))]})
+
+(defn identity1 [x]
+    (println x)
+    x)
+
+;(def meta-message-type {
+;       0x03 [:track-name       identity1]
+;       0x04 [:instrument-name  identity1]
+;       0x05 [:lyrics           identity1]
+;       0x06 [:marker           identity1]
+;       0x20 [:channel-prefix   identity1]
+;       0x2F [:end-of-track     identity1]
+;       0x51 [:set-tempo        identity1]
+;       0x54 [:smpte-offset     identity1]
+;       0x58 [:time-signature   identity1]
+;       0x59 [:key-signature    identity1]})
 
 (def short-message-status {
        0xF1 :midi-time-code
@@ -51,19 +70,18 @@
 (def sq (javax.sound.midi.MidiSystem/getSequence midifile))
 (def tracks (.getTracks sq))
 
-(defn ascii [n]
-   (if (<= 0 n 255) (char n) \?))
-
 (defn message-data [m]
    (cond (instance? javax.sound.midi.MetaMessage m)
-             (let [d    (.getData m)
-                   ty   (.getType m)
-                   data (slice d 0 (count d))]
+             (let [d       (.getData m)
+                   ty      (.getType m)
+                   [msg f] (meta-message-type ty)
+                   data    (slice d 0 (count d))]
+;                  (println "message-data:" data f)
                 {:event :meta,
-                 :ty    (keyword (format "%02X" ty)),
-                 :msg   (meta-message-type ty),
+                 :ty    ty,
+                 :msg   msg,
                  :data  (map #(keyword (format "%02X" %)) data)
-                 :txt   (apply str (map ascii data))})
+                 :val   (when-not (nil? f) (f data))})
          (instance? javax.sound.midi.ShortMessage m)
                 {:event :short,
                  :ch  (.getChannel m),
@@ -132,13 +150,13 @@
 (def db (let [nticks         (.getTickLength sq)                  ; duration of sequence in MIDI ticks
               nmcseconds     (.getMicrosecondLength sq)           ; duration of sequence in microseconds
               tick-duration  (/ (double nmcseconds) nticks 1000)] ; each tick in milliseconds
-          {:nticks  nticks,
-           :nmicroseconds nmcseconds,
-           :tick-duration tick-duration
-           :division-cd   (.getDivisionType sq)
-           :division-nm   (division-type (.getDivisionType sq))
-           :ntracks       (count tracks)
-           :tracks        (map track-info tracks)}))
+          {:dur-in-ticks             nticks,
+           :dur-in-microseconds      nmcseconds,
+           :tick-dur-in-milliseconds tick-duration
+           :division-cd              (.getDivisionType sq)
+           :division-nm              (division-type (.getDivisionType sq))
+           :ntracks                  (count tracks)
+           :tracks                   (map track-info tracks)}))
 
 (def tape
    (let [ts    (->> (db :tracks) flatten)
@@ -147,7 +165,7 @@
                        (->> (filter #(= :note-off (:cmd %)) ts)
                             (map (juxt :tick :ch :d1 (constantly 0)))))
          tape2 (->> tape (group-by first) (sort-by first))
-         dur   (db :tick-duration)]
+         dur   (db :tick-dur-in-milliseconds)]
            (loop [prior 0, acc [], xs tape2]
                (if-not (seq xs)
                   acc
@@ -158,4 +176,9 @@
 
 (in-ns 'midi.core)
 
+
+;; The formula is 60000 / (BPM * PPQ) (milliseconds).
+;; PPQ = 96?
+
+; (filter #(= :set-tempo (get % :msg)) (-> db :tracks first))
 
