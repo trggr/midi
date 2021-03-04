@@ -138,15 +138,6 @@
             (play-note ch note vel))
          (println))))
 
-;BPM                = 60,000,000/MicroTempo
-;MicrosPerPPQN      = MicroTempo/TimeBase
-;MicrosPerMIDIClock = MicroTempo/24
-;PPQNPerMIDIClock   = TimeBase/24
-;MicrosPerSubFrame  = 1000000 * Frames * SubFrames
-;SubFramesPerQuarterNote = MicroTempo/(Frames * SubFrames)
-;SubFramesPerPPQN = SubFramesPerQuarterNote/TimeBase
-;MicrosPerPPQN    = SubFramesPerPPQN * Frames * SubFrames 
-
 (def db (let [nticks         (.getTickLength sq)                  ; duration of sequence in MIDI ticks
               nmcseconds     (.getMicrosecondLength sq)           ; duration of sequence in microseconds
               tick-duration  (/ (double nmcseconds) nticks 1000)] ; each tick in milliseconds
@@ -158,29 +149,9 @@
            :ntracks                  (count tracks)
            :tracks                   (map track-info tracks)}))
 
-(def tape
-   (let [ts    (->> (db :tracks) flatten)
-         tape  (concat (->> (filter #(= :note-on (:cmd %)) ts)
-                            (map (juxt :tick :ch :d1 :d2)))
-                       (->> (filter #(= :note-off (:cmd %)) ts)
-                            (map (juxt :tick :ch :d1 (constantly 0)))))
-         tape2 (->> tape (group-by first) (sort-by first))
-         dur   (db :tick-dur-in-milliseconds)]
-           (loop [prior 0, acc [], xs tape2]
-               (if-not (seq xs)
-                  acc
-                  (let [[tc notes] (first xs)]
-                      (recur tc (conj acc [(* dur (- tc prior)) notes]) (rest xs)))))))
-
-(in-ns 'midi.core)
-
 
 ;; The formula is 60000 / (BPM * PPQ) (milliseconds).
 ;; PPQ = 96?
-
-; (filter #(= :set-tempo (get % :msg)) (-> db :tracks first))
-
-(def bpms (filter #(= :set-tempo (get % :msg)) (-> db :tracks first)))
 
 (def bpms (->> db
                :tracks
@@ -201,6 +172,29 @@
 (def db (assoc db :ppq (/ (get db :dur-in-microseconds) (weighted-bpm 0.0 bpms))))
 
 (def db2 (dissoc db :tracks))
+
+(def tape
+   (let [ts     (->> (db :tracks) flatten)
+         t1     (concat (->> (filter #(= :note-on (:cmd %))  ts) (map (juxt :tick :ch :d1 :d2)))
+                        (->> (filter #(= :note-off (:cmd %)) ts) (map (juxt :tick :ch :d1 (constantly 0)))))
+         t2     (->> t1 (group-by first) (map (fn [[t n]] [t :data n])))
+;         _      (println (deu (take 20 t2)))
+         tempos (->> (filter #(= :set-tempo (:msg %)) ts) (map (juxt :tick :msg :val)))
+;         _      (println (deu (take 20 tempos)))
+         tape2  (sort-by (juxt first second) (concat tempos t2))
+         c1      (/ 60000. (db :ppq))]
+;         _      (println (deu (take 20 tape)))
+;         dur   (db :tick-dur-in-milliseconds)]
+           (loop [prior 0, tempo 0, acc [], xs tape2]
+               (if-not (seq xs)
+                  acc
+                  (let [[[tc cmd val] & others] xs]
+                      (if (= :set-tempo cmd)
+                          (recur tc (/ c1 val) acc                                     others)
+                          (recur tc tempo      (conj acc [(* tempo (- tc prior)) val]) others)))))))
+
+
+(in-ns 'midi.core)
 
 
 
