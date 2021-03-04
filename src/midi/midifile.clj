@@ -11,25 +11,10 @@
        0x20 [:channel-prefix   #(apply str (map ascii %))]
        0x2F [:end-of-track     #(apply str (map ascii %))]
        0x51 [:set-tempo        (fn [[a b c]] (/ 60000000. (+ (* a 65536) (* b 256) c)))] ; convert to BPM
+;       0x51 [:set-tempo        (fn [[a b c]] (+ (* a 65536) (* b 256) c))] ; convert to BPM
        0x54 [:smpte-offset     #(apply str (map ascii %))]
-       0x58 [:time-signature   #(apply str (map ascii %))]
+       0x58 [:time-signature   (fn [[nn dd ppq bb]] [nn dd ppq bb])]
        0x59 [:key-signature    #(apply str (map ascii %))]})
-
-(defn identity1 [x]
-    (println x)
-    x)
-
-;(def meta-message-type {
-;       0x03 [:track-name       identity1]
-;       0x04 [:instrument-name  identity1]
-;       0x05 [:lyrics           identity1]
-;       0x06 [:marker           identity1]
-;       0x20 [:channel-prefix   identity1]
-;       0x2F [:end-of-track     identity1]
-;       0x51 [:set-tempo        identity1]
-;       0x54 [:smpte-offset     identity1]
-;       0x58 [:time-signature   identity1]
-;       0x59 [:key-signature    identity1]})
 
 (def short-message-status {
        0xF1 :midi-time-code
@@ -133,8 +118,8 @@
       (doseq [[tc notes] tape]
          (Thread/sleep tc)
          (print tc)
-         (doseq [[_ ch note vel] notes]
-            (print " " ch note vel)
+         (doseq [[tick ch note vel] notes]
+            (print " " tick ch note vel)
             (play-note ch note vel))
          (println))))
 
@@ -169,32 +154,37 @@
          (recur (+ acc (* pb (- t pt)))
                 xs))))
 
-(def db (assoc db :ppq (/ (get db :dur-in-microseconds) (weighted-bpm 0.0 bpms))))
+; (def db (assoc db :ppq (/ (get db :dur-in-microseconds) (weighted-bpm 0.0 bpms))))
+
+(def db (assoc db :ppq 96)) ; (/ (get db :dur-in-microseconds) (weighted-bpm 0.0 bpms))))
 
 (def db2 (dissoc db :tracks))
 
-(def tape
+(defn make-tape [db]
    (let [ts     (->> (db :tracks) flatten)
          t1     (concat (->> (filter #(= :note-on (:cmd %))  ts) (map (juxt :tick :ch :d1 :d2)))
                         (->> (filter #(= :note-off (:cmd %)) ts) (map (juxt :tick :ch :d1 (constantly 0)))))
-         t2     (->> t1 (group-by first) (map (fn [[t n]] [t :data n])))
-;         _      (println (deu (take 20 t2)))
-         tempos (->> (filter #(= :set-tempo (:msg %)) ts) (map (juxt :tick :msg :val)))
-;         _      (println (deu (take 20 tempos)))
-         tape2  (sort-by (juxt first second) (concat tempos t2))
-         c1      (/ 60000. (db :ppq))]
-;         _      (println (deu (take 20 tape)))
-;         dur   (db :tick-dur-in-milliseconds)]
-           (loop [prior 0, tempo 0, acc [], xs tape2]
+         notes  (->> t1 (group-by first) (map (fn [[t n]] [t :data n])))
+         _      (println (deu (take 20 notes)))
+         tempos (->> (filter #(contains? #{:set-tempo :time-signature} (:msg %)) ts) (map (juxt :tick :msg :val)))
+         _      (println (deu (take 20 tempos)))
+         tape2  (sort-by (juxt first second) (concat tempos notes))]
+         _      (println (deu (take 20 tape2)))
+           (loop [prior 0, ppq 96, bpm 120, acc [], xs tape2]
                (if-not (seq xs)
                   acc
                   (let [[[tc cmd val] & others] xs]
-                      (if (= :set-tempo cmd)
-                          (recur tc (/ c1 val) acc                                     others)
-                          (recur tc tempo      (conj acc [(* tempo (- tc prior)) val]) others)))))))
+                      (cond (= :set-tempo cmd)
+                                (recur tc ppq val acc others)
+                            (= :time-signature cmd)
+                                (recur tc (* (nth val 1) (nth val 1) (nth val 2)) bpm acc others)
+                            :else
+                                (recur tc ppq bpm (conj acc [(/ (* 60000. (- tc prior)) bpm ppq) val]) others)))))))
 
+(def tape (make-tape db))
+
+(deu (take 20 tape))
+(play (take 20 tape))
 
 (in-ns 'midi.core)
-
-
 
