@@ -10,8 +10,8 @@
        0x06 [:marker           #(apply str (map ascii %))]
        0x20 [:channel-prefix   #(apply str (map ascii %))]
        0x2F [:end-of-track     #(apply str (map ascii %))]
-       0x51 [:set-tempo        (fn [[a b c]] (/ 60000000. (+ (* a 65536) (* b 256) c)))] ; convert to BPM
-;       0x51 [:set-tempo        (fn [[a b c]] (+ (* a 65536) (* b 256) c))] ; convert to BPM
+;       0x51 [:set-tempo        (fn [[a b c]] (/ 60000000. (+ (* a 65536) (* b 256) c)))] ; convert to BPM
+       0x51 [:set-tempo        (fn [[a b c]] (+ (* a 65536) (* b 256) c))] ; microseconds per quarter note
        0x54 [:smpte-offset     #(apply str (map ascii %))]
        0x58 [:time-signature   (fn [[nn dd ppq bb]] [nn dd ppq bb])]
        0x59 [:key-signature    #(apply str (map ascii %))]})
@@ -47,14 +47,7 @@
    (for [i (range start end)]
       (nth b i)))
 
-; (def midifile (java.io.File. "days12.mid"))
-; (def midifile (java.io.File. "chesnuts.mid"))
-; (def midifile (java.io.File. "alliwant.mid"))
-(def midifile (java.io.File. "bohemian.mid"))
-; (def midifile (java.io.File. "nocturne_e_flat.mid"))
-
-(def sq (javax.sound.midi.MidiSystem/getSequence midifile))
-(def tracks (.getTracks sq))
+; (def tracks (.getTracks sq))
 
 (defn message-data [m]
    (cond (instance? javax.sound.midi.MetaMessage m)
@@ -118,90 +111,149 @@
    (let [play-note (note-player 1)]
       (doseq [[tc notes] tape]
          (Thread/sleep tc)
-         (print tc)
+;         (print tc)
          (doseq [[tick ch note vel] notes]
-            (print " " tick ch note vel)
+;            (print " " tick ch note vel)
             (play-note ch note vel))
-         (println))))
-
-(def db (let [nticks         (.getTickLength sq)                  ; duration of sequence in MIDI ticks
-              nmcseconds     (.getMicrosecondLength sq)           ; duration of sequence in microseconds
-              tick-duration  (/ (double nmcseconds) nticks 1000)] ; each tick in milliseconds
-          {:dur-in-ticks             nticks,
-           :dur-in-microseconds      nmcseconds,
-           :tick-dur-in-milliseconds tick-duration
-           :division-cd              (.getDivisionType sq)
-           :division-nm              (division-type (.getDivisionType sq))
-           :ntracks                  (count tracks)
-           :tracks                   (map track-info tracks)}))
+;         (println)
+       )))
 
 
-;; The formula is 60000 / (BPM * PPQ) (milliseconds).
 ;; PPQ = 96?
-
-(def bpms (->> db
-               :tracks
-               first
-               (filter #(= :set-tempo (get % :msg)))
-               (mapv (juxt :tick :val))))
-
-(def last-real-tick (->> db :tracks flatten (filter #(contains? #{:note-on :note-off} (:cmd %))) (map :tick) (reduce max)))
-(def bpms (conj bpms [last-real-tick 0]))
-
-(defn weighted-bpm [acc [[pt pb] & xs]]
-   (if-not (seq xs)
-      acc
-      (let [[t b] (first xs)]
-         (recur (+ acc (* pb (- t pt)))
-                xs))))
-
+;
+;(def bpms (->> db
+;               :tracks
+;               first
+;               (filter #(= :set-tempo (get % :msg)))
+;               (mapv (juxt :tick :val))))
+;
+;(def last-real-tick (->> db :tracks flatten (filter #(contains? #{:note-on :note-off} (:cmd %))) (map :tick) (reduce max)))
+;(def bpms (conj bpms [last-real-tick 0]))
+;(defn weighted-bpm [acc [[pt pb] & xs]]
+;   (if-not (seq xs)
+;      acc
+;      (let [[t b] (first xs)]
+;         (recur (+ acc (* pb (- t pt)))
+;                xs))))
 ; (def db (assoc db :ppq (/ (get db :dur-in-microseconds) (weighted-bpm 0.0 bpms))))
+; (def db (assoc db :ppq 96)) ; (/ (get db :dur-in-microseconds) (weighted-bpm 0.0 bpms))))
+; (def db2 (dissoc db :tracks))
 
-(def db (assoc db :ppq 96)) ; (/ (get db :dur-in-microseconds) (weighted-bpm 0.0 bpms))))
-
-(def db2 (dissoc db :tracks))
 
 (defn make-tape2 [db]
    (let [ts     (->> (db :tracks) flatten)
          t1     (concat (->> (filter #(= :note-on (:cmd %))  ts) (map (juxt :tick :ch :d1 :d2)))
                         (->> (filter #(= :note-off (:cmd %)) ts) (map (juxt :tick :ch :d1 (constantly 0)))))
          notes  (->> t1 (group-by first) (map (fn [[t n]] [t :data n])))
-         _      (println (deu (take 20 notes)))
+;         _      (println (deu (take 20 notes)))
          tempos (->> (filter #(contains? #{:set-tempo :time-signature} (:msg %)) ts) (map (juxt :tick :msg :val)))
-         _      (println (deu (take 20 tempos)))
+;         _      (println (deu (take 20 tempos)))
          tape2  (sort-by (juxt first second) (concat tempos notes))]
-           (def debug tape2)
-           (println (deu (take 20 tape2)))
+;           (println (deu (take 20 tape2)))
            tape2))
 
 (defn make-tape [tape2]
-   (loop [prior 0, ppq 96, bpm 120, acc [], xs tape2]
+   (loop [prior 0, ppq 0, tempo 0, acc [], xs tape2]
 ;       (println prior ppq bpm)
        (if-not (seq xs)
           acc
           (let [[[tc cmd val] & others] xs]
-;              (println tc cmd val)
+;             (println tc cmd val)
               (cond (= :set-tempo cmd)
-                        (recur tc ppq val acc others)
+                        (do
+                           (println "set-tempo" val)
+                           (recur tc   ppq  val acc others))
                     (= :time-signature cmd)
-                        (recur tc (* (Math/pow 2 (nth val 1)) (first val) (nth val 2)) bpm acc others)
+                        (let [x (* (Math/pow 2 (nth val 1)) (nth val 2))
+                              x (* x (if (= 2 (first val)) 2 1))
+                              _ (println "time-signature" x val)]
+                           (recur tc  x tempo acc others))
                     :else
-                        (let [x (- tc prior)
-                              x (* 60000.0 x)
-;                              _ (println "prior" prior "tc" tc "x" x "bpm" bpm "ppq" ppq)
-                              x (/ x bpm ppq)
-;                              _ (println x)
-                              ]
-                        (recur tc ppq bpm (conj acc [x val]) others)))))))
+                        (let [x (/   (* (- tc prior) tempo)    (* 1000 ppq))
+;  _ (println "prior" prior "tc" tc "x" x "tempo" tempo "ppq" ppq)
+                             ]
+                           (recur tc ppq                                      tempo  (conj acc [x val]) others)))))))
 
-(def tape2 (make-tape2 db))
-(def tape (make-tape tape2))
+(defn view
+  ([coll t d] (deu (take t (drop d coll))))
+  ([coll t]   (view coll t 0))
+  ([coll]     (view coll 40 0)))
 
-(deu (take 20 tape))
-(play tape)
 
-(in-ns 'midi.core)
+;(def db (let [nticks         (.getTickLength sq)                  ; duration of sequence in MIDI ticks
+;              nmcseconds     (.getMicrosecondLength sq)           ; duration of sequence in microseconds
+;              tick-duration  (/ (double nmcseconds) nticks 1000)  ; each tick in milliseconds
+;              tracks         (.getTracks sq)] 
+;          {:dur-in-ticks             nticks,
+;           :dur-in-microseconds      nmcseconds,
+;           :tick-dur-in-milliseconds tick-duration
+;           :division-cd              (.getDivisionType sq)
+;           :division-nm              (division-type (.getDivisionType sq))
+;           :ntracks                  (count tracks)
+;           :tracks                   (map track-info tracks)}))
 
-(defn view [coll t d]
-   (deu (take t (drop d coll))))
+(defn make-db [sq]
+  (let [nticks         (.getTickLength sq)                  ; duration of sequence in MIDI ticks
+        nmcseconds     (.getMicrosecondLength sq)           ; duration of sequence in microseconds
+        tick-duration  (/ (double nmcseconds) nticks 1000)  ; each tick in milliseconds
+        tracks         (.getTracks sq)] 
+    {:dur-in-ticks             nticks,
+     :dur-in-microseconds      nmcseconds,
+     :tick-dur-in-milliseconds tick-duration
+     :division-cd              (.getDivisionType sq)
+     :division-nm              (division-type (.getDivisionType sq))
+     :ntracks                  (count tracks)
+     :tracks                   (map track-info tracks)}))
+
+; (def midifile (java.io.File. "days12.mid"))
+; (def midifile (java.io.File. "chesnuts.mid"))
+; (def midifile (java.io.File. "alliwant.mid"))
+; (def midifile (java.io.File. "bohemian.mid"))
+; (def midifile (java.io.File. "nocturne_e_flat.mid"))
+;(def sq (javax.sound.midi.MidiSystem/getSequence midifile))
+;(view tape2)
+;(view tape)
+; (in-ns 'midi.core)
+
+
+(doseq [file [
+              ; "alliwant.mid" - SLOW
+              ; "nocturne_e_flat.mid" - SLOW
+              ; "days12.mid"   - OK
+              ; "chesnuts.mid" - OK
+              ; "bohemian.mid" - OK
+              "santa.mid"
+]]
+  (let [midi  (java.io.File. file)
+        sq    (javax.sound.midi.MidiSystem/getSequence midi)
+        db    (make-db sq)
+        tape2 (make-tape2 db)
+        tape  (make-tape (take 40 tape2))]
+     (def debug-midi  midi)
+     (def debug-sq    sq)
+     (def debug-db    db)
+     (def debug-tape2 tape2)
+     (def debug-tape  tape)
+     (println "Playing file" file)
+     (play tape)))
+
+;   (t - prior)   -- duration of a current note
+;   ppq           -- ticks in a quarter
+;   bpm           -- quarters a minute
+;
+;TEMPO - microseconds per quarter note. 
+;PPQ   - numer of ticks in quarter
+;
+;TEMPO 
+;----- - microseconds per tick
+;PPQ
+;
+;               TEMPO
+;(T - PRIOR) *  -----   - microseconds since last event
+;                PPQ
+;
+;
+;(T - PRIOR)     TEMPO
+;------------ *  -----   - milliseconds since last event
+;1000            PPQ
 
