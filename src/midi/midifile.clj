@@ -176,9 +176,11 @@
      :tracks                   (map track-info tracks)}))
 
 
-(doseq [p [["alliwant"  4]["nocturne"   4]["days12" 1] 
-           ["chesnuts"  2]["bohemian"   2]["santa"  4] 
-           ["sothisisx" 1]["wonderland" 1]]]
+(doseq [p [
+           ;["alliwant"  4]["nocturne"   4]["days12" 1] 
+           ["chesnuts"  1]["bohemian"   2]["santa"  4] 
+           ;["sothisisx" 1]["wonderland" 1]
+          ]]
   (let [[file correction] p
         mfile    (java.io.File. (str file ".mid"))
         _        (println "Playing file" file)
