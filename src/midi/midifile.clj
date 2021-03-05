@@ -48,9 +48,9 @@
       (nth b i)))
 
 ; (def midifile (java.io.File. "days12.mid"))
-(def midifile (java.io.File. "chesnuts.mid"))
+; (def midifile (java.io.File. "chesnuts.mid"))
 ; (def midifile (java.io.File. "alliwant.mid"))
-; (def midifile (java.io.File. "bohemian.mid"))
+(def midifile (java.io.File. "bohemian.mid"))
 ; (def midifile (java.io.File. "nocturne_e_flat.mid"))
 
 (def sq (javax.sound.midi.MidiSystem/getSequence midifile))
@@ -161,7 +161,7 @@
 
 (def db2 (dissoc db :tracks))
 
-(defn make-tape [db]
+(defn make-tape2 [db]
    (let [ts     (->> (db :tracks) flatten)
          t1     (concat (->> (filter #(= :note-on (:cmd %))  ts) (map (juxt :tick :ch :d1 :d2)))
                         (->> (filter #(= :note-off (:cmd %)) ts) (map (juxt :tick :ch :d1 (constantly 0)))))
@@ -172,21 +172,33 @@
          tape2  (sort-by (juxt first second) (concat tempos notes))]
            (def debug tape2)
            (println (deu (take 20 tape2)))
-           (loop [prior 0, ppq 96, bpm 120, acc [], xs tape2]
-               (if-not (seq xs)
-                  acc
-                  (let [[[tc cmd val] & others] xs]
-                      (cond (= :set-tempo cmd)
-                                (recur tc ppq val acc others)
-                            (= :time-signature cmd)
-                                (recur tc (* (Math/pow 2 (nth val 1)) (nth val 2)) bpm acc others)
-                            :else
-                                (recur tc ppq bpm (conj acc [(/ (* 60000. (- tc prior)) bpm ppq) val]) others)))))))
+           tape2))
 
-(def tape (make-tape db))
+(defn make-tape [tape2]
+   (loop [prior 0, ppq 96, bpm 120, acc [], xs tape2]
+;       (println prior ppq bpm)
+       (if-not (seq xs)
+          acc
+          (let [[[tc cmd val] & others] xs]
+;              (println tc cmd val)
+              (cond (= :set-tempo cmd)
+                        (recur tc ppq val acc others)
+                    (= :time-signature cmd)
+                        (recur tc (* (Math/pow 2 (nth val 1)) (first val) (nth val 2)) bpm acc others)
+                    :else
+                        (let [x (- tc prior)
+                              x (* 60000.0 x)
+;                              _ (println "prior" prior "tc" tc "x" x "bpm" bpm "ppq" ppq)
+                              x (/ x bpm ppq)
+;                              _ (println x)
+                              ]
+                        (recur tc ppq bpm (conj acc [x val]) others)))))))
+
+(def tape2 (make-tape2 db))
+(def tape (make-tape tape2))
 
 (deu (take 20 tape))
-(play (take 20 tape))
+(play tape)
 
 (in-ns 'midi.core)
 
