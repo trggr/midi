@@ -146,13 +146,13 @@
                         (->> (filter #(= :note-off (:cmd %)) ts) (map (juxt :tick :ch :d1 (constantly 0)))))
          notes  (->> t1 (group-by first) (map (fn [[t n]] [t :data n])))
 ;         _      (println (deu (take 20 notes)))
-         tempos (->> (filter #(contains? #{:set-tempo :time-signature} (:msg %)) ts) (map (juxt :tick :msg :val)))
+         tempos (->> (filter #(contains? #{:set-tempo :time-signature} (:msg %)) (first (db :tracks))) (map (juxt :tick :msg :val)))
 ;         _      (println (deu (take 20 tempos)))
          tape2  (sort-by (juxt first second) (concat tempos notes))]
 ;           (println (deu (take 20 tape2)))
            tape2))
 
-(defn make-tape [tape2]
+(defn make-tape [tape2 tempo-correction]
    (loop [prior 0, ppq 0, tempo 0, acc [], xs tape2]
 ;       (println prior ppq bpm)
        (if-not (seq xs)
@@ -165,8 +165,10 @@
                            (recur tc   ppq  val acc others))
                     (= :time-signature cmd)
                         (let [x (* (Math/pow 2 (nth val 1)) (nth val 2))
-                              x (* x (if (= 2 (first val)) 2 1))
-                              _ (println "time-signature" x val)]
+                              x (* x tempo-correction)
+;                              x (* x (if (= 2 (first val)) 2 1))
+                              _ (println "time-signature" x val)
+                              ]
                            (recur tc  x tempo acc others))
                     :else
                         (let [x (/   (* (- tc prior) tempo)    (* 1000 ppq))
@@ -216,25 +218,28 @@
 ; (in-ns 'midi.core)
 
 
-(doseq [file [
-              ; "alliwant.mid" - SLOW
-              ; "nocturne_e_flat.mid" - SLOW
-              ; "days12.mid"   - OK
-              ; "chesnuts.mid" - OK
-              ; "bohemian.mid" - OK
-              "santa.mid"
+(doseq [[file tempo-correction] [
+;                                 ["alliwant.mid"        4] 
+;                                 ["nocturne_e_flat.mid" 4] 
+;                                 ["days12.mid"          1] 
+;                                 ["chesnuts.mid"        2] 
+;                                 ["bohemian.mid"        2] 
+;                                 ["santa.mid"           4] 
+;                                 ["sothisisx.mid"       1] 
+                                 ["wonderland.mid"       1] 
+  ;                               ["silent.mid"          4] ; TOO MANY TIME CHANGES
 ]]
   (let [midi  (java.io.File. file)
+        _     (println "Playing file" file)
         sq    (javax.sound.midi.MidiSystem/getSequence midi)
         db    (make-db sq)
         tape2 (make-tape2 db)
-        tape  (make-tape (take 40 tape2))]
+        tape  (make-tape tape2 tempo-correction)]
      (def debug-midi  midi)
      (def debug-sq    sq)
      (def debug-db    db)
      (def debug-tape2 tape2)
      (def debug-tape  tape)
-     (println "Playing file" file)
      (play tape)))
 
 ;   (t - prior)   -- duration of a current note
