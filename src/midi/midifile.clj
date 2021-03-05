@@ -119,8 +119,6 @@
        )))
 
 
-;; PPQ = 96?
-;
 ;(def bpms (->> db
 ;               :tracks
 ;               first
@@ -139,26 +137,38 @@
 ; (def db (assoc db :ppq 96)) ; (/ (get db :dur-in-microseconds) (weighted-bpm 0.0 bpms))))
 ; (def db2 (dissoc db :tracks))
 
-
-(defn make-tape2 [db]
-   (let [ts     (->> (db :tracks) flatten)
+; Tick Tape format:
+;     Field       Type      Description
+;     --------------------------------------------------------------------------------------
+;  1: MIDI tick   integer   Gradually increasing throughout the tape. Treat it as a timecode
+;  2: event-type  keyword   One of :set-tempo, :time-signature, or :data
+;  3: data        varies    For :set-tempo is a single integer representing number of microseconds per quarter note
+;                           For :time-signature array of four matching to MIDI's time signature event
+;                           For :data - array of notes played during this MIDI tick
+;                              each note is [timecode, channel, note, velocity]. 
+; Example:
+;  [0	:set-tempo	434464
+;  [0	:time-signature	[4 2 24 8]
+;  [384	:data	        [[384 2 70 50]]
+;  [477	:data	        [[477 2 98 74]]
+;  [479	:data	        [[479 2 101 78]]
+;  [480	:data	        [[480 8 89 61] [480 8 86 55]]
+;  [489	:data	        [[489 8 86 0] [489 8 89 0]]
+;  [492	:data	        [[492 8 89 60] [492 8 86 63]]
+(defn make-ticktape [midi]
+   (let [ts     (->> (midi :tracks) flatten)
          t1     (concat (->> (filter #(= :note-on (:cmd %))  ts) (map (juxt :tick :ch :d1 :d2)))
                         (->> (filter #(= :note-off (:cmd %)) ts) (map (juxt :tick :ch :d1 (constantly 0)))))
          notes  (->> t1 (group-by first) (map (fn [[t n]] [t :data n])))
-;         _      (println (deu (take 20 notes)))
-         tempos (->> (filter #(contains? #{:set-tempo :time-signature} (:msg %)) (first (db :tracks))) (map (juxt :tick :msg :val)))
-;         _      (println (deu (take 20 tempos)))
-         tape2  (sort-by (juxt first second) (concat tempos notes))]
-;           (println (deu (take 20 tape2)))
-           tape2))
+         tempos (->> (filter #(contains? #{:set-tempo :time-signature} (:msg %)) (first (midi :tracks))) (map (juxt :tick :msg :val)))
+         rc     (sort-by (juxt first second) (concat tempos notes))]
+           rc))
 
-(defn make-tape [tape2 tempo-correction]
-   (loop [prior 0, ppq 0, tempo 0, acc [], xs tape2]
-;       (println prior ppq bpm)
+(defn make-tape [ticktape tempo-correction]
+   (loop [prior 0, ppq 0, tempo 0, acc [], xs ticktape]
        (if-not (seq xs)
           acc
           (let [[[tc cmd val] & others] xs]
-;             (println tc cmd val)
               (cond (= :set-tempo cmd)
                         (do
                            (println "set-tempo" val)
@@ -166,15 +176,12 @@
                     (= :time-signature cmd)
                         (let [x (* (Math/pow 2 (nth val 1)) (nth val 2))
                               x (* x tempo-correction)
-;                              x (* x (if (= 2 (first val)) 2 1))
                               _ (println "time-signature" x val)
                               ]
                            (recur tc  x tempo acc others))
                     :else
-                        (let [x (/   (* (- tc prior) tempo)    (* 1000 ppq))
-;  _ (println "prior" prior "tc" tc "x" x "tempo" tempo "ppq" ppq)
-                             ]
-                           (recur tc ppq                                      tempo  (conj acc [x val]) others)))))))
+                        (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
+                           (recur tc ppq tempo (conj acc [x val]) others)))))))
 
 (defn view
   ([coll t d] (deu (take t (drop d coll))))
@@ -182,7 +189,7 @@
   ([coll]     (view coll 40 0)))
 
 
-;(def db (let [nticks         (.getTickLength sq)                  ; duration of sequence in MIDI ticks
+;(def midi (let [nticks         (.getTickLength sq)                  ; duration of sequence in MIDI ticks
 ;              nmcseconds     (.getMicrosecondLength sq)           ; duration of sequence in microseconds
 ;              tick-duration  (/ (double nmcseconds) nticks 1000)  ; each tick in milliseconds
 ;              tracks         (.getTracks sq)] 
@@ -194,7 +201,7 @@
 ;           :ntracks                  (count tracks)
 ;           :tracks                   (map track-info tracks)}))
 
-(defn make-db [sq]
+(defn parse-midi [sq]
   (let [nticks         (.getTickLength sq)                  ; duration of sequence in MIDI ticks
         nmcseconds     (.getMicrosecondLength sq)           ; duration of sequence in microseconds
         tick-duration  (/ (double nmcseconds) nticks 1000)  ; each tick in milliseconds
@@ -213,32 +220,30 @@
 ; (def midifile (java.io.File. "bohemian.mid"))
 ; (def midifile (java.io.File. "nocturne_e_flat.mid"))
 ;(def sq (javax.sound.midi.MidiSystem/getSequence midifile))
-;(view tape2)
+;(view ticktape)
 ;(view tape)
 ; (in-ns 'midi.core)
 
 
-(doseq [[file tempo-correction] [
-;                                 ["alliwant.mid"        4] 
-;                                 ["nocturne_e_flat.mid" 4] 
-;                                 ["days12.mid"          1] 
-;                                 ["chesnuts.mid"        2] 
-;                                 ["bohemian.mid"        2] 
-;                                 ["santa.mid"           4] 
-;                                 ["sothisisx.mid"       1] 
-                                 ["wonderland.mid"       1] 
-  ;                               ["silent.mid"          4] ; TOO MANY TIME CHANGES
-]]
-  (let [midi  (java.io.File. file)
-        _     (println "Playing file" file)
-        sq    (javax.sound.midi.MidiSystem/getSequence midi)
-        db    (make-db sq)
-        tape2 (make-tape2 db)
-        tape  (make-tape tape2 tempo-correction)]
-     (def debug-midi  midi)
-     (def debug-sq    sq)
-     (def debug-db    db)
-     (def debug-tape2 tape2)
+(doseq [p [["alliwant"   4] 
+           ["nocturne"   4] 
+           ["days12"     1] 
+           ["chesnuts"   2] 
+           ["bohemian"   2] 
+           ["santa"      4] 
+           ["sothisisx"  1] 
+           ["wonderland" 1]]]
+  (let [[file correction] p
+        mfile    (java.io.File. (str file ".mid"))
+        _        (println "Playing file" file)
+        sq       (javax.sound.midi.MidiSystem/getSequence mfile)
+        midi     (parse-midi sq)
+        ticktape (make-ticktape midi)
+        tape     (make-tape ticktape correction)]
+     (def debug-mfile    mfile)
+     (def debug-sq       sq)
+     (def debug-midi     midi)
+     (def debug-ticktape ticktape)
      (def debug-tape  tape)
      (play tape)))
 
