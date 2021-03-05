@@ -10,7 +10,6 @@
        0x06 [:marker           #(apply str (map ascii %))]
        0x20 [:channel-prefix   #(apply str (map ascii %))]
        0x2F [:end-of-track     #(apply str (map ascii %))]
-;       0x51 [:set-tempo        (fn [[a b c]] (/ 60000000. (+ (* a 65536) (* b 256) c)))] ; convert to BPM
        0x51 [:set-tempo        (fn [[a b c]] (+ (* a 65536) (* b 256) c))] ; microseconds per quarter note
        0x54 [:smpte-offset     #(apply str (map ascii %))]
        0x58 [:time-signature   (fn [[nn dd ppq bb]] [nn dd ppq bb])]
@@ -47,15 +46,12 @@
    (for [i (range start end)]
       (nth b i)))
 
-; (def tracks (.getTracks sq))
-
 (defn message-data [m]
    (cond (instance? javax.sound.midi.MetaMessage m)
              (let [d       (.getData m)
                    ty      (.getType m)
                    [msg f] (meta-message-type ty)
                    data    (slice d 0 (count d))]
-;                  (println "message-data:" data f)
                 {:event :meta,
                  :ty    ty,
                  :msg   msg,
@@ -65,8 +61,8 @@
                 {:event :short,
                  :ch  (.getChannel m),
                  :cmd (short-message-status (.getCommand m))
-                 :d1  (.getData1 m) ; (keyword (format "%02X" (.getData1 m))),
-                 :d2  (.getData2 m) ; (keyword (format "%02X" (.getData2 m)))
+                 :d1  (.getData1 m)
+                 :d2  (.getData2 m)
                 }
          (instance? javax.sound.midi.ShortMessage m)
                 {:event :sysex}
@@ -84,12 +80,15 @@
 (defn get-events [track]
      (map #(.get track %) (range (.size track))))
 
-(defn de-uglify [xs]  
+(defn deu [xs]  
    (println (clojure.string/join \newline
                 (for [row xs]
                     (clojure.string/join \tab row)))))
 
-(def deu de-uglify)
+(defn view
+  ([coll t d] (deu (take t (drop d coll))))
+  ([coll t]   (view coll t 0))
+  ([coll]     (view coll 40 0)))
 
 (defn track-info [track]
    (mapv event-info (get-events track)))
@@ -99,13 +98,12 @@
          _        (.open synth)
          channels (-> synth .getChannels)
          i        (-> synth .getDefaultSoundbank .getInstruments (nth instr))]
-      (println "Playing" (.getName i))
+;      (println "Playing" (.getName i))
       (.loadInstrument synth i)
 ;      (.programChange c instr)
       (fn [c note vol]
          (let [ch (nth channels c)]
             (.noteOn ch note vol)))))
-
 
 (defn play [tape]
    (let [play-note (note-player 1)]
@@ -117,25 +115,6 @@
             (play-note ch note vel))
 ;         (println)
        )))
-
-
-;(def bpms (->> db
-;               :tracks
-;               first
-;               (filter #(= :set-tempo (get % :msg)))
-;               (mapv (juxt :tick :val))))
-;
-;(def last-real-tick (->> db :tracks flatten (filter #(contains? #{:note-on :note-off} (:cmd %))) (map :tick) (reduce max)))
-;(def bpms (conj bpms [last-real-tick 0]))
-;(defn weighted-bpm [acc [[pt pb] & xs]]
-;   (if-not (seq xs)
-;      acc
-;      (let [[t b] (first xs)]
-;         (recur (+ acc (* pb (- t pt)))
-;                xs))))
-; (def db (assoc db :ppq (/ (get db :dur-in-microseconds) (weighted-bpm 0.0 bpms))))
-; (def db (assoc db :ppq 96)) ; (/ (get db :dur-in-microseconds) (weighted-bpm 0.0 bpms))))
-; (def db2 (dissoc db :tracks))
 
 ; Tick Tape format:
 ;     Field       Type      Description
@@ -183,24 +162,6 @@
                         (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
                            (recur tc ppq tempo (conj acc [x val]) others)))))))
 
-(defn view
-  ([coll t d] (deu (take t (drop d coll))))
-  ([coll t]   (view coll t 0))
-  ([coll]     (view coll 40 0)))
-
-
-;(def midi (let [nticks         (.getTickLength sq)                  ; duration of sequence in MIDI ticks
-;              nmcseconds     (.getMicrosecondLength sq)           ; duration of sequence in microseconds
-;              tick-duration  (/ (double nmcseconds) nticks 1000)  ; each tick in milliseconds
-;              tracks         (.getTracks sq)] 
-;          {:dur-in-ticks             nticks,
-;           :dur-in-microseconds      nmcseconds,
-;           :tick-dur-in-milliseconds tick-duration
-;           :division-cd              (.getDivisionType sq)
-;           :division-nm              (division-type (.getDivisionType sq))
-;           :ntracks                  (count tracks)
-;           :tracks                   (map track-info tracks)}))
-
 (defn parse-midi [sq]
   (let [nticks         (.getTickLength sq)                  ; duration of sequence in MIDI ticks
         nmcseconds     (.getMicrosecondLength sq)           ; duration of sequence in microseconds
@@ -214,25 +175,10 @@
      :ntracks                  (count tracks)
      :tracks                   (map track-info tracks)}))
 
-; (def midifile (java.io.File. "days12.mid"))
-; (def midifile (java.io.File. "chesnuts.mid"))
-; (def midifile (java.io.File. "alliwant.mid"))
-; (def midifile (java.io.File. "bohemian.mid"))
-; (def midifile (java.io.File. "nocturne_e_flat.mid"))
-;(def sq (javax.sound.midi.MidiSystem/getSequence midifile))
-;(view ticktape)
-;(view tape)
-; (in-ns 'midi.core)
 
-
-(doseq [p [["alliwant"   4] 
-           ["nocturne"   4] 
-           ["days12"     1] 
-           ["chesnuts"   2] 
-           ["bohemian"   2] 
-           ["santa"      4] 
-           ["sothisisx"  1] 
-           ["wonderland" 1]]]
+(doseq [p [["alliwant"  4]["nocturne"   4]["days12" 1] 
+           ["chesnuts"  2]["bohemian"   2]["santa"  4] 
+           ["sothisisx" 1]["wonderland" 1]]]
   (let [[file correction] p
         mfile    (java.io.File. (str file ".mid"))
         _        (println "Playing file" file)
@@ -244,26 +190,14 @@
      (def debug-sq       sq)
      (def debug-midi     midi)
      (def debug-ticktape ticktape)
-     (def debug-tape  tape)
+     (def debug-tape     tape)
      (play tape)))
 
-;   (t - prior)   -- duration of a current note
-;   ppq           -- ticks in a quarter
-;   bpm           -- quarters a minute
+; (T - PRIOR) - duration of a current note
+; TEMPO       - microseconds per quarter note
+; PPQ         - number of MIDI ticks in quarter note
 ;
-;TEMPO - microseconds per quarter note. 
-;PPQ   - numer of ticks in quarter
-;
-;TEMPO 
-;----- - microseconds per tick
-;PPQ
-;
-;               TEMPO
-;(T - PRIOR) *  -----   - microseconds since last event
-;                PPQ
-;
-;
-;(T - PRIOR)     TEMPO
-;------------ *  -----   - milliseconds since last event
-;1000            PPQ
+; (T - PRIOR)     TEMPO
+; ------------ *  -----   - milliseconds since last event
+; 1000            PPQ
 
