@@ -153,7 +153,7 @@
                            (println "set-tempo" val)
                            (recur tc   ppq  val acc others))
                     (= :time-signature cmd)
-                        (let [x (* (Math/pow 2 (nth val 1)) (nth val 2))
+                        (let [x (* (first val) (nth val 2))
                               x (* x tempo-correction)
                               _ (println "time-signature" x val)
                               ]
@@ -177,9 +177,14 @@
 
 
 (doseq [p [
-           ;["alliwant"  4]["nocturne"   4]["days12" 1] 
-           ["chesnuts"  1]["bohemian"   2]["santa"  4] 
-           ;["sothisisx" 1]["wonderland" 1]
+           ; ["alliwant"  4]["nocturne"   4]["days12" 1] 
+           ; ["chesnuts"  1]["bohemian"   2]["santa"  4] 
+           ; ["sothisisx" 1]["wonderland" 1]
+
+           ["alliwant"  4]["nocturne"   2]["days12" 1] 
+           ["chesnuts"  1]["bohemian"   4]["santa"  4] 
+           ["sothisisx" 2]["wonderland" 1]
+
           ]]
   (let [[file correction] p
         mfile    (java.io.File. (str file ".mid"))
@@ -193,7 +198,7 @@
      (def debug-midi     midi)
      (def debug-ticktape ticktape)
      (def debug-tape     tape)
-     (play tape)))
+     (play (take 60 tape))))
 
 ; (T - PRIOR) - duration of a current note
 ; TEMPO       - microseconds per quarter note
