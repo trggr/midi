@@ -42,6 +42,16 @@
     :13    [-2 3 6 10] ; same as m13?
     :13-9  [-2 2 6 10]})
 
+(defn deu [xs]  
+   (println (clojure.string/join \newline
+                (for [row xs]
+                    (clojure.string/join \tab row)))))
+
+(defn view
+  ([coll t d] (deu (take t (drop d coll))))
+  ([coll t]   (view coll t 0))
+  ([coll]     (view coll 40 0)))
+
 (defn chord-notes [root form]
    (map #(+ (notedb root) % -1) (chord-form form)))
     
@@ -164,6 +174,102 @@
      (clojure.string/replace "|" "")
      (clojure.string/split  #"\s+")
      score-helper))
+
+; Tick Tape format:
+;     Field       Type      Description
+;     --------------------------------------------------------------------------------------
+;  1: MIDI tick   integer   Gradually increasing throughout the tape. Treat it as a timecode
+;  2: event-type  keyword   One of :set-tempo, :time-signature, or :data
+;  3: data        varies    For :set-tempo is a single integer representing number of microseconds per quarter note
+;                           For :time-signature array of four matching to MIDI's time signature event
+;                           For :data - array of notes played during this MIDI tick
+;                              each note is [timecode, channel, note, velocity]. 
+; Example:
+;  [0	:set-tempo	434464
+;  [0	:time-signature	[4 2 24 8]
+;  [384	:data	        [[384 2 70 50]]
+;  [477	:data	        [[477 2 98 74]]
+;  [479	:data	        [[479 2 101 78]]
+;  [480	:data	        [[480 8 89 61] [480 8 86 55]]
+;  [489	:data	        [[489 8 86 0] [489 8 89 0]]
+;  [492	:data	        [[492 8 89 60] [492 8 86 63]]
+
+(def ttape [
+            [0	 :set-tempo	 434464]
+            [0	 :time-signature [4 2 24 8]]
+            [(* 4 24)  :data	         [[24 2 60 60]]]
+            [(* 4 48)  :data	         [[48 2 64 60]]]
+            [(* 4 62)  :data	         [[62 2 67 60]]]
+            [(* 4 96)  :data	         [[96 2 72 60]]]
+            [(* 4 120) :data	         [[120 2 60 0]]]
+            [(* 4 120) :data	         [[120 2 64 0]]]
+            [(* 4 120)  :data	         [[120 2 67 0]]]
+            [(* 4 120)  :data	         [[120 2 72 0]]]])
+
+
+(defn make-tape [ticktape tempo-correction]
+   (loop [prior 0, ppq 0, tempo 0, acc [], xs ticktape]
+       (if-not (seq xs)
+          acc
+          (let [[[tc cmd val] & others] xs]
+              (cond (= :set-tempo cmd)
+                        (do
+                           (println "set-tempo" val)
+                           (recur tc   ppq  val acc others))
+                    (= :time-signature cmd)
+                        (let [x (* (first val) (nth val 2))
+                              x (* x tempo-correction)
+                              _ (println "time-signature" x val)
+                              ]
+                           (recur tc  x tempo acc others))
+                    :else
+                        (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
+                           (recur tc ppq tempo (conj acc [x val]) others)))))))
+
+(def song [[:c 4][:e 3][:g 2][:c2 1]])
+
+(defn to-ttape [song]
+   (let [quarter-note 96
+         t1  (loop [tc (* 4 quarter-note) acc [] xs song]
+                (if-not (seq xs)
+                   acc
+                   (let [[[note dur] & others] xs]
+                      (recur (+ tc quarter-note)
+                             (conj acc [tc 2 (notedb note) 60]
+                                   [(+ tc (* dur quarter-note)) 2 (notedb note) 0])
+                             others))))
+         notes  (->> t1 (group-by first) (map (fn [[t n]] [t :data n])))
+         tempos [[0 :set-tempo 434464][0 :time-signature [4 2 24 8]]]
+         rc     (sort-by (juxt first second) (concat tempos notes))]
+           rc))
+
+(play (make-tape (to-ttape song) 1))
+
+(defn note-player2 [instr]
+   (let [synth    (javax.sound.midi.MidiSystem/getSynthesizer)
+         _        (.open synth)
+         channels (-> synth .getChannels)
+         i        (-> synth .getDefaultSoundbank .getInstruments (nth instr))]
+;      (println "Playing" (.getName i))
+      (.loadInstrument synth i)
+;      (.programChange c instr)
+      (fn [c note vol]
+         (let [ch (nth channels c)]
+            (.noteOn ch note vol)))))
+
+(defn play [tape]
+   (let [play-note (note-player2 1)]
+      (doseq [[tc notes] tape]
+         (Thread/sleep tc)
+;         (print tc)
+         (doseq [[tick ch note vel] notes]
+;            (print " " tick ch note vel)
+            (play-note ch note vel))
+;         (println)
+       )))
+
+(def tape (make-tape ttape 2))
+(play (make-tape ttape 2))
 
 (def all-the-things-you-are (score (str
   "Fm7    / / / | Bbm7  / /  / | Eb7    / / / | Abmaj7 /  /  / "
