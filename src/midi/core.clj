@@ -258,12 +258,12 @@
                     (sorted-map)
                     x1a)
          x3on  (for [[n bar] x2, [tc chord] bar, note chord] note)
-         x3off (map (fn [[t c n v]] [(+ t qn) c n 0]) x3on)
+         x3off (map (fn [[t c n v]] [(+ t (* qn 0.99)) c n 0]) x3on)
          x3    (concat x3on x3off)
          x4    (sort-by key (group-by first x3))
          x5    (for [[tc data] x4] [tc :data data])
 ;         rc (concat [[0 :set-tempo 434464][0 :time-signature [4 2 24 8]]] x5)]
-         rc (concat [[0 :set-tempo 434464][0 :time-signature [4 2 24 8]]] x5)]
+         rc (concat [[0 :set-tempo  800000][0 :time-signature [4 2 24 8]]] x5)]
      rc))
 
 ;                   [r x3 x5] chord
@@ -397,7 +397,7 @@
   "C  / / / | G  / / / | F   / /  / | C  /  /  / ")))
 
 (defn -main [& args]
-   (play (make-tape (to-ttape all-by-myself)))
+   (play (make-tape (to-ttape all-the-things-you-are)))
 ;   (repeatedly
 ;      (play-song in-a-sentimental-mood {:bpm 62}))
 ;   (play-song all-by-myself {:bpm 120})
