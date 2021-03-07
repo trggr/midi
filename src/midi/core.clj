@@ -263,9 +263,8 @@
          x4    (sort-by key (group-by first x3))
          x5    (for [[tc data] x4] [tc :data data])
          rc (concat [[0 :set-tempo 434464][0 :time-signature [4 2 24 8]]] x5)]
+         rc (concat [[0 :set-tempo 434464][0 :time-signature [4 2 24 8]]] x5)]
      rc))
-
-(to-ttape let-it-be)
 
 ;                   [r x3 x5] chord
 ;                   bass (- (case i 0 r
@@ -334,8 +333,8 @@
 ;         (println)
        )))
 
-(def tape (make-tape ttape 2))
-(play (make-tape ttape 2))
+;(def tape (make-tape ttape 2))
+;(play (make-tape ttape 2))
 
 (def all-the-things-you-are (score (str
   "Fm7    / / / | Bbm7  / /  / | Eb7    / / / | Abmaj7 /  /  / "
