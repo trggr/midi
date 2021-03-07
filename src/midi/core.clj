@@ -262,7 +262,7 @@
          x3    (concat x3on x3off)
          x4    (sort-by key (group-by first x3))
          x5    (for [[tc data] x4] [tc :data data])
-         rc (concat [[0 :set-tempo 434464][0 :time-signature [4 2 24 8]]] x5)]
+;         rc (concat [[0 :set-tempo 434464][0 :time-signature [4 2 24 8]]] x5)]
          rc (concat [[0 :set-tempo 434464][0 :time-signature [4 2 24 8]]] x5)]
      rc))
 
@@ -397,7 +397,7 @@
   "C  / / / | G  / / / | F   / /  / | C  /  /  / ")))
 
 (defn -main [& args]
-   (play (make-tape (to-ttape let-it-be)))
+   (play (make-tape (to-ttape all-by-myself)))
 ;   (repeatedly
 ;      (play-song in-a-sentimental-mood {:bpm 62}))
 ;   (play-song all-by-myself {:bpm 120})
