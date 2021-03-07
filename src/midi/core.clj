@@ -10,6 +10,8 @@
 (def e-major [:e :f# :g# :a  :b  :c2# :d2#])
 (def f-major [:f :g  :a  :a# :c2 :d2  :e2])
 
+(def qn 96) ; duration of a quarter note
+
 (def chord-form {
     :major [1 5 8]
     :+     [1 4 9]
@@ -193,21 +195,21 @@
 ;  [480	:data	        [[480 8 89 61] [480 8 86 55]]
 ;  [489	:data	        [[489 8 86 0] [489 8 89 0]]
 ;  [492	:data	        [[492 8 89 60] [492 8 86 63]]
+;(def ttape [
+;            [0	 :set-tempo	 434464]
+;            [0	 :time-signature [4 2 24 8]]
+;            [(* 4 24)  :data	         [[24 2 60 60]]]
+;            [(* 4 48)  :data	         [[48 2 64 60]]]
+;            [(* 4 62)  :data	         [[62 2 67 60]]]
+;            [(* 4 96)  :data	         [[96 2 72 60]]]
+;            [(* 4 120) :data	         [[120 2 60 0]]]
+;            [(* 4 120) :data	         [[120 2 64 0]]]
+;            [(* 4 120) :data	         [[120 2 67 0]]]
+;            [(* 4 120) :data	         [[120 2 72 0]]]])
 
-(def ttape [
-            [0	 :set-tempo	 434464]
-            [0	 :time-signature [4 2 24 8]]
-            [(* 4 24)  :data	         [[24 2 60 60]]]
-            [(* 4 48)  :data	         [[48 2 64 60]]]
-            [(* 4 62)  :data	         [[62 2 67 60]]]
-            [(* 4 96)  :data	         [[96 2 72 60]]]
-            [(* 4 120) :data	         [[120 2 60 0]]]
-            [(* 4 120) :data	         [[120 2 64 0]]]
-            [(* 4 120)  :data	         [[120 2 67 0]]]
-            [(* 4 120)  :data	         [[120 2 72 0]]]])
-
-
-(defn make-tape [ticktape tempo-correction]
+(defn make-tape
+  ([ticktape] (make-tape ticktape 1))
+  ([ticktape tempo-correction]
    (loop [prior 0, ppq 0, tempo 0, acc [], xs ticktape]
        (if-not (seq xs)
           acc
@@ -219,31 +221,95 @@
                     (= :time-signature cmd)
                         (let [x (* (first val) (nth val 2))
                               x (* x tempo-correction)
-                              _ (println "time-signature" x val)
-                              ]
-                           (recur tc  x tempo acc others))
+                              _ (println "time-signature" x val)] 
+                          (recur tc  x tempo acc others))
                     :else
                         (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
-                           (recur tc ppq tempo (conj acc [x val]) others)))))))
+                           (recur tc ppq tempo (conj acc [x val]) others))))))))
 
-(def song [[:c 4][:e 3][:g 2][:c2 1]])
+;(def x1 let-it-be)
+;(def x1a (map-indexed (fn [i x] [i x]) x1))
+;(def x2 (reduce (fn [acc [n c]]
+;                   (let [beat (mod n 4)
+;                         bar  (inc (/ (- n beat) 4))
+;                         tc   (* qn (+ (* bar 4) beat))]
+;                     (assoc-in acc
+;                               [bar tc]
+;                               (map #(vector tc 2 % 70) (chorddb c)))))
+;                 (sorted-map)
+;                 x1a))
+;(def x3on  (for [[n bar] x2, [tc chord] bar, note chord] note))
+;(def x3off (map (fn [[t c n v]] [(+ t qn) c n 0]) x3on))
+;(def x3 (concat x3on x3off))
+;(def x4 (sort-by key (group-by first x3)))
+;(def x5 (for [[tc data] x4] [tc :data data]))
+;(def x6 (concat [[0 :set-tempo 434464][0 :time-signature [4 2 24 8]]] x5))
 
-(defn to-ttape [song]
-   (let [quarter-note 96
-         t1  (loop [tc (* 4 quarter-note) acc [] xs song]
-                (if-not (seq xs)
-                   acc
-                   (let [[[note dur] & others] xs]
-                      (recur (+ tc quarter-note)
-                             (conj acc [tc 2 (notedb note) 60]
-                                   [(+ tc (* dur quarter-note)) 2 (notedb note) 0])
-                             others))))
-         notes  (->> t1 (group-by first) (map (fn [[t n]] [t :data n])))
-         tempos [[0 :set-tempo 434464][0 :time-signature [4 2 24 8]]]
-         rc     (sort-by (juxt first second) (concat tempos notes))]
-           rc))
+(defn to-ttape [score]
+   (let [x1  score
+         x1a (map-indexed (fn [i x] [i x]) x1)
+         x2  (reduce (fn [acc [n c]]
+                      (let [beat (mod n 4)
+                            bar  (inc (/ (- n beat) 4))
+                            tc   (* qn (+ (* bar 4) beat))]
+                        (assoc-in acc
+                                  [bar tc]
+                                  (map #(vector tc 2 % 70) (chorddb c)))))
+                    (sorted-map)
+                    x1a)
+         x3on  (for [[n bar] x2, [tc chord] bar, note chord] note)
+         x3off (map (fn [[t c n v]] [(+ t qn) c n 0]) x3on)
+         x3    (concat x3on x3off)
+         x4    (sort-by key (group-by first x3))
+         x5    (for [[tc data] x4] [tc :data data])
+         rc (concat [[0 :set-tempo 434464][0 :time-signature [4 2 24 8]]] x5)]
+     rc))
 
-(play (make-tape (to-ttape song) 1))
+(to-ttape let-it-be)
+
+;                   [r x3 x5] chord
+;                   bass (- (case i 0 r
+;                                   1 (+ 2 r)
+;                                   2 x3 
+;                                   3 x5) 24)]
+;                 (f {:bass bass, :chord chord} tempo vol)))))))
+
+;(def song2 [[:c 4][:e 3][:g 2][:c2 1]])
+;
+;(defn to-ttape2 [song]
+;   (let [qn  96  ; duration of a quarter note
+;         t1  (loop [tc (* 4 qn) acc [] xs song]
+;                (if-not (seq xs)
+;                   acc
+;                   (let [[[note dur] & others] xs]
+;                      (recur (+ tc quarter-note)
+;                             (conj acc [tc 2 (notedb note) 60]
+;                                   [(+ tc (* dur qn)) 2 (notedb note) 0])
+;                             others))))
+;         notes  (->> t1 (group-by first) (map (fn [[t n]] [t :data n])))
+;         tempo [[0 :set-tempo 434464][0 :time-signature [4 2 24 8]]]
+;         rc    (sort-by (juxt first second) (concat tempo notes))]
+;     rc))
+
+;(def song [[ [:c]  [:e :g] [:d]  [:f :a]]
+;           [ [:d]  [:f   ] [:a]  [:d2  ]]])
+;
+
+;                       (if (sequential? e)
+;                          (for [x e] [(+ bar-tc (* i qn)) (notedb x) 60])
+
+;(defn to-ttape [song]
+;   (let [t1  (loop [tc (* 4 qn) acc [] xs song]
+;                (if-not (seq xs)
+;                   acc
+;                   (let [[bar & others] xs]
+;                      (recur (+ tc (* 4 qn))
+;                             (concat acc (process-bar bar tc))
+;                             others))))
+;         notes  (->> t1 (group-by first) (map (fn [[t n]] [t :data n])))
+;         tempo [[0 :set-tempo 434464][0 :time-signature [4 2 24 8]]]
+;         rc    (sort-by (juxt first second) (concat tempo notes))]
+;     rc))
 
 (defn note-player2 [instr]
    (let [synth    (javax.sound.midi.MidiSystem/getSynthesizer)
@@ -332,8 +398,9 @@
   "C  / / / | G  / / / | F   / /  / | C  /  /  / ")))
 
 (defn -main [& args]
-   (repeatedly
-      (play-song in-a-sentimental-mood {:bpm 62}))
+   (play (make-tape (to-ttape let-it-be)))
+;   (repeatedly
+;      (play-song in-a-sentimental-mood {:bpm 62}))
 ;   (play-song all-by-myself {:bpm 120})
 ;   (play-song autumn-leaves {:bpm 100})
 ;   (play-song all-of-me {:bpm 100})
