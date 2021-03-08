@@ -245,33 +245,26 @@
 ;(def x5 (for [[tc data] x4] [tc :data data]))
 ;(def x6 (concat [[0 :set-tempo 434464][0 :time-signature [4 2 24 8]]] x5))
 
-(defn to-ttape [score]
-   (let [x1  score
-         x1a (map-indexed (fn [i x] [i x]) x1)
-         x2  (reduce (fn [acc [n c]]
-                      (let [beat (mod n 4)
-                            bar  (inc (/ (- n beat) 4))
-                            tc   (* qn (+ (* bar 4) beat))]
-                        (assoc-in acc
-                                  [bar tc]
-                                  (map #(vector tc 2 % 70) (chorddb c)))))
-                    (sorted-map)
-                    x1a)
-         x3on  (for [[n bar] x2, [tc chord] bar, note chord] note)
-         x3off (map (fn [[t c n v]] [(+ t (* qn 0.99)) c n 0]) x3on)
-         x3    (concat x3on x3off)
-         x4    (sort-by key (group-by first x3))
-         x5    (for [[tc data] x4] [tc :data data])
-;         rc (concat [[0 :set-tempo 434464][0 :time-signature [4 2 24 8]]] x5)]
-         rc (concat [[0 :set-tempo  800000][0 :time-signature [4 2 24 8]]] x5)]
-     rc))
-
-;                   [r x3 x5] chord
-;                   bass (- (case i 0 r
-;                                   1 (+ 2 r)
-;                                   2 x3 
-;                                   3 x5) 24)]
-;                 (f {:bass bass, :chord chord} tempo vol)))))))
+(defn to-ttape
+  ([score]
+      (to-ttape score [[0 :set-tempo  800000][0 :time-signature [4 2 24 8]]]))
+  ([score timing]
+      (let [x1 (map-indexed (fn [i x] [i x]) score)
+            x2 (reduce (fn [acc [n c]]
+                         (let [beat (mod n 4)
+                               bar  (inc (/ (- n beat) 4))
+                               tc   (* qn (+ (* bar 4) beat))]
+                           (assoc-in acc
+                                     [bar tc]
+                                     (map #(vector tc 2 % 70) (chorddb c)))))
+                       (sorted-map)
+                       x1)
+            on  (for [[n bar] x2, [tc chord] bar, note chord] note)
+            off (map (fn [[t c n v]] [(+ t (* qn 0.99)) c n 0]) on)
+            x3  (concat on off)
+            x4  (sort-by key (group-by first x3))
+            x5  (for [[tc data] x4] [tc :data data])]
+        (concat timing x5))))
 
 ;(def song2 [[:c 4][:e 3][:g 2][:c2 1]])
 ;
