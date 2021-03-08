@@ -247,7 +247,7 @@
 
 (defn to-ttape
   ([score]
-      (to-ttape score [[0 :set-tempo  800000][0 :time-signature [4 2 24 8]]]))
+      (to-ttape score [[0 :set-tempo  400000][0 :time-signature [4 2 24 8]]]))
   ([score timing]
       (let [x1 (map-indexed (fn [i x] [i x]) score)
             x2 (reduce (fn [acc [n c]]
@@ -340,6 +340,17 @@
   "Dbmaj7 / / / | Gb7   / /  / | Cm7    / / / | Bdim7  /  /  / "
   "Bbm7   / / / | Eb7   / /  / | Abmaj7 / / / | Gm7-5  /  C9 / ")))
 
+(def all-the-things-you-are2 (score (str
+  "Fm7    / / / / / / / | Bbm7  / / / /      / / / | Eb7    / / / / / / / | Abmaj7 / / /  /  / / / "
+  "Dbmaj7 / / / / / / / | G7    / / / /      / / / | Cmaj7  / / / / / / / | /      / / /  /  / / / "
+  "Cm7    / / / / / / / | Fm7   / / / /      / / / | Bb7    / / / / / / / | Ebmaj7 / / /  /  / / / "
+  "Abmaj7 / / / / / / / | Am7-5 / / / D7     / / / | Gmaj7  / / / / / / / | /      / / /  E9 / / /"
+  "Am7    / / / / / / / | D7    / / / Gmaj7  / / / | /      / / / / / / / "
+  "F#m7   / / / / / / / | B7    / / / Emaj7  / / / | C7+5   / / / / / / / "
+  "Fm7    / / / / / / / | Bbm7  / / / Eb7    / / / | Abmaj7 / / / / / / /"
+  "Dbmaj7 / / / / / / / | Gb7   / / / Cm7    / / / | Bdim7  / / / / / / /"
+  "Bbm7   / / / / / / / | Eb7   / / / Abmaj7 / / / | Gm7-5  / / / C9 / / / ")))
+
 (def all-of-me (score (str
   "C6     / / / | /     / /  / | E7     / /      / | /      /  /  / "
   "A7     / / / | /     / /  / | Dm7    / /      / | /      /  /  / "
@@ -375,8 +386,8 @@
   "Dm     / / /      | D7   / / /     | Gm7   /  Gb7  /   | Fmaj7 /  /  / "
   "Dm     / Dmmaj7 / | Dm7  / Dm6  /  | Gm   /  Gmmaj7 /  | Gm7   /  Gm6 A7 "
   "Dm     / / /      | D7   / / /     | Gm7   /  Gb7  /   | Fmaj7 /  Ebm7 Ab7 "
-  "Dbmaj7  / Bbm7 /  | Ebm7  / Ab7  / | Dbmaj7 /  Bb7 /   | Eb7   /  Ab7 / "
-  "Dbmaj7  / Bbm7 /  | Ebm7  / Ab7  / | Gm7   /  / /      | C7    /  / / "
+  "Dbmaj7 / Bbm7 /  | Ebm7  / Ab7  / | Dbmaj7 /  Bb7 /   | Eb7   /  Ab7 / "
+  "Dbmaj7 / Bbm7 /  | Ebm7  / Ab7  / | Gm7   /  / /      | C7    /  / / "
   "Dm     / Dmmaj7 / | Dm7  / Dm6  /  | Gm   /  Gmmaj7 /  | Gm7   /  Gm6 A7 "
   "Dm     / / /      | D7   / / /     | Gm7   /  C11-9  / | Fmaj7 /  /  / "
 )))
@@ -399,4 +410,46 @@
 ;   (play-song all-the-things-you-are {:instr 26})
 ;   (play-song let-it-be {:instr 20})
 )
+
+
+;(def swing2  [120    40 40 40    120   40 40 40])
+;(def swing [50  10    20 20 20    30 20 10  20 20 20])
+;(def x (let [timing [[0 :set-tempo  800000][0 :time-signature [4 2 24 8]]]
+;             start 100
+;             a    (reductions + (flatten (repeat 10 swing)))
+;             ons  (cons 0 (butlast a))
+;             ons  (map #(vector (+ % start) 2 60 70) ons)
+;             offs (map dec a)
+;             offs (map #(vector (+ % start) 2 60 0) offs)
+;             x4   (sort-by key (group-by first (concat ons offs)))
+;             rc   (for [[tc data] x4] [tc :data data])]
+;          (concat timing rc)))
+
+;(play (make-tape x))
+
+;(defn beatbar [bar start-tick total-ticks]
+  
+;  (loop [t start-tick, acc [], xs bar]
+;    (if (empty? xs)
+;       acc
+;       (let [[dur & rest] xs
+;             on  t
+;             off (+ t dur)
+;             on  (+ t (/ (* dur qn 1024) 16))
+;             off (+ on dur)]
+;           (recur (+ t on) (conj (conj acc [] [on 2 60 60]) [off 2 60 0])
+;           (
+;(-> swing
+;    (map (fn [note]
+;
+;(def ttape [[0    :set-tempo	 434464]
+;            [0    :time-signature [4 2 24 8]]
+;            [100  :data  [[24 2 60 60]]]
+;            [199  :data  [[24 2 60  0]]]
+;            [200  :data  [[48 2 60 60]]]
+;            [299  :data  [[48 2 60  0]]]
+;            [300  :data  [[62 2 60 60]]]
+;            [399  :data  [[48 2 60  0]]]
+;            [400  :data  [[96 2 60 60]]]
+;            [499  :data  [[48 2 60  0]]]])
 
