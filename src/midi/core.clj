@@ -1,4 +1,5 @@
-(ns midi.core)
+(ns midi.core
+   (:require [clojure.string :as str]))
 
 (def notedb {:c  60, :c#  61, :d  62, :d# 63, :e 64, :f 65, :f# 66, :g 67 :g# 68, :a 69, :a# 70, :b 71,
              :C  60, :C#  61, :D  62, :D# 63, :E 64, :F 65, :F# 66, :G 67 :G# 68, :A 69, :A# 70, :B 71,
@@ -45,9 +46,9 @@
     :13-9  [-2 2 6 10]})
 
 (defn deu [xs]  
-   (println (clojure.string/join \newline
+   (println (str/join \newline
                 (for [row xs]
-                    (clojure.string/join \tab row)))))
+                    (str/join \tab row)))))
 
 (defn view
   ([coll t d] (deu (take t (drop d coll))))
@@ -72,8 +73,9 @@
                   (concat durations durations)
                   (repeat 14 80))))
 
-(defn note-player [chan instr]
+(defn note-player
    "Returns player function for a given channel and instrument"
+  [chan instr]
    (let [synth (javax.sound.midi.MidiSystem/getSynthesizer)
          _     (.open synth)
          c     (-> synth .getChannels (nth chan))
@@ -86,8 +88,9 @@
          (Thread/sleep dur)
          (.noteOff c note))))
 
-(defn chord-player [chan instr]
+(defn chord-player
   "Returns player function for a given channel and instrument"
+  [chan instr]
   (let [synth (javax.sound.midi.MidiSystem/getSynthesizer)
         _     (.open synth)
         c     (-> synth .getChannels (nth chan))
@@ -102,8 +105,9 @@
         (doseq [n chord]
              (.noteOff c n)))))
 
-(defn chord-bass-player [bchan binstr cchan cinstr]
+(defn chord-bass-player
   "Returns player function for a given channel and instrument"
+  [_ binstr cchan cinstr]
   (let [synth  (javax.sound.midi.MidiSystem/getSynthesizer)
         _      (.open synth)
         chans  (-> synth .getChannels)
@@ -259,8 +263,8 @@
                                      (map #(vector tc 2 % 70) (chorddb c)))))
                        (sorted-map)
                        x1)
-            on  (for [[n bar] x2, [tc chord] bar, note chord] note)
-            off (map (fn [[t c n v]] [(+ t (* qn 0.99)) c n 0]) on)
+            on  (for [[_ bar] x2, [_ chord] bar, note chord] note)
+            off (map (fn [[t c n _]] [(+ t (* qn 0.99)) c n 0]) on)
             x3  (concat on off)
             x4  (sort-by key (group-by first x3))
             x5  (for [[tc data] x4] [tc :data data])]
@@ -320,7 +324,7 @@
       (doseq [[tc notes] tape]
          (Thread/sleep tc)
 ;         (print tc)
-         (doseq [[tick ch note vel] notes]
+         (doseq [[_ ch note vel] notes]
 ;            (print " " tick ch note vel)
             (play-note ch note vel))
 ;         (println)
@@ -400,7 +404,7 @@
   "Am / / / | G  / / / | F   / /  / | C  /  /  / "
   "C  / / / | G  / / / | F   / /  / | C  /  /  / ")))
 
-(defn -main [& args]
+(defn -main [& _]
    (play (make-tape (to-ttape all-the-things-you-are)))
 ;   (repeatedly
 ;      (play-song in-a-sentimental-mood {:bpm 62}))
