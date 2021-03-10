@@ -1,10 +1,10 @@
-(ns timlib
-  (:require [clojure.string :only [blank? join lower-case split starts-with?
+(ns midi.timlib
+  (:use [clojure.string :only [blank? join lower-case split starts-with?
                                    ends-with? trim split-lines]]))
 
-;(defn de-uglify [xs]  (join \newline
-;                          (for [row (vec xs)]
-;                                 (join \tab row))))
+(defn de-uglify [xs]  (join \newline
+                          (for [row (vec xs)]
+                                 (join \tab row))))
 
 (def deu de-uglify)
 
@@ -116,7 +116,9 @@
             (if xs
                  (let [row (first xs)]
                       (for-loop [i 0 (< i (count row)) (inc i)]
-                            (.setString cur (inc i) (nth row i)))
+                            (if (instance? Long (nth row i))
+                               (.setLong cur (inc i) (nth row i))
+                               (.setString cur (inc i) (nth row i))))
                       (.addBatch cur)
                       (when (zero? batch)
                           (.executeBatch cur))

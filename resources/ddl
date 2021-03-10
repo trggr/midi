@@ -1,0 +1,24 @@
+drop table song;
+
+delete from song;
+
+create table song (
+  song_id            integer not null,
+  song_nm            varchar(50),
+  time_sig_nmrtr_num integer,
+  time_sig_denom_num integer,
+  time_sig_ppq_num   integer,
+  time_sig_bb_num    integer,
+  bpm_num            integer);
+
+select * from song;
+
+create table tab (
+  song_id integer not null,
+  bar_id  integer not null,
+  beat_id integer not null,
+  chord_id varchar(20));
+  
+select * from tab order by 1, 2, 3;
+
+  
