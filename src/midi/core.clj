@@ -1,5 +1,6 @@
 (ns midi.core
-   (:require [clojure.string :as str]))
+   (:require [clojure.string :as str])
+   (:require [midi.timlib]))
 
 (def notedb {:c  60, :c#  61, :d  62, :d# 63, :e 64, :f 65, :f# 66, :g 67 :g# 68, :a 69, :a# 70, :b 71,
              :C  60, :C#  61, :D  62, :D# 63, :E 64, :F 65, :F# 66, :G 67 :G# 68, :A 69, :A# 70, :B 71,
@@ -148,25 +149,6 @@
                                    3 x5) 24)]
                  (f {:bass bass, :chord chord} tempo vol)))))))
 
-(defn play-song2
-   ([score] (play-song2 score {}))
-   ([score opts]
-       (let [vol   (or (opts :vol)   60)
-             tempo (/ 60000 (or (opts :bpm)  120))
-             instr (or (opts :instr) 0)
-             chan  (or (opts :chan)  2)
-             f     (chord-player chan instr)
-             bass  (note-player 3 33)] ; acoustic bass
-       (doseq [bar (partition 4 score)]
-          (println bar)
-          (let [[x1 x2 x3 x4] bar]
-            (bass (- (first (chorddb x1)) 24) tempo vol)
-;            (f (chorddb x1) tempo (* vol 0.7))
-            (f (chorddb x2) tempo vol)
-            (f (chorddb x3) tempo (* vol 0.7))
-            (f (chorddb x4) tempo (* vol 0.9)))))))
-
-
 (defn score-helper [xs]
    (loop [acc [] cur "" ts xs]
       (if (empty? ts)
@@ -177,8 +159,8 @@
 
 (defn score [tabs]
  (-> tabs
-     (clojure.string/replace "|" "")
-     (clojure.string/split  #"\s+")
+     (str/replace "|" "")
+     (str/split  #"\s+")
      score-helper))
 
 ; Tick Tape format:
@@ -231,24 +213,6 @@
                         (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
                            (recur tc ppq tempo (conj acc [x val]) others))))))))
 
-;(def x1 let-it-be)
-;(def x1a (map-indexed (fn [i x] [i x]) x1))
-;(def x2 (reduce (fn [acc [n c]]
-;                   (let [beat (mod n 4)
-;                         bar  (inc (/ (- n beat) 4))
-;                         tc   (* qn (+ (* bar 4) beat))]
-;                     (assoc-in acc
-;                               [bar tc]
-;                               (map #(vector tc 2 % 70) (chorddb c)))))
-;                 (sorted-map)
-;                 x1a))
-;(def x3on  (for [[n bar] x2, [tc chord] bar, note chord] note))
-;(def x3off (map (fn [[t c n v]] [(+ t qn) c n 0]) x3on))
-;(def x3 (concat x3on x3off))
-;(def x4 (sort-by key (group-by first x3)))
-;(def x5 (for [[tc data] x4] [tc :data data]))
-;(def x6 (concat [[0 :set-tempo 434464][0 :time-signature [4 2 24 8]]] x5))
-
 (defn to-ttape
   ([score]
       (to-ttape score [[0 :set-tempo  400000][0 :time-signature [4 2 24 8]]]))
@@ -270,29 +234,7 @@
             x5  (for [[tc data] x4] [tc :data data])]
         (concat timing x5))))
 
-;(def song2 [[:c 4][:e 3][:g 2][:c2 1]])
-;
-;(defn to-ttape2 [song]
-;   (let [qn  96  ; duration of a quarter note
-;         t1  (loop [tc (* 4 qn) acc [] xs song]
-;                (if-not (seq xs)
-;                   acc
-;                   (let [[[note dur] & others] xs]
-;                      (recur (+ tc quarter-note)
-;                             (conj acc [tc 2 (notedb note) 60]
-;                                   [(+ tc (* dur qn)) 2 (notedb note) 0])
-;                             others))))
-;         notes  (->> t1 (group-by first) (map (fn [[t n]] [t :data n])))
-;         tempo [[0 :set-tempo 434464][0 :time-signature [4 2 24 8]]]
-;         rc    (sort-by (juxt first second) (concat tempo notes))]
-;     rc))
 
-;(def song [[ [:c]  [:e :g] [:d]  [:f :a]]
-;           [ [:d]  [:f   ] [:a]  [:d2  ]]])
-;
-
-;                       (if (sequential? e)
-;                          (for [x e] [(+ bar-tc (* i qn)) (notedb x) 60])
 
 ;(defn to-ttape [song]
 ;   (let [t1  (loop [tc (* 4 qn) acc [] xs song]
@@ -390,11 +332,21 @@
   "Dm     / / /      | D7   / / /     | Gm7   /  Gb7  /   | Fmaj7 /  /  / "
   "Dm     / Dmmaj7 / | Dm7  / Dm6  /  | Gm   /  Gmmaj7 /  | Gm7   /  Gm6 A7 "
   "Dm     / / /      | D7   / / /     | Gm7   /  Gb7  /   | Fmaj7 /  Ebm7 Ab7 "
-  "Dbmaj7 / Bbm7 /  | Ebm7  / Ab7  / | Dbmaj7 /  Bb7 /   | Eb7   /  Ab7 / "
-  "Dbmaj7 / Bbm7 /  | Ebm7  / Ab7  / | Gm7   /  / /      | C7    /  / / "
+  "Dbmaj7 / Bbm7  /  | Ebm7  / Ab7  / | Dbmaj7 /  Bb7 /   | Eb7   /  Ab7 / "
+  "Dbmaj7 / Bbm7  /  | Ebm7  / Ab7  / | Gm7   /  / /      | C7    /  / / "
   "Dm     / Dmmaj7 / | Dm7  / Dm6  /  | Gm   /  Gmmaj7 /  | Gm7   /  Gm6 A7 "
   "Dm     / / /      | D7   / / /     | Gm7   /  C11-9  / | Fmaj7 /  /  / "
 )))
+
+(def in-a-sentimental-mood2 (score (str
+                                   "Dm       Dmmaj7  | Dm7    Dm6 | Gm      Gmmaj7  | Gm7      Gm6 A7 "
+                                   "Dm               | D7         | Gm7     Gb7     | Fmaj7         "
+                                   "Dm       Dmmaj7  | Dm7    Dm6 | Gm      Gmmaj7  | Gm7      Gm6 A7 "
+                                   "Dm               | D7         | Gm7     Gb7     | Fmaj7    Ebm7 Ab7 "
+                                   "Dbmaj7   Bbm7    | Ebm7   Ab7 | Dbmaj7  Bb7     | Eb7      Ab7   "
+                                   "Dbmaj7   Bbm7    | Ebm7   Ab7 | Gm7             | C7           "
+                                   "Dm       Dmmaj7  | Dm7    Dm6 | Gm      Gmmaj7  | Gm7      Gm6 A7 "
+                                   "Dm               | D7         | Gm7     C11-9   | Fmaj7         ")))
 
 (def let-it-be (score (str
   "C  / / / | G  / / / | Am  / /  / | F  /  /  / "
@@ -415,6 +367,7 @@
 ;   (play-song let-it-be {:instr 20})
 )
 
+;--------------- Experiment -------------------
 
 ;(def swing2  [120    40 40 40    120   40 40 40])
 ;(def swing [50  10    20 20 20    30 20 10  20 20 20])
@@ -428,6 +381,51 @@
 ;             x4   (sort-by key (group-by first (concat ons offs)))
 ;             rc   (for [[tc data] x4] [tc :data data])]
 ;          (concat timing rc)))
+
+(defn score-helper [xs]
+   (loop [acc [] cur "" ts xs]
+      (if (empty? ts)
+          acc
+          (let [[t & more] ts
+                 x (if (= t "/") cur t)]
+             (recur (conj acc (keyword x)) x more)))))
+
+(def ll "  Dm  |  D7   |   Gm7     Gb7      |     Fmaj7      Ebm7   Ab7    ")
+
+(defn score [tabs]
+  (let [x1 (str/replace tabs "\n" "|")
+        x2 (str/split x1 #"\|")
+        x3 (map str/trim x2)
+        x4 (map #(str/split % #"\s+") x3)]
+     x4))
+
+;(defn strum [bar style]
+;  (let [[a b c d] bar
+;         nchords (count bar)
+;         nbeats  (count style)]
+;      (cond (= nchords 1) (repeat nbeats a)
+;            (= nchords 2) (repeat nbeats a)             
+ 
+         
+
+
+
+;     (str/split  #"|\s+")
+;     score-helper))
+
+(def swing [50  10    20 20 20    30 20 10  20 20 20])
+(defn swing-tape [score]
+ (let [timing [[0 :set-tempo  800000][0 :time-signature [4 2 24 8]]]
+             start 100
+             a    (reductions + (flatten (repeat 10 swing)))
+             ons  (cons 0 (butlast a))
+             ons  (map #(vector (+ % start) 2 60 70) ons)
+             offs (map dec a)
+             offs (map #(vector (+ % start) 2 60 0) offs)
+             x4   (sort-by key (group-by first (concat ons offs)))
+             rc   (for [[tc data] x4] [tc :data data])]
+          (concat timing rc)))
+
 
 ;(play (make-tape x))
 
