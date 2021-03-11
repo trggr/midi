@@ -66,7 +66,7 @@ select * from rc
 order by 1, 2;
 
 with
-bars as (select * from bar_flat where song_id = 2),
+bars as (select * from bar_flat where song_id = 6),
 fill as (
     select a.bar_id, a.beat_id, b.bar_id orig_bar_id, b.beat_id orig_beat_id,
            b.chord_id,
@@ -81,11 +81,18 @@ fill as (
     from all_beat             a
          left outer join bars b on (a.bar_id = b.bar_id and a.beat_id = b.beat_id)),
 rc as (select bar_id, beat_id, coalesce(chord_id, c1, c2, c3, c4, c5, c6, c7, c8) chord_id
-              -- orig_bar_id, orig_beat_id, chord_id orig_chord_id
        from fill)
 select * from rc
 where chord_id is not null
 order by 1, 2;
+
+create table song_backup as select * from song;
+
+create table bar_backup as select * from bar;
+
+delete from song;
+delete from bar;
+
 
 --select * from all_beat order by 1, 2;
 --select * from bar_flat order by 1, 2;

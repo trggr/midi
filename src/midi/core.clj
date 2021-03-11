@@ -1,6 +1,6 @@
 (ns midi.core
    (:require [clojure.string :as str])
-   (:require [midi.timlib]))
+   (:use [midi.timlib]))
 
 (def notedb {:c  60, :c#  61, :d  62, :d# 63, :e 64, :f 65, :f# 66, :g 67 :g# 68, :a 69, :a# 70, :b 71,
              :C  60, :C#  61, :D  62, :D# 63, :E 64, :F 65, :F# 66, :G 67 :G# 68, :A 69, :A# 70, :B 71,
@@ -355,6 +355,42 @@
   "C  / / / | G  / / / | F   / /  / | C  /  /  / "
   "Am / / / | G  / / / | F   / /  / | C  /  /  / "
   "C  / / / | G  / / / | F   / /  / | C  /  /  / ")))
+
+;!! From DB
+(def conn (midi.timlib/connect-sqlite "resources/synth.db"))
+
+(def query "
+with
+bars as (select * from bar_flat where song_id = ?),
+fill as (
+    select a.bar_id, a.beat_id, b.bar_id orig_bar_id, b.beat_id orig_beat_id,
+           b.chord_id,
+           lag(b.chord_id, 1) over (partition by a.bar_id order by a.beat_id) c1,
+           lag(b.chord_id, 2) over (partition by a.bar_id order by a.beat_id) c2,
+           lag(b.chord_id, 3) over (partition by a.bar_id order by a.beat_id) c3,
+           lag(b.chord_id, 4) over (order by a.bar_id, a.beat_id range between unbounded preceding and current row) c4,
+           lag(b.chord_id, 5) over (order by a.bar_id, a.beat_id range between unbounded preceding and current row) c5,
+           lag(b.chord_id, 6) over (order by a.bar_id, a.beat_id range between unbounded preceding and current row) c6,
+           lag(b.chord_id, 7) over (order by a.bar_id, a.beat_id range between unbounded preceding and current row) c7,
+           lag(b.chord_id, 8) over (order by a.bar_id, a.beat_id range between unbounded preceding and current row) c8
+    from all_beat             a
+         left outer join bars b on (a.bar_id = b.bar_id and a.beat_id = b.beat_id)),
+rc as (select bar_id, beat_id, coalesce(chord_id, c1, c2, c3, c4, c5, c6, c7, c8) chord_id
+       from fill)
+select chord_id
+from rc
+where chord_id is not null
+order by bar_id, beat_id")
+
+(for [i (range 1 6)]
+   (->> (midi.timlib/cursor conn query [(str i)] false)
+       rest
+       (map first)
+       (map keyword)
+       to-ttape
+       make-tape
+       play))
+
 
 (defn -main [& _]
    (play (make-tape (to-ttape all-the-things-you-are)))
