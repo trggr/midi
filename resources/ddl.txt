@@ -1,0 +1,100 @@
+create table all_beat (bar_id integer, beat_id integer);
+
+create table song (
+  song_id            integer not null,
+  song_nm            varchar(50),
+  time_sig_nmrtr_num integer,
+  time_sig_denom_num integer,
+  time_sig_ppq_num   integer,
+  time_sig_bb_num    integer,
+  bpm_num            integer);
+
+create table bar (
+  song_id integer not null,
+  bar_id  integer not null,
+  beat_id integer not null,
+  chord_id varchar(20)
+);
+
+alter table tab rename to bar;
+
+select a.bar_id, a.beat_id, b.chord_id
+from all_beat      a
+     left join bar b on (b.bar_id  = a.bar_id and
+                         b.beat_id = a.beat_id)
+where a.beat_id <= 4 and
+      a.bar_id <= (select max(bar_id) max_bar from bar where song_id = 1) and
+      b.song_id = 1
+order by a.bar_id, a.beat_id;
+
+
+select * from bar_flat;
+
+drop view bar_flat;
+
+create view bar_flat
+as
+select b.song_id, b.bar_id, b.beat_id, b.chord_id,
+       s.song_nm, s.time_sig_nmrtr_num, s.time_sig_denom_num,
+       s.time_sig_ppq_num, s.time_sig_bb_num  
+from bar             b
+     inner join song s on (s.song_id = b.song_id);
+                 
+
+with
+song as (select * from bar_flat where song_id = 2),
+fill as (
+    select a.bar_id, a.beat_id, b.bar_id orig_bar_id, b.beat_id orig_beat_id,
+           b.chord_id,
+           lag(b.chord_id, 1) over (partition by a.bar_id order by a.beat_id) c1,
+           lag(b.chord_id, 2) over (partition by a.bar_id order by a.beat_id) c2,
+           lag(b.chord_id, 3) over (partition by a.bar_id order by a.beat_id) c3,
+           lag(b.chord_id, 4) over (order by a.bar_id, a.beat_id range between unbounded preceding and current row) c4,
+           lag(b.chord_id, 5) over (order by a.bar_id, a.beat_id range between unbounded preceding and current row) c5,
+           lag(b.chord_id, 6) over (order by a.bar_id, a.beat_id range between unbounded preceding and current row) c6,
+           lag(b.chord_id, 7) over (order by a.bar_id, a.beat_id range between unbounded preceding and current row) c7,
+           lag(b.chord_id, 8) over (order by a.bar_id, a.beat_id range between unbounded preceding and current row) c8
+    from all_beat                 a
+         left outer join bar_flat b on (a.bar_id = b.bar_id and a.beat_id = b.beat_id)
+    where song_id = 2 
+     ),
+rc as (select bar_id, beat_id, coalesce(chord_id, c1, c2, c3, c4, c5, c6, c7, c8) chord_id,
+              orig_bar_id, orig_beat_id, chord_id orig_chord_id
+       from fill)
+select * from rc
+-- where chord_id is not null
+order by 1, 2;
+
+with
+bars as (select * from bar_flat where song_id = 2),
+fill as (
+    select a.bar_id, a.beat_id, b.bar_id orig_bar_id, b.beat_id orig_beat_id,
+           b.chord_id,
+           lag(b.chord_id, 1) over (partition by a.bar_id order by a.beat_id) c1,
+           lag(b.chord_id, 2) over (partition by a.bar_id order by a.beat_id) c2,
+           lag(b.chord_id, 3) over (partition by a.bar_id order by a.beat_id) c3,
+           lag(b.chord_id, 4) over (order by a.bar_id, a.beat_id range between unbounded preceding and current row) c4,
+           lag(b.chord_id, 5) over (order by a.bar_id, a.beat_id range between unbounded preceding and current row) c5,
+           lag(b.chord_id, 6) over (order by a.bar_id, a.beat_id range between unbounded preceding and current row) c6,
+           lag(b.chord_id, 7) over (order by a.bar_id, a.beat_id range between unbounded preceding and current row) c7,
+           lag(b.chord_id, 8) over (order by a.bar_id, a.beat_id range between unbounded preceding and current row) c8
+    from all_beat             a
+         left outer join bars b on (a.bar_id = b.bar_id and a.beat_id = b.beat_id)),
+rc as (select bar_id, beat_id, coalesce(chord_id, c1, c2, c3, c4, c5, c6, c7, c8) chord_id
+              -- orig_bar_id, orig_beat_id, chord_id orig_chord_id
+       from fill)
+select * from rc
+where chord_id is not null
+order by 1, 2;
+
+--select * from all_beat order by 1, 2;
+--select * from bar_flat order by 1, 2;
+--select bar_id, beat_id, '[' ||chord_id || ']', length(chord_id), case when chord_id is null then 'Y' else 'N' end from bar order by 1, 2;
+--select * from all_beat where beat_id <= 4;
+--delete from all_beat;
+--update bar set chord_id = null where length(chord_id) = 0;
+    
+
+
+
+  
