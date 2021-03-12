@@ -8,7 +8,6 @@
 ; (batch-update conn "insert into all_beat(bar_id, beat_id) values (?, ?)" (for [bar (range 1 101) beat (range 1 5)] [bar beat]))
 ; (batch-update conn "update bar set chord_id = null where length(chord_id) = 0" [[]])
 
-
 (defn bar-to-beats [bar]
   (let [[a b c d] bar]
     (case (count bar)
@@ -82,28 +81,17 @@
                     "Cmaj7       | C6        | D7             | Am7    D7 |"
                     "G7          | Dm7   G7  | E7    E7+5     | E7        |"
                     "Fmaj7       | F#dim7    | Cmaj7  B7+5    | Em7-5  A7 |"
-                    "Am7   D7    | Dm7    G7 | C6     Am7     | Dm7    G7 |"))}])
+                    "Am7   D7    | Dm7    G7 | C6     Am7     | Dm7    G7 |"))}
+  {:id 6, :nm "Let it Be", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 120,
+   :bars (bars (str "C  | G  | Am | F |"
+                    "C  | G  | F  | C |"
+                    "C  | G  | Am | F |"
+                    "C  | G  | F  | C |"
+                    "Am | G  | F  | C |"
+                    "C  | G  | F  | C |"))}])
 
 (for [i (range (count songs))]
    (save-song conn (nth songs i)))
-
-
-
-; (-> conn .createStatement (.executeUpdate "create table song (song_id number, song_name string);"))
-;(batch-update conn "insert into song(song_id, song_nm, time_sig_nmrtr_num, time_sig_denom_num, time_sig_ppq_num, time_sig_bb_num, bpm_num) values (?, ?, ?, ?, ?, ?, ?)"
-;  [[1 "All the Things You Are", 4, 4, 400000, 8, 120]])
-;(batch-update conn "insert into song(song_id, song_nm, time_sig_nmrtr_num, time_sig_denom_num, time_sig_ppq_num, time_sig_bb_num, bpm_num) values (?, ?, ?, ?, ?, ?, ?)"
-;  [[2 "In a Sentimental Mood", 4, 4, 400000, 8, 120]])
-;
-;(save-bars conn 2 (score (str
-;                                   "Dm       Dmmaj7  | Dm7    Dm6 | Gm      Gmmaj7  | Gm7      Gm6 A7 "
-;                                   "Dm               | D7         | Gm7     Gb7     | Fmaj7         "
-;                                   "Dm       Dmmaj7  | Dm7    Dm6 | Gm      Gmmaj7  | Gm7      Gm6 A7 "
-;                                   "Dm               | D7         | Gm7     Gb7     | Fmaj7    Ebm7 Ab7 "
-;                                   "Dbmaj7   Bbm7    | Ebm7   Ab7 | Dbmaj7  Bb7     | Eb7      Ab7   "
-;                                   "Dbmaj7   Bbm7    | Ebm7   Ab7 | Gm7             | C7           "
-;                                   "Dm       Dmmaj7  | Dm7    Dm6 | Gm      Gmmaj7  | Gm7      Gm6 A7 "
-;                                   "Dm               | D7         | Gm7     C11-9   | Fmaj7         ")))
 
 
 

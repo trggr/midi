@@ -7,11 +7,6 @@
                      :Db  61,         :Eb 63,               :Gb 66,       :Ab 68,        :Bb 70,
              :c2 72, :c2# 73, :d2 74, :d2# 75, :e2 76})
 
-(def c-major [:c :d  :e  :f  :g  :a   :b])
-(def d-major [:d :e  :f# :g  :a  :b   :c2#])
-(def e-major [:e :f# :g# :a  :b  :c2# :d2#])
-(def f-major [:f :g  :a  :a# :c2 :d2  :e2])
-
 (def qn 96) ; duration of a quarter note
 
 (def chord-form {
@@ -46,16 +41,6 @@
     :13    [-2 3 6 10] ; same as m13?
     :13-9  [-2 2 6 10]})
 
-(defn deu [xs]  
-   (println (str/join \newline
-                (for [row xs]
-                    (str/join \tab row)))))
-
-(defn view
-  ([coll t d] (deu (take t (drop d coll))))
-  ([coll t]   (view coll t 0))
-  ([coll]     (view coll 40 0)))
-
 (defn chord-notes [root form]
    (map #(+ (notedb root) % -1) (chord-form form)))
     
@@ -73,21 +58,6 @@
       (map vector (map notedb (concat key (reverse key)))
                   (concat durations durations)
                   (repeat 14 80))))
-
-(defn note-player
-   "Returns player function for a given channel and instrument"
-  [chan instr]
-   (let [synth (javax.sound.midi.MidiSystem/getSynthesizer)
-         _     (.open synth)
-         c     (-> synth .getChannels (nth chan))
-         i     (-> synth .getDefaultSoundbank .getInstruments (nth instr))]
-      (println "Playing" (.getName i))
-      (.loadInstrument synth i)
-      (.programChange c instr)
-      (fn [note dur vol]
-         (.noteOn c note vol)
-         (Thread/sleep dur)
-         (.noteOff c note))))
 
 (defn chord-player
   "Returns player function for a given channel and instrument"
@@ -149,19 +119,19 @@
                                    3 x5) 24)]
                  (f {:bass bass, :chord chord} tempo vol)))))))
 
-(defn score-helper [xs]
-   (loop [acc [] cur "" ts xs]
-      (if (empty? ts)
-          acc
-          (let [[t & more] ts
-                 x (if (= t "/") cur t)]
-             (recur (conj acc (keyword x)) x more)))))
-
-(defn score [tabs]
- (-> tabs
-     (str/replace "|" "")
-     (str/split  #"\s+")
-     score-helper))
+;(defn score-helper [xs]
+;   (loop [acc [] cur "" ts xs]
+;      (if (empty? ts)
+;          acc
+;          (let [[t & more] ts
+;                 x (if (= t "/") cur t)]
+;             (recur (conj acc (keyword x)) x more)))))
+;
+;(defn score [tabs]
+; (-> tabs
+;     (str/replace "|" "")
+;     (str/split  #"\s+")
+;     score-helper))
 
 ; Tick Tape format:
 ;     Field       Type      Description
@@ -181,17 +151,6 @@
 ;  [480	:data	        [[480 8 89 61] [480 8 86 55]]
 ;  [489	:data	        [[489 8 86 0] [489 8 89 0]]
 ;  [492	:data	        [[492 8 89 60] [492 8 86 63]]
-;(def ttape [
-;            [0	 :set-tempo	 434464]
-;            [0	 :time-signature [4 2 24 8]]
-;            [(* 4 24)  :data	         [[24 2 60 60]]]
-;            [(* 4 48)  :data	         [[48 2 64 60]]]
-;            [(* 4 62)  :data	         [[62 2 67 60]]]
-;            [(* 4 96)  :data	         [[96 2 72 60]]]
-;            [(* 4 120) :data	         [[120 2 60 0]]]
-;            [(* 4 120) :data	         [[120 2 64 0]]]
-;            [(* 4 120) :data	         [[120 2 67 0]]]
-;            [(* 4 120) :data	         [[120 2 72 0]]]])
 
 (defn make-tape
   ([ticktape] (make-tape ticktape 1))
@@ -234,27 +193,12 @@
             x5  (for [[tc data] x4] [tc :data data])]
         (concat timing x5))))
 
-
-
-;(defn to-ttape [song]
-;   (let [t1  (loop [tc (* 4 qn) acc [] xs song]
-;                (if-not (seq xs)
-;                   acc
-;                   (let [[bar & others] xs]
-;                      (recur (+ tc (* 4 qn))
-;                             (concat acc (process-bar bar tc))
-;                             others))))
-;         notes  (->> t1 (group-by first) (map (fn [[t n]] [t :data n])))
-;         tempo [[0 :set-tempo 434464][0 :time-signature [4 2 24 8]]]
-;         rc    (sort-by (juxt first second) (concat tempo notes))]
-;     rc))
-
-(defn note-player2 [instr]
+(defn note-player [instr]
    (let [synth    (javax.sound.midi.MidiSystem/getSynthesizer)
          _        (.open synth)
          channels (-> synth .getChannels)
          i        (-> synth .getDefaultSoundbank .getInstruments (nth instr))]
-;      (println "Playing" (.getName i))
+      (println "Playing" (.getName i))
       (.loadInstrument synth i)
 ;      (.programChange c instr)
       (fn [c note vol]
@@ -262,106 +206,15 @@
             (.noteOn ch note vol)))))
 
 (defn play [tape]
-   (let [play-note (note-player2 1)]
+   (let [play-note (note-player 1)]
       (doseq [[tc notes] tape]
          (Thread/sleep tc)
-;         (print tc)
          (doseq [[_ ch note vel] notes]
-;            (print " " tick ch note vel)
-            (play-note ch note vel))
-;         (println)
-       )))
-
-;(def tape (make-tape ttape 2))
-;(play (make-tape ttape 2))
-
-(def all-the-things-you-are (score (str
-  "Fm7    / / / | Bbm7  / /  / | Eb7    / / / | Abmaj7 /  /  / "
-  "Dbmaj7 / / / | G7    / /  / | Cmaj7  / / / | /      /  /  / "
-  "Cm7    / / / | Fm7   / /  / | Bb7    / / / | Ebmaj7 /  /  / "
-  "Abmaj7 / / / | Am7-5 / D7 / | Gmaj7  / / / | /      /  E9 / "
-  "Am7    / / / | D7    / /  / | Gmaj7  / / / | /      /  /  / "
-  "F#m7   / / / | B7    / /  / | Emaj7  / / / | C7+5   /  /  / "
-  "Fm7    / / / | Bbm7  / /  / | Eb7    / / / | Abmaj7 /  /  / "
-  "Dbmaj7 / / / | Gb7   / /  / | Cm7    / / / | Bdim7  /  /  / "
-  "Bbm7   / / / | Eb7   / /  / | Abmaj7 / / / | Gm7-5  /  C9 / ")))
-
-(def all-the-things-you-are2 (score (str
-  "Fm7    / / / / / / / | Bbm7  / / / /      / / / | Eb7    / / / / / / / | Abmaj7 / / /  /  / / / "
-  "Dbmaj7 / / / / / / / | G7    / / / /      / / / | Cmaj7  / / / / / / / | /      / / /  /  / / / "
-  "Cm7    / / / / / / / | Fm7   / / / /      / / / | Bb7    / / / / / / / | Ebmaj7 / / /  /  / / / "
-  "Abmaj7 / / / / / / / | Am7-5 / / / D7     / / / | Gmaj7  / / / / / / / | /      / / /  E9 / / /"
-  "Am7    / / / / / / / | D7    / / / Gmaj7  / / / | /      / / / / / / / "
-  "F#m7   / / / / / / / | B7    / / / Emaj7  / / / | C7+5   / / / / / / / "
-  "Fm7    / / / / / / / | Bbm7  / / / Eb7    / / / | Abmaj7 / / / / / / /"
-  "Dbmaj7 / / / / / / / | Gb7   / / / Cm7    / / / | Bdim7  / / / / / / /"
-  "Bbm7   / / / / / / / | Eb7   / / / Abmaj7 / / / | Gm7-5  / / / C9 / / / ")))
-
-(def all-of-me (score (str
-  "C6     / / / | /     / /  / | E7     / /      / | /      /  /  / "
-  "A7     / / / | /     / /  / | Dm7    / /      / | /      /  /  / "
-  "E7     / / / | /     / /  / | Am7    / /      / | /      /  /  / "
-  "D7     / / / | /     / /  / | Dm7    / /      / | G7     /  /  / "
-  "C6     / / / | /     / /  / | E7     / /      / | /      /  /  / "
-  "A7     / / / | /     / /  / | Dm7    / /      / | /      /  /  / "
-  "F6     / / / | Fm6   / /  / | Cmaj7  / Em7-5  / | A7     /  /  / "
-  "Dm7    / / / | G7    / /  / | C6     / Ebdim7 / | Dm7    /  G7 /")))
-
-(def autumn-leaves (score (str
-  "Am7    / / / | D7    / / / | Gmaj7  /  /  / | Cmaj7  /  /  / "
-  "F#m7-5 / / / | B7    / / / | Em     /  /  / | Em     /  /  / "
-  "Am7    / / / | D7    / / / | Gmaj7  /  /  / | Cmaj7  /  /  / "
-  "F#m7-5 / / / | B7    / / / | Em     /  /  / | Em     /  /  / "
-  "F#m7-5 / / / | B7    / / / | Em     /  /  / | Em     /  /  / "
-  "Am7    / / / | D7    / / / | Gmaj7  /  /  / | Gmaj7  /  /  / "
-  "F#m7-5 / / / | B11-9 / / / | Em7    /  A7 / | Dm7    /  G7 / "
-  "F#m7-5 / / / | B11-9 / / / | Em     /  /  / | Em     /  /  / ")))
-
-(def all-by-myself (score (str
-  "Cmaj7  / / /    | C6    / / /   | D7     /  /  /      | Am7   /  D7 / "
-  "G7     / / /    | Dm7   / G7 /  | Em7   /  A7  /      | Dm    /  G7 / "
-  "Cmaj7  / / /    | C6    / / /   | F#m7  /   B7  /     | E7    /  /  / "
-  "Am7   / Am7-5 / | D7    / / /   | Dm7     /  Dm7-5  / | G7    /  /  / "
-  "Cmaj7  / / /    | C6    / / /   | D7     /  /  /      | Am7   /  D7 / "
-  "G7     / / /    | Dm7   / G7 /  | E7   /  E7+5  /     | E7    /  /  / "
-  "Fmaj7  / / /    | F#dim7 / / /  | Cmaj7  / B7+5 /     | Em7-5 /  A7 / "
-  "Am7   / D7 /    | Dm7    / G7 / | C6    /  Am7  /     | Dm7   /  G7 / ")))
-
-(def in-a-sentimental-mood (score (str
-  "Dm     / Dmmaj7 / | Dm7  / Dm6  /  | Gm   /  Gmmaj7 /  | Gm7   /  Gm6 A7 "
-  "Dm     / / /      | D7   / / /     | Gm7   /  Gb7  /   | Fmaj7 /  /  / "
-  "Dm     / Dmmaj7 / | Dm7  / Dm6  /  | Gm   /  Gmmaj7 /  | Gm7   /  Gm6 A7 "
-  "Dm     / / /      | D7   / / /     | Gm7   /  Gb7  /   | Fmaj7 /  Ebm7 Ab7 "
-  "Dbmaj7 / Bbm7  /  | Ebm7  / Ab7  / | Dbmaj7 /  Bb7 /   | Eb7   /  Ab7 / "
-  "Dbmaj7 / Bbm7  /  | Ebm7  / Ab7  / | Gm7   /  / /      | C7    /  / / "
-  "Dm     / Dmmaj7 / | Dm7  / Dm6  /  | Gm   /  Gmmaj7 /  | Gm7   /  Gm6 A7 "
-  "Dm     / / /      | D7   / / /     | Gm7   /  C11-9  / | Fmaj7 /  /  / "
-)))
-
-(def in-a-sentimental-mood2 (score (str
-                                   "Dm       Dmmaj7  | Dm7    Dm6 | Gm      Gmmaj7  | Gm7      Gm6 A7 "
-                                   "Dm               | D7         | Gm7     Gb7     | Fmaj7         "
-                                   "Dm       Dmmaj7  | Dm7    Dm6 | Gm      Gmmaj7  | Gm7      Gm6 A7 "
-                                   "Dm               | D7         | Gm7     Gb7     | Fmaj7    Ebm7 Ab7 "
-                                   "Dbmaj7   Bbm7    | Ebm7   Ab7 | Dbmaj7  Bb7     | Eb7      Ab7   "
-                                   "Dbmaj7   Bbm7    | Ebm7   Ab7 | Gm7             | C7           "
-                                   "Dm       Dmmaj7  | Dm7    Dm6 | Gm      Gmmaj7  | Gm7      Gm6 A7 "
-                                   "Dm               | D7         | Gm7     C11-9   | Fmaj7         ")))
-
-(def let-it-be (score (str
-  "C  / / / | G  / / / | Am  / /  / | F  /  /  / "
-  "C  / / / | G  / / / | F   / /  / | C  /  /  / "
-  "C  / / / | G  / / / | Am  / /  / | F  /  /  / "
-  "C  / / / | G  / / / | F   / /  / | C  /  /  / "
-  "Am / / / | G  / / / | F   / /  / | C  /  /  / "
-  "C  / / / | G  / / / | F   / /  / | C  /  /  / ")))
-
-;!! From DB
-(def conn (midi.timlib/connect-sqlite "resources/synth.db"))
+            (play-note ch note vel)))))
 
 (def query "
 with
-bars as (select * from bar_flat where song_id = ?),
+bars as (select * from bar_flat where song_id = :1),
 fill as (
     select a.bar_id, a.beat_id, b.bar_id orig_bar_id, b.beat_id orig_beat_id,
            b.chord_id,
@@ -382,26 +235,20 @@ from rc
 where chord_id is not null
 order by bar_id, beat_id")
 
-(for [i (range 1 6)]
-   (->> (midi.timlib/cursor conn query [(str i)] false)
-       rest
-       (map first)
-       (map keyword)
-       to-ttape
-       make-tape
-       play))
-
+(def conn (connect-sqlite "resources/synth.db"))
 
 (defn -main [& _]
-   (play (make-tape (to-ttape all-the-things-you-are)))
-;   (repeatedly
-;      (play-song in-a-sentimental-mood {:bpm 62}))
-;   (play-song all-by-myself {:bpm 120})
-;   (play-song autumn-leaves {:bpm 100})
-;   (play-song all-of-me {:bpm 100})
-;   (play-song all-the-things-you-are {:instr 26})
-;   (play-song let-it-be {:instr 20})
-)
+   (println "starting")
+;   (play (make-tape (to-ttape all-the-things-you-are)))
+   (doseq [i (range 3 6)]
+      (let [song (cursor conn query [(str i)] false)]
+         (->> song
+             rest
+             (map first)
+             (map keyword)
+             to-ttape
+             make-tape
+             play))))
 
 ;--------------- Experiment -------------------
 
@@ -426,15 +273,12 @@ order by bar_id, beat_id")
                  x (if (= t "/") cur t)]
              (recur (conj acc (keyword x)) x more)))))
 
-(def ll "  Dm  |  D7   |   Gm7     Gb7      |     Fmaj7      Ebm7   Ab7    ")
-
-(defn score [tabs]
-  (let [x1 (str/replace tabs "\n" "|")
-        x2 (str/split x1 #"\|")
-        x3 (map str/trim x2)
-        x4 (map #(str/split % #"\s+") x3)]
-     x4))
-
+;(defn score [tabs]
+;  (let [x1 (str/replace tabs "\n" "|")
+;        x2 (str/split x1 #"\|")
+;        x3 (map str/trim x2)
+;        x4 (map #(str/split % #"\s+") x3)]
+;     x4))
 ;(defn strum [bar style]
 ;  (let [[a b c d] bar
 ;         nchords (count bar)
@@ -480,14 +324,3 @@ order by bar_id, beat_id")
 ;(-> swing
 ;    (map (fn [note]
 ;
-;(def ttape [[0    :set-tempo	 434464]
-;            [0    :time-signature [4 2 24 8]]
-;            [100  :data  [[24 2 60 60]]]
-;            [199  :data  [[24 2 60  0]]]
-;            [200  :data  [[48 2 60 60]]]
-;            [299  :data  [[48 2 60  0]]]
-;            [300  :data  [[62 2 60 60]]]
-;            [399  :data  [[48 2 60  0]]]
-;            [400  :data  [[96 2 60 60]]]
-;            [499  :data  [[48 2 60  0]]]])
-

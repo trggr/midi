@@ -2,11 +2,21 @@
   (:use [clojure.string :only [blank? join lower-case split starts-with?
                                    ends-with? trim split-lines]]))
 
-(defn de-uglify [xs]  (join \newline
-                          (for [row (vec xs)]
-                                 (join \tab row))))
+;(defn de-uglify [xs]  (join \newline
+;                          (for [row (vec xs)]
+;                                 (join \tab row))))
 
-(def deu de-uglify)
+(defn deu [xs]  
+   (println (join \newline
+                (for [row xs]
+                    (join \tab row)))))
+
+(defn view
+  ([coll t d] (deu (take t (drop d coll))))
+  ([coll t]   (view coll t 0))
+  ([coll]     (view coll 40 0)))
+
+;(def deu de-uglify)
 
 ;; returns n-th column of matrix as vector
 (defn col [n matrix]
