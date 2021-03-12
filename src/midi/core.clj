@@ -115,27 +115,40 @@
             x5  (for [[tc data] x4] [tc :data data])]
         (concat timing x5))))
 
+; Plugin
+(defn plugin-cb-1234 [beats qn]
+   (let [cvel       40   ; chord's loudness
+         bvel       80   ; bass loudness
+         bchannel   2    ; bass MIDI channel
+         cchannel   3]    ; chords' MIDI channel
+      (reduce (fn [acc [bar beat chord]]
+                      (let [tc    (* qn (+ (* bar 4) beat))
+                            c     (chorddb chord)
+                            notes (map #(vector tc cchannel % cvel) (rest c))
+                            bass  (case beat
+                                     1 (first c)
+                                     2 (+ 2 (first c))
+                                     3 (second c)
+                                     4 (nth c 2))
+                            notes (cons (vector tc bchannel (- bass 24) bvel) notes)]
+                                 (assoc-in acc [bar tc] notes)))
+              (sorted-map)
+              beats)))
+
 (defn to-ttape
   ([beats]
-      (to-ttape beats [[0 :set-tempo  400000][0 :time-signature [4 2 24 8]]]))
-  ([beats timing]
-      (let [qn         96   ; duration of a quarter
-            vel        70   ; loudness of a chord
-            channel    2    ; channel for chords
-            offpct     0.99 ; turn note off at this %
-            x2 (reduce (fn [acc [bar beat chord]]
-                         (let [tc  (* qn (+ (* bar 4) beat))]
-                           (assoc-in acc
-                                     [bar tc]
-                                     (map #(vector tc channel % vel) (chorddb chord)))))
-                       (sorted-map)
-                       beats)
+      (to-ttape beats plugin-cb-1234 [[0 :set-tempo  400000][0 :time-signature [4 2 24 8]]]))
+  ([beats pluginf timing]
+      (let [qn         96   ; quarter's duration
+            offpct     0.99 ; notes off events at %
+            x2  (pluginf beats qn)
             on  (for [[_ bar] x2, [_ chord] bar, note chord] note)
             off (map (fn [[t c n _]] [(+ t (* qn offpct)) c n 0]) on)
             x3  (concat on off)
             x4  (sort-by key (group-by first x3))
             x5  (for [[tc data] x4] [tc :data data])]
         (concat timing x5))))
+
 
 (defn note-player [instr]
    (let [synth    (javax.sound.midi.MidiSystem/getSynthesizer)
