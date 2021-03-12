@@ -92,22 +92,24 @@
                            (recur tc ppq tempo (conj acc [x val]) others))))))))
 
 (defn to-ttape
-  ([score]
-      (to-ttape score [[0 :set-tempo  400000][0 :time-signature [4 2 24 8]]]))
-  ([score timing]
-      (let [qn 96 ; duration of a quarter note
-            x1 (map-indexed (fn [i x] [i x]) score)
+  ([beats]
+      (to-ttape beats [[0 :set-tempo  400000][0 :time-signature [4 2 24 8]]]))
+  ([beats timing]
+      (let [qn  96             ; duration of a quarter note
+            vel 70             ; loudness of chord notes
+            off-threshold 0.99 ; when to turn off midi note
+            x1 (map-indexed (fn [i x] [i x]) beats)
             x2 (reduce (fn [acc [n c]]
                          (let [beat (mod n 4)
                                bar  (inc (/ (- n beat) 4))
                                tc   (* qn (+ (* bar 4) beat))]
                            (assoc-in acc
                                      [bar tc]
-                                     (map #(vector tc 2 % 70) (chorddb c)))))
+                                     (map #(vector tc 2 % vel) (chorddb c)))))
                        (sorted-map)
                        x1)
             on  (for [[_ bar] x2, [_ chord] bar, note chord] note)
-            off (map (fn [[t c n _]] [(+ t (* qn 0.99)) c n 0]) on)
+            off (map (fn [[t c n _]] [(+ t (* qn off-threshold)) c n 0]) on)
             x3  (concat on off)
             x4  (sort-by key (group-by first x3))
             x5  (for [[tc data] x4] [tc :data data])]
