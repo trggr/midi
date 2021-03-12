@@ -91,64 +91,43 @@
                         (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
                            (recur tc ppq tempo (conj acc [x val]) others))))))))
 
-(defn to-ttape2
-  ([beats]
-      (to-ttape2 beats [[0 :set-tempo  400000][0 :time-signature [4 2 24 8]]]))
-  ([beats timing]
-      (let [qn  96             ; duration of a quarter note
-            vel 70             ; loudness of chord notes
-            off-threshold 0.99 ; when to turn off midi note
-            x1 (map-indexed (fn [i x] [i x]) beats)
-            x2 (reduce (fn [acc [n c]]
-                         (let [beat (mod n 4)
-                               bar  (inc (/ (- n beat) 4))
-                               tc   (* qn (+ (* bar 4) beat))]
-                           (assoc-in acc
-                                     [bar tc]
-                                     (map #(vector tc 2 % vel) (chorddb c)))))
-                       (sorted-map)
-                       x1)
-            on  (for [[_ bar] x2, [_ chord] bar, note chord] note)
-            off (map (fn [[t c n _]] [(+ t (* qn off-threshold)) c n 0]) on)
-            x3  (concat on off)
-            x4  (sort-by key (group-by first x3))
-            x5  (for [[tc data] x4] [tc :data data])]
-        (concat timing x5))))
-
 ; Plugin
-(defn plugin-cb-1234 [beats qn]
+(defn plugin-skeleton [beats qn bassf]
    (let [cvel       40   ; chord's loudness
          bvel       80   ; bass loudness
          bchannel   2    ; bass MIDI channel
          cchannel   3]    ; chords' MIDI channel
       (reduce (fn [acc [bar beat chord]]
-                      (let [tc    (* qn (+ (* bar 4) beat))
-                            c     (chorddb chord)
-                            notes (map #(vector tc cchannel % cvel) (rest c))
-                            bass  (case beat
-                                     1 (first c)
-                                     2 (+ 2 (first c))
-                                     3 (second c)
-                                     4 (nth c 2))
-                            notes (cons (vector tc bchannel (- bass 24) bvel) notes)]
-                                 (assoc-in acc [bar tc] notes)))
+                 (let [tc    (* qn (+ (* bar 4) beat))
+                       c     (chorddb chord)
+                       notes (map #(vector tc cchannel % cvel) (rest c))
+                       bass  (bassf beat c)
+                       notes (if (nil? bass)
+                                notes 
+                                (cons (vector tc bchannel (- bass 24) bvel) notes))]
+                  (assoc-in acc [bar tc] notes)))
               (sorted-map)
               beats)))
 
+(defn bass-15   [beat [r _ n5]]  (case beat 1 r           3 n5   nil))
+(defn bass-1234 [beat [r n3 n5]] (case beat 1 r 2 (+ 2 r) 3 n3 4 (inc n3)))
+(defn bass-1235 [beat [r n3 n5]] (case beat 1 r 2 (+ 2 r) 3 n3 4 n5))
+
 (defn to-ttape
   ([beats]
-      (to-ttape beats plugin-cb-1234 [[0 :set-tempo  400000][0 :time-signature [4 2 24 8]]]))
-  ([beats pluginf timing]
-      (let [qn         96   ; quarter's duration
-            offpct     0.99 ; notes off events at %
-            x2  (pluginf beats qn)
+      (to-ttape beats bass-15))
+  ([beats bassf]
+      (to-ttape beats bassf [[0 :set-tempo 400000][0 :time-signature [4 2 24 8]]]))
+  ([beats bassf timing]
+      (let [qn      96   ; quarter's duration
+            offpct  0.99 ; notes off events at %
+            x2  (plugin-skeleton beats qn bassf)
             on  (for [[_ bar] x2, [_ chord] bar, note chord] note)
             off (map (fn [[t c n _]] [(+ t (* qn offpct)) c n 0]) on)
             x3  (concat on off)
             x4  (sort-by key (group-by first x3))
             x5  (for [[tc data] x4] [tc :data data])]
         (concat timing x5))))
-
 
 (defn note-player [instr]
    (let [synth    (javax.sound.midi.MidiSystem/getSynthesizer)
@@ -195,16 +174,19 @@
 
 (defn -main [& _]
    (println "starting")
-   (doseq [song ["ALL THE THINGS YOU ARE"
-                 "IN A SENTIMENTAL MOOD"
-                 "ALL OF ME"
-                 "AUTUMN LEAVES"
-                 "ALL BY MYSELF"
-                 "LET IT BE"]]
-      (println song)
-      (->> (get-beats conn song)
-           rest 
-           (map (fn [[a b c]] (vector (integer a) (integer b) (keyword c))))
-           to-ttape make-tape play-tape)))
-
-
+   (doseq [bassf [bass-15 bass-1234 bass-1235]]
+     (doseq [song ["ALL THE THINGS YOU ARE"
+;                   "IN A SENTIMENTAL MOOD"
+;                   "ALL OF ME"
+;                   "AUTUMN LEAVES"
+;                   "ALL BY MYSELF"
+;                   "LET IT BE"
+                  ]]
+         (let [f #(to-ttape % bassf)]
+           (println song bassf)
+           (->> (get-beats conn song)
+                rest 
+                (map (fn [[a b c]] (vector (integer a) (integer b) (keyword c))))
+                f
+                make-tape
+                play-tape)))))
