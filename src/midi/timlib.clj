@@ -2,9 +2,6 @@
   (:use [clojure.string :only [blank? join lower-case split starts-with?
                                    ends-with? trim split-lines]]))
 
-;(defn de-uglify [xs]  (join \newline
-;                          (for [row (vec xs)]
-;                                 (join \tab row))))
 
 (defn deu [xs]  
    (println (join \newline
@@ -16,7 +13,7 @@
   ([coll t]   (view coll t 0))
   ([coll]     (view coll 40 0)))
 
-;(def deu de-uglify)
+(defn integer [s] (. Integer parseInt s))
 
 ;; returns n-th column of matrix as vector
 (defn col [n matrix]

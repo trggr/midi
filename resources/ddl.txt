@@ -7,16 +7,17 @@ create table song (
   time_sig_denom_num integer,
   time_sig_ppq_num   integer,
   time_sig_bb_num    integer,
-  bpm_num            integer);
+  bpm_num            integer,
+  primary key(song_id)
+);
 
 create table bar (
   song_id integer not null,
   bar_id  integer not null,
   beat_id integer not null,
-  chord_id varchar(20)
+  chord_id varchar(20),
+  primary key (song_id, bar_id, beat_id)
 );
-
-alter table tab rename to bar;
 
 select a.bar_id, a.beat_id, b.chord_id
 from all_beat      a

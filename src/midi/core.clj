@@ -91,9 +91,9 @@
                         (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
                            (recur tc ppq tempo (conj acc [x val]) others))))))))
 
-(defn to-ttape
+(defn to-ttape2
   ([beats]
-      (to-ttape beats [[0 :set-tempo  400000][0 :time-signature [4 2 24 8]]]))
+      (to-ttape2 beats [[0 :set-tempo  400000][0 :time-signature [4 2 24 8]]]))
   ([beats timing]
       (let [qn  96             ; duration of a quarter note
             vel 70             ; loudness of chord notes
@@ -110,6 +110,28 @@
                        x1)
             on  (for [[_ bar] x2, [_ chord] bar, note chord] note)
             off (map (fn [[t c n _]] [(+ t (* qn off-threshold)) c n 0]) on)
+            x3  (concat on off)
+            x4  (sort-by key (group-by first x3))
+            x5  (for [[tc data] x4] [tc :data data])]
+        (concat timing x5))))
+
+(defn to-ttape
+  ([beats]
+      (to-ttape beats [[0 :set-tempo  400000][0 :time-signature [4 2 24 8]]]))
+  ([beats timing]
+      (let [qn         96   ; duration of a quarter
+            vel        70   ; loudness of a chord
+            channel    2    ; channel for chords
+            offpct     0.99 ; turn note off at this %
+            x2 (reduce (fn [acc [bar beat chord]]
+                         (let [tc  (* qn (+ (* bar 4) beat))]
+                           (assoc-in acc
+                                     [bar tc]
+                                     (map #(vector tc channel % vel) (chorddb chord)))))
+                       (sorted-map)
+                       beats)
+            on  (for [[_ bar] x2, [_ chord] bar, note chord] note)
+            off (map (fn [[t c n _]] [(+ t (* qn offpct)) c n 0]) on)
             x3  (concat on off)
             x4  (sort-by key (group-by first x3))
             x5  (for [[tc data] x4] [tc :data data])]
@@ -152,7 +174,7 @@
                         left outer join bars b on (a.bar_id = b.bar_id and a.beat_id = b.beat_id)),
                rc as (select bar_id, beat_id, coalesce(chord_id, c1, c2, c3, c4, c5, c6, c7, c8) chord_id
                       from fill)
-               select chord_id
+               select bar_id, beat_id, chord_id
                from rc
                where chord_id is not null
                order by bar_id, beat_id"]
@@ -167,6 +189,9 @@
                  "ALL BY MYSELF"
                  "LET IT BE"]]
       (println song)
-      (->> (get-beats conn song) rest (map (comp keyword first)) to-ttape make-tape play-tape)))
+      (->> (get-beats conn song)
+           rest 
+           (map (fn [[a b c]] (vector (integer a) (integer b) (keyword c))))
+           to-ttape make-tape play-tape)))
 
 
