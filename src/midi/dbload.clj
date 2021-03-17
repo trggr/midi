@@ -89,8 +89,108 @@
                     "Am | G  | F  | C |"
                     "C  | G  | F  | C |"))}])
 
-; (for [s songdb]
-;   (save-song conn s))
+; Middle octave - C3 (also just C for convenience)
+(def notedb {:C 60, :C# 61, :Db 61,
+             :D 62, :D# 63, :Eb 63,
+             :E 64,
+             :F 65, :F# 66, :Gb 66,
+             :G 67, :G# 68, :Ab 68,
+             :A 69, :A# 70, :Bb 70,
+             :B 71})
+
+(def notedb (reduce (fn [acc [k v]] (assoc acc k v))
+                    notedb
+                    (for [octave    [-2 -1 0 1 2 3 4 5 6 7 8]
+                          [id freq] notedb]
+                        [(keyword (str (name id) octave))
+                         (+ freq (* 12 (- octave 3)))])))
+
+(def notedb (reduce (fn [acc [k v]] (assoc acc (keyword (str/lower-case (name k))) v))
+                    notedb
+                    notedb))
+
+(defn save-notes [conn notes]
+   (batch-update conn (str "insert into note (note_id, midi_num) values (?, ?)")
+      (for [[k v] notes] [(name k) v])))
+
+(def chord-form {
+    :major [[1 5 8]      :Y]    
+    :+     [[1 4 9]      :Y]
+    :sus4  [[1 6 8]      :Y]
+    :6     [[1 5 8 11]   :Y]
+    :m6    [[1 4 8 11]   :N]
+    :7     [[1 5 8 11]   :Y]
+    :m     [[1 4 8]      :N]
+    :m7    [[1 4 8 11]   :N]
+    :maj7  [[1 5 8 12]   :Y]
+    :7sus4 [[1 6 8 11]   :Y]
+    :7+5   [[1 5 9 11]   :Y]
+    :7-5   [[1 5 7 11]   :Y]
+    :dim   [[1 4 7]       :N]
+    :dim7  [[1 4 7 11]    :N]
+    :m7-5  [[1 4 7 11]    :N]
+    :mmaj7 [[1 4 8 12]    :Y]
+    :mmaj9 [[1 5 8 12 15] :Y]
+    :m9    [[1 4 8 11 15] :N]
+    :9     [[1 5 8 11 15] :Y]
+    :9+5   [[1 5 9 11 15] :Y]
+    :9-5   [[1 5 7 11 15]    :Y]
+    :96    [[1 5 8 10 11 15] :Y]
+    :maj11 [[1 5 8 12 15 18] :Y]
+    :m11   [[1 4 8 11 15 18] :N]
+    :11    [[1 5 8 11 15 18] :Y]
+    :11-9  [[1 5 8 11 14 18] :Y]
+    :maj13 [[-1 3 6 10]      :Y]
+    :m13   [[-2 3 6 10]      :N]
+    :13    [[-2 3 6 10]      :Y] ; same as m13?
+    :13-9  [[-2 2 6 10]      :Y]})
+
+(defn chord-notes [root form]
+   (map #(+ (notedb root) % -1) (first (chord-form form))))
+
+(def chorddb
+   (for [root [:C :C# :Db :D :D# :Eb :E :F :F# :Gb :G :G# :Ab :A :A# :Bb :B]
+         form (keys chord-form)]
+      (let [[pattern maj-ind] (chord-form form)
+            [a b c d e f] (map #(+ (notedb root) % -1) pattern)
+            r             (name root)]
+        {:chord      (str (name root) (if (= form :major) "" (name form)))
+         :form       (name form)
+         :root       r
+         :major-ind  (name maj-ind)
+         :a    a
+         :b    b
+         :c    c
+         :d    d
+         :e    e
+         :f    f})))
+
+(defn save-chords [conn chords]
+   (batch-update conn (str "insert into chord(chord_id, chord_form_cd, root_cd,"
+                           "  major_ind, midi1_num, midi2_num, midi3_num, midi4_num,"
+                           "  midi5_num, midi6_num"
+                           ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      (map (juxt :chord :form :root :major-ind :a :b :c :d :e :f) chords)))
+
+
+    
+(def chorddb (reduce (fn [acc [k f]]
+                        (assoc acc
+                               (keyword (str (name k) (if (= f :major) "" (name f))))
+                               (chord-notes k f)))
+                     {}
+                     (for [k [:C :C# :Db :D :D# :Eb :E :F :F# :Gb :G :G# :Ab :A :A# :Bb :B]
+                           f (keys chord-form)]
+                        [k f])))
+
+; Saving:
+;
+; (for [s songdb] (save-song conn s))
+;
+; (save-chords conn chorddb)
+
+(def linea [[:Fm7  [:f0  :ab0  :c1 :eb1]] [:Bbm7 [:bb0 :db1 :f1 :b1]] [:Eb7 [:g1 :eb1 :db1 :bb0]]])
+ 
 
 
 
