@@ -133,7 +133,7 @@
   ([beats]
       (chord-ttape beats bass-15))
   ([beats bassf]
-      (chord-ttape beats bassf [[0 :set-tempo 400000][0 :time-signature [4 2 24 8]]]))
+      (chord-ttape beats bassf [[0 :set-tempo 800000][0 :time-signature [4 2 24 8]]]))
   ([beats bassf timing]
       (let [qn      96   ; quarter's duration
             offpct  0.99 ; notes off events at %
@@ -211,3 +211,8 @@
                (chord-ttape bassf)
                make-tape
                play-tape))))
+
+
+;(def beats (get-beats conn "all the things you are"))
+;(def tt (chord-ttape beats))
+

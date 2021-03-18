@@ -189,7 +189,16 @@
 ;
 ; (save-chords conn chorddb)
 
-(def linea [[:Fm7  [:f0  :ab0  :c1 :eb1]] [:Bbm7 [:bb0 :db1 :f1 :b1]] [:Eb7 [:g1 :eb1 :db1 :bb0]]])
+; (def normalize-baseline-db  
+(def basslinedb {:linea {:chords [:Fm7 :Bbm7 :Eb7 :Ab7]
+                         :bass   [:f0  :ab0 :c1  :eb1
+                                  :bb0 :db1 :f1  :b1
+                                  :g1  :eb1 :db1 :bb0]}
+                 :lineb {:chords [:Fm7 :Bbm7 :Eb7]
+                         :bass   [:f0  :g    :ab0 :a
+                                  :bb0 :c1 :db1 :f1
+                                  :eb1 :g1 :bb1 :a1]}})
+
  
 
 

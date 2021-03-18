@@ -156,9 +156,44 @@ create table note (
   midi_num integer
 );
 
+--         65  70   63   
+-- (- 63)   2   7    0
+-- (- 65)   0   5   -2
 
-select bar_id, beat_id, chord_id, major_ind, midi1_num
+
+select bar_id, beat_id, chord_id, major_ind, midi1_num root, c.major_ind, midi1_num - 65
 from bar              b
      left join chord c on (c.chord_id = b.chord_id)
 where b.song_id = 1;
+
+select * from note order by midi_num;
+
+select * from chord;
+
+select bar_id, beat_id, chord_id, major_ind, midi1_num root, c.major_ind,
+       midi1_num -        lag(midi1_num) over (order by bar_id, beat_id),
+       midi1_num - ( 12 + lag(midi1_num) over (order by bar_id, beat_id)),
+       midi1_num - (-12 + lag(midi1_num) over (order by bar_id, beat_id))
+from bar              b
+     left join chord c on (c.chord_id = b.chord_id)
+where b.song_id = 1;
+
+with
+t as (select bar_id, beat_id, b.chord_id, c.major_ind, midi1_num root, 
+             lead(midi1_num) over (order by bar_id, beat_id) next_chord
+      from bar              b
+           left join chord c on (c.chord_id = b.chord_id)
+      where b.song_id = 1)
+select t.*,
+       abs(root - next_chord)          d1,
+       abs(root - (next_chord + 12))   d2,
+       abs(root - (next_chord - 12))   d3,
+       min(abs(root - next_chord),
+           abs(root - (next_chord + 12)),
+           abs(root - (next_chord - 12))) mindist,
+       case when major_ind = 'N' then 'min' else 'maj' end ||
+       min(abs(root - next_chord),
+           abs(root - (next_chord + 12)),
+           abs(root - (next_chord - 12))) int
+from t;
 
