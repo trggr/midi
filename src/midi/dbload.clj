@@ -110,7 +110,7 @@
                     notedb))
 
 (defn save-notes [conn notes]
-   (batch-update conn (str "insert into note (note_id, midi_num) values (?, ?)")
+   (batch-update conn (str "insert into note (note_cd, midi_num) values (?, ?)")
       (for [[k v] notes] [(name k) v])))
 
 (def chord-form {
@@ -148,16 +148,17 @@
 (defn chord-notes [root form]
    (map #(+ (notedb root) % -1) (first (chord-form form))))
 
-(def chorddb
+(def chord-sqlite
    (for [root [:C :C# :Db :D :D# :Eb :E :F :F# :Gb :G :G# :Ab :A :A# :Bb :B]
          form (keys chord-form)]
       (let [[pattern maj-ind] (chord-form form)
             [a b c d e f] (map #(+ (notedb root) % -1) pattern)
             r             (name root)]
-        {:chord      (str (name root) (if (= form :major) "" (name form)))
-         :form       (name form)
-         :root       r
-         :major-ind  (name maj-ind)
+        {:chord_id      (str (name root) (if (= form :major) "" (name form)))
+         :root_midi_num (get notedb root)
+         :chord_form_cd (name form)
+         :root_note_cd  r
+         :major-ind     (name maj-ind)
          :a    a
          :b    b
          :c    c
@@ -166,13 +167,13 @@
          :f    f})))
 
 (defn save-chords [conn chords]
-   (batch-update conn (str "insert into chord(chord_id, chord_form_cd, root_cd,"
+   (batch-update conn (str "insert into chord(chord_id, root_midi_num, chord_form_cd, root_note_cd,"
                            "  major_ind, midi1_num, midi2_num, midi3_num, midi4_num,"
                            "  midi5_num, midi6_num"
-                           ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      (map (juxt :chord :form :root :major-ind :a :b :c :d :e :f) chords)))
+                           ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      (map (juxt :chord_id :root_midi_num :chord_form_cd :root_note_cd :major-ind :a :b :c :d :e :f) chords)))
 
-
+; (save-chords conn chord-sqlite)
     
 (def chorddb (reduce (fn [acc [k f]]
                         (assoc acc
@@ -187,7 +188,6 @@
 ;
 ; (for [s songdb] (save-song conn s))
 ;
-; (save-chords conn chorddb)
 
 ; (def normalize-baseline-db  
 (def basslinedb {:linea {:chords [:Fm7 :Bbm7 :Eb7 :Ab7]
