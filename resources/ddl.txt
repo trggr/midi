@@ -135,9 +135,10 @@ select * from bar where song_id = 1;
 drop table chord;
 
 create table chord (
-   chord_id      varchar(10) not null primary key,
+   chord_id      varchar(20) not null primary key,
+   root_midi_num integer,
    chord_form_cd varchar(10),
-   root_cd       varchar(5),
+   root_note_cd  varchar(10),
    major_ind     char(1),
    midi1_num     integer,
    midi2_num     integer,
@@ -146,13 +147,11 @@ create table chord (
    midi5_num     integer,
    midi6_num     integer
 );
-   
-select * from chord;
 
 drop table note;
 
 create table note (
-  note_id varchar(10) not null primary key,
+  note_cd varchar(10) not null primary key,
   midi_num integer
 );
 
@@ -204,8 +203,108 @@ from t;
 --   chord_id      varchar(10)
 --);
 
-select *
-from bar b left join chord c
+select b.bar_id, b.beat_id, b.chord_id, c.root_midi_num, c.major_ind, p.*
+from bar                  b
+     left join chord      c on (b.chord_id = c.chord_id)
+     left join chord_ptrn p on (p.chord_id = b.chord_id and
+                                p.beat_id  = b.beat_id)
+where b.song_id = 1 and
+      p.bar_id  = 1;
+      
 
-insert into bass_ptrn (pass_ptrn_id, bar_id, beat_id, chord_id)
-values ('linea', 1, 1, 'Fm7')
+with
+s1 as (select b.song_id, b.bar_id first_bar_id, b.bar_id + 1 next_bar_id, b.chord_id, p.bass_line_id, c.major_ind, c.root_midi_num - 60 transp_num
+       from bar             b
+            join chord      c on (c.chord_id = b.chord_id)
+            join chord_ptrn p on (p.chord_id = b.chord_id and p.beat_id = b.beat_id)
+       where p.bar_id  = 1),
+s2 as (select s.song_id, s.first_bar_id, s.bass_line_id, s.transp_num, b.bar_id + 1 next_bar_id, b.chord_id
+       from s1              s
+            join bar        b  on (b.song_id  = s.song_id  and b.bar_id = s.next_bar_id)
+            join chord_ptrn p  on (p.chord_id = b.chord_id and p.beat_id = b.beat_id and p.bass_line_id = s.bass_line_id)
+       where p.bar_id = 2),
+s3 as (select s.song_id, s.first_bar_id, s.bass_line_id, s.transp_num, b.bar_id + 1 next_bar_id, b.chord_id
+       from s2              s
+            join bar        b  on (b.song_id  = s.song_id  and b.bar_id = s.next_bar_id)
+            join chord_ptrn p  on (p.chord_id = b.chord_id and p.beat_id = b.beat_id and p.bass_line_id = s.bass_line_id)
+       where p.bar_id = 3),
+s4 as (select s.song_id, s.first_bar_id, s.bass_line_id, s.transp_num, b.bar_id + 1 next_bar_id, b.chord_id
+       from s3              s
+            join bar        b  on (b.song_id  = s.song_id  and b.bar_id = s.next_bar_id)
+            join chord_ptrn p  on (p.chord_id = b.chord_id and p.beat_id = b.beat_id and p.bass_line_id = s.bass_line_id)
+       where p.bar_id = 4)
+select * from s4;
+
+
+with
+s1 as (select b.song_id, b.bar_id first_bar_id, b.bar_id + 1 next_bar_id, b.chord_id, p.bass_line_id, c.major_ind, c.root_midi_num - 60 transp_num
+       from bar             b
+            join chord      c on (c.chord_id = b.chord_id)
+            join chord_ptrn p on (p.chord_id = b.chord_id and p.beat_id = b.beat_id)
+       where p.bar_id  = 1),
+s2 as (select s.song_id, s.first_bar_id, s.bass_line_id, s.transp_num, b.bar_id + 1 next_bar_id, b.chord_id
+       from s1              s
+            join bar        b  on (b.song_id  = s.song_id  and b.bar_id = s.next_bar_id)
+            join chord_ptrn p  on (p.chord_id = b.chord_id and p.beat_id = b.beat_id and p.bass_line_id = s.bass_line_id)
+       where p.bar_id = 2),
+s3 as (select s.song_id, s.first_bar_id, s.bass_line_id, s.transp_num, b.bar_id + 1 next_bar_id, b.chord_id
+       from s2              s
+            join bar        b  on (b.song_id  = s.song_id  and b.bar_id = s.next_bar_id)
+            join chord_ptrn p  on (p.chord_id = b.chord_id and p.beat_id = b.beat_id and p.bass_line_id = s.bass_line_id)
+       where p.bar_id = 3),
+s4 as (select s.song_id, s.first_bar_id, s.bass_line_id, s.transp_num, b.bar_id + 1 next_bar_id, b.chord_id
+       from s3              s
+            join bar        b  on (b.song_id  = s.song_id  and b.bar_id = s.next_bar_id)
+            join chord_ptrn p  on (p.chord_id = b.chord_id and p.beat_id = b.beat_id and p.bass_line_id = s.bass_line_id)
+       where p.bar_id = 4)
+select * from s1;
+
+select * from bar where song_id = 1 order by bar_id, beat_id;
+
+
+alter table chord add root_num integer;
+
+select * from note;
+
+drop table bass_ptrn;
+
+create table chord_ptrn (
+  bass_line_id varchar(20) not null,
+  bar_id       integer     not null,
+  beat_id      integer     not null,
+  chord_id     varchar(20),
+  primary key (bass_line_id, beat_id, bar_id)
+);
+
+select * from chord_ptrn;
+
+delete from chord_ptrn;
+
+insert into chord_ptrn (bass_line_id, bar_id, beat_id, chord_id)
+values
+--  ('Fm-linea', 1, 1, 'Fm7'),
+--  ('Fm-linea', 2, 1, 'Bbm7'),
+--  ('Fm-linea', 3, 1, 'Eb7'),
+--  ('Fm-linea', 4, 1, 'Abmaj7'),
+  ('Cm-linea', 1, 1, 'Cm7'),
+  ('Cm-linea', 2, 1, 'Fm7'),
+  ('Cm-linea', 3, 1, 'Bb7'),
+  ('Cm-linea', 4, 1, 'Ebmaj7');
+
+with 
+t as (select p.*, c.root_midi_num, c.chord_form_cd, n.midi_num
+      from chord_ptrn p
+           join chord c on (c.chord_id = p.chord_id)
+           cross join note  n
+      where n.note_cd in ('c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b')),
+u as (select t.bass_line_id, t.bar_id, t.beat_id, c.chord_id, (c.root_midi_num - t.root_midi_num) trans
+      from t
+           left join chord c on (c.root_midi_num = t.midi_num and c.chord_form_cd = t.chord_form_cd)),
+v as (select bass_line_id, bar_id, beat_id, chord_id, case when trans >= 0 then trans else trans + 12 end trans
+      from u)
+select * from v
+--where trans = 5
+order by trans, bar_id, beat_id;
+
+select * from note where note_cd in ('c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b') order by 2;
+
