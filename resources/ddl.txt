@@ -240,6 +240,40 @@ s5 as (select s.song_id, s.bass_line_id, s.from_bar_id, s.transp_num, b.bar_id +
 select * from s4;
 
 
+with recursive
+s(song_id, bass_line_id, from_bar_id, next_bar_id, chord_id, step_num, bar_cnt) as (
+         select b.song_id,
+                p.bass_line_id,
+                b.bar_id from_bar_id,
+                b.bar_id + 1 next_bar_id,
+--                c.root_midi_num - 60 transp_num,
+                b.chord_id,
+                p.bar_id step_num,
+                p.bar_cnt
+         from bar             b
+              join chord_ptrn_v p on (p.chord_id = b.chord_id and
+                                      p.beat_id  = b.beat_id)
+         where p.bar_id  = 1
+         union all
+         select s.song_id,
+                s.bass_line_id,
+                s.from_bar_id,
+                b.bar_id + 1 next_bar_id,
+--                s.transp_num,
+                b.chord_id,
+                p.bar_id,
+                s.bar_cnt
+         from s
+              join bar          b  on (b.song_id  = s.song_id  and
+                                       b.bar_id   = s.next_bar_id)
+              join chord_ptrn_v p  on (p.chord_id     = b.chord_id   and
+                                       p.beat_id      = b.beat_id    and
+                                       p.bass_line_id = s.bass_line_id)
+       where p.bar_id = s.step_num + 1)
+select * from s
+where step_num = bar_cnt;
+
+
 
 select * from bar where song_id = 1 order by bar_id, beat_id;
 
@@ -248,6 +282,20 @@ alter table chord add root_num integer;
 select * from note;
 
 drop table bass_ptrn;
+
+create table chord_ptrn_hdr (
+  bass_line_id varchar2(20) not null,
+  bar_cnt      integer,
+  primary key (bass_line_id)
+);
+
+delete from chord_ptrn_hdr;
+
+insert into chord_ptrn_hdr (bass_line_id, bar_cnt)
+values
+  ('Line-A',  4),
+  ('Line-A1', 4),
+  ('251',     3);
 
 create table chord_ptrn (
   bass_line_id varchar(20) not null,
@@ -264,18 +312,20 @@ delete from chord_ptrn;
 insert into chord_ptrn (bass_line_id, bar_id, beat_id, chord_id)
 values
   ('Line-A',  1, 1, 'Cm7'), ('Line-A',  2, 1, 'Fm7'), ('Line-A',  3, 1, 'Bb7'),    ('Line-A',  4, 1, 'Ebmaj7'),
-  ('Line-A1', 1, 1, 'Cm7'), ('Line-A1', 2, 1, 'Fm7'), ('Line-A1', 3, 1, 'Bbmaj7'), ('Line-A1', 4, 1, 'Ebmaj7');
+  ('Line-A1', 1, 1, 'Cm7'), ('Line-A1', 2, 1, 'Fm7'), ('Line-A1', 3, 1, 'Bbmaj7'), ('Line-A1', 4, 1, 'Ebmaj7'),
+  ('251',     1, 1, 'Am7'), ('251',     2, 1, 'D7'),  ('251',     3, 1, 'Gmaj7');
   
 drop view chord_ptrn_v;
 
 create view chord_ptrn_v as
 with 
-t as (select p.*, c.root_midi_num, c.chord_form_cd, n.midi_num
-      from chord_ptrn p
-           join chord c on (c.chord_id = p.chord_id)
-           cross join note  n
+t as (select p.*, c.root_midi_num, c.chord_form_cd, n.midi_num, h.bar_cnt
+      from chord_ptrn          p
+           join chord_ptrn_hdr h on (h.bass_line_id = p.bass_line_id)
+           join chord          c on (c.chord_id     = p.chord_id)
+           cross join note     n
       where n.note_cd in ('c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b'))
-select t.bass_line_id, t.bar_id, t.beat_id, c.chord_id,
+select t.bass_line_id, t.bar_id, t.beat_id, c.chord_id, t.bar_cnt,
   case when c.root_midi_num >= t.root_midi_num then
       (c.root_midi_num - t.root_midi_num)
   else
