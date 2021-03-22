@@ -177,6 +177,7 @@ from bar              b
      left join chord c on (c.chord_id = b.chord_id)
 where b.song_id = 1;
 
+/*
 with
 t as (select bar_id, beat_id, b.chord_id, c.major_ind, midi1_num root, 
              lead(midi1_num) over (order by bar_id, beat_id) next_chord
@@ -195,14 +196,9 @@ select t.*,
            abs(root - (next_chord + 12)),
            abs(root - (next_chord - 12))) int
 from t;
+*/
 
---create table bass_ptrn (
---   bass_ptrn_id  varchar(30),
---   bar_id        integer,
---   beat_id       integer,
---   chord_id      varchar(10)
---);
-
+/*
 select b.bar_id, b.beat_id, b.chord_id, c.root_midi_num, c.major_ind, p.*
 from bar                  b
      left join chord      c on (b.chord_id = c.chord_id)
@@ -210,8 +206,10 @@ from bar                  b
                                 p.beat_id  = b.beat_id)
 where b.song_id = 1 and
       p.bar_id  = 1;
-      
 
+*/      
+
+/*
 with
 s1 as (select b.song_id, p.bass_line_id, b.bar_id from_bar_id, b.bar_id + 1 next_bar_id, c.root_midi_num - 60 transp_num
        from bar             b
@@ -238,8 +236,9 @@ s5 as (select s.song_id, s.bass_line_id, s.from_bar_id, s.transp_num, b.bar_id +
             join chord_ptrn_v p  on (p.chord_id = b.chord_id and p.beat_id = b.beat_id and p.bass_line_id = s.bass_line_id)
        where p.bar_id = 5)
 select * from s4;
+*/
 
-
+/*
 with recursive
 s(song_id, bass_line_id, from_bar_id, next_bar_id, chord_id, step_num, bar_cnt) as (
          select b.song_id,
@@ -273,10 +272,11 @@ s(song_id, bass_line_id, from_bar_id, next_bar_id, chord_id, step_num, bar_cnt) 
 select * from s
 where step_num = bar_cnt
 order by song_id, bar_cnt desc, from_bar_id;
+*/
 
-drop view bar_chord_ptrn_v;
+drop view bass_line_bar_v;
 
-create view bar_chord_ptrn_v as
+create view bass_line_bar_v as
 with recursive
 s (song_id, bass_line_id, beg_bar_id, next_bar_id, chord_id, step_num, bar_cnt,
    ptrn_root_midi_num, transp_root_midi_num) as (
@@ -289,9 +289,9 @@ s (song_id, bass_line_id, beg_bar_id, next_bar_id, chord_id, step_num, bar_cnt,
                 p.bar_cnt,
                 p.ptrn_root_midi_num,
                 p.transp_root_midi_num
-         from bar               b
-              join chord_ptrn_v p on (p.chord_id = b.chord_id and
-                                      p.beat_id  = b.beat_id)
+         from bar              b
+              join bass_line_v p on (p.chord_id = b.chord_id and
+                                     p.beat_id  = b.beat_id)
          where p.bar_id  = 1
          union all
          select s.song_id,
@@ -304,11 +304,11 @@ s (song_id, bass_line_id, beg_bar_id, next_bar_id, chord_id, step_num, bar_cnt,
                 s.ptrn_root_midi_num,
                 s.transp_root_midi_num
          from s
-              join bar          b  on (b.song_id  = s.song_id  and
-                                       b.bar_id   = s.next_bar_id)
-              join chord_ptrn_v p  on (p.chord_id     = b.chord_id   and
-                                       p.beat_id      = b.beat_id    and
-                                       p.bass_line_id = s.bass_line_id)
+              join bar         b  on (b.song_id  = s.song_id  and
+                                      b.bar_id   = s.next_bar_id)
+              join bass_line_v p  on (p.chord_id     = b.chord_id   and
+                                      p.beat_id      = b.beat_id    and
+                                      p.bass_line_id = s.bass_line_id)
        where p.bar_id = s.step_num + 1)
 select song_id, bass_line_id, beg_bar_id, next_bar_id - 1 end_bar_id, bar_cnt,
        ptrn_root_midi_num, transp_root_midi_num
@@ -316,7 +316,14 @@ from s
 where step_num = bar_cnt
 order by song_id, bar_cnt desc, beg_bar_id;
 
-select * from bar_chord_ptrn_v;
+select * from bass_line_bar_v;
+
+
+-- New terminology:
+-- chord ptrn       - base_line_chord
+-- chord_ptrn_hdr   - base_line
+-- bar_chord_ptrn_v - base_line_bar_v
+-- chord_ptrn_v     - base_line_v
 
 
 select * from bar where song_id = 1 order by bar_id, beat_id;
@@ -327,21 +334,21 @@ select * from note;
 
 drop table bass_ptrn;
 
-create table chord_ptrn_hdr (
+create table bass_line (
   bass_line_id varchar2(20) not null,
   bar_cnt      integer,
   primary key (bass_line_id)
 );
 
-delete from chord_ptrn_hdr;
+delete from base_line;
 
-insert into chord_ptrn_hdr (bass_line_id, bar_cnt)
+insert into bass_line(bass_line_id, bar_cnt)
 values
   ('Line-A',  4),
   ('Line-A1', 4),
   ('251',     3);
 
-create table chord_ptrn (
+create table bass_line_chord (
   bass_line_id varchar(20) not null,
   bar_id       integer     not null,
   beat_id      integer     not null,
@@ -349,23 +356,23 @@ create table chord_ptrn (
   primary key (bass_line_id, beat_id, bar_id)
 );
 
-select * from chord_ptrn;
+select * from bass_line_chord;
 
-delete from chord_ptrn;
+delete from bass_line_chord;
 
-insert into chord_ptrn (bass_line_id, bar_id, beat_id, chord_id)
+insert into bass_line_chord (bass_line_id, bar_id, beat_id, chord_id)
 values
   ('Line-A',  1, 1, 'Cm7'), ('Line-A',  2, 1, 'Fm7'), ('Line-A',  3, 1, 'Bb7'),    ('Line-A',  4, 1, 'Ebmaj7'),
   ('Line-A1', 1, 1, 'Cm7'), ('Line-A1', 2, 1, 'Fm7'), ('Line-A1', 3, 1, 'Bbmaj7'), ('Line-A1', 4, 1, 'Ebmaj7'),
   ('251',     1, 1, 'Am7'), ('251',     2, 1, 'D7'),  ('251',     3, 1, 'Gmaj7');
   
-drop view chord_ptrn_v;
+drop view bass_line_v;
 
-create view chord_ptrn_v as
+create view bass_line_v as
 with 
 t as (select p.*, c.root_midi_num, c.chord_form_cd, n.midi_num, h.bar_cnt
-      from chord_ptrn          p
-           join chord_ptrn_hdr h on (h.bass_line_id = p.bass_line_id)
+      from bass_line_chord     p
+           join bass_line      h on (h.bass_line_id = p.bass_line_id)
            join chord          c on (c.chord_id     = p.chord_id)
            cross join note     n
       where n.note_cd in ('c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b'))
@@ -382,6 +389,6 @@ from t
                          c.chord_form_cd = t.chord_form_cd);
                          
 
-select * from chord_ptrn_v
+select * from bass_line_v
 order by bass_line_id, transp_num, bar_id, beat_id;
 
