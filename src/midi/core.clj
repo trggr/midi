@@ -3,55 +3,6 @@
    (:use [midi.timlib])
    (:use [midi.dbload]))
 
-;(def notedb {:c  60, :c#  61, :d  62, :d# 63, :e 64, :f 65, :f# 66, :g 67 :g# 68, :a 69, :a# 70, :b 71,
-;             :C  60, :C#  61, :D  62, :D# 63, :E 64, :F 65, :F# 66, :G 67 :G# 68, :A 69, :A# 70, :B 71,
-;                     :Db  61,         :Eb 63,               :Gb 66,       :Ab 68,        :Bb 70,
-;             :c2 72, :c2# 73, :d2 74, :d2# 75, :e2 76})
-;
-;(def chord-form {
-;    :major [1 5 8]
-;    :+     [1 4 9]
-;    :sus4  [1 6 8]
-;    :6     [1 5 8 11]
-;    :m6    [1 4 8 11]
-;    :7     [1 5 8 11]
-;    :m     [1 4 8]
-;    :m7    [1 4 8 11]
-;    :maj7  [1 5 8 12]
-;    :7sus4 [1 6 8 11]
-;    :7+5   [1 5 9 11]
-;    :7-5   [1 5 7 11]
-;    :dim   [1 4 7]
-;    :dim7  [1 4 7 11]
-;    :m7-5  [1 4 7 11]
-;    :mmaj7 [1 4 8 12]
-;    :mmaj9 [1 5 8 12 15]
-;    :m9    [1 4 8 11 15]
-;    :9     [1 5 8 11 15]
-;    :9+5   [1 5 9 11 15]
-;    :9-5   [1 5 7 11 15]
-;    :96    [1 5 8 10 11 15]
-;    :maj11 [1 5 8 12 15 18]
-;    :m11   [1 4 8 11 15 18]
-;    :11    [1 5 8 11 15 18]
-;    :11-9  [1 5 8 11 14 18]
-;    :maj13 [-1 3 6 10]
-;    :m13   [-2 3 6 10]
-;    :13    [-2 3 6 10] ; same as m13?
-;    :13-9  [-2 2 6 10]})
-;
-;(defn chord-notes [root form]
-;   (map #(+ (notedb root) % -1) (chord-form form)))
-    
-;(def chorddb (reduce (fn [acc [k f]]
-;                        (assoc acc
-;                               (keyword (str (name k) (if (= f :major) "" (name f))))
-;                               (chord-notes k f)))
-;                     {}
-;                     (for [k [:C :C# :Db :D :D# :Eb :E :F :F# :Gb :G :G# :Ab :A :A# :Bb :B]
-;                           f (keys chord-form)]
-;                        [k f])))
-
 ; Tick Tape format:
 ;     Field       Type      Description
 ;     --------------------------------------------------------------------------------------
@@ -188,7 +139,7 @@
                where chord_id is not null
                order by bar_id, beat_id"
         beats  (cursor conn query [(str/upper-case song-name)] false)]
-     (map (fn [[a b c]] (vector (integer a) (integer b) (keyword c))) (rest beats))))
+     (map (fn [[bar beat chord]] (vector (integer bar) (integer beat) (keyword chord))) (rest beats))))
       
 
 (defn -main [& _]
@@ -216,3 +167,29 @@
 ;(def beats (get-beats conn "all the things you are"))
 ;(def tt (chord-ttape beats))
 
+;(cursor conn "select * from bass_line_bar_v where song_id = 1")
+;(cursor conn "select * from bass_line_note  where bass_line_id = 'Line-B'")
+
+(defn alloc_bass [[acc tape] [baseline-id begin end]]
+  (let [xs (range (integer begin) (inc (integer end)))
+        tmp (cursor conn
+                              (str "select n.midi_num, b.note_dur_num "
+                                   "from bass_line_note b join note n on (n.note_cd = b.note_cd) "
+                                   "where b.bass_line_id = ? order by order_num")
+                              [[baseline-id]] false)
+        _  (println tmp)]
+     (println "here")
+     (if-not (every? nil? (map #(get acc %) xs))
+        [acc tape]
+        [(reduce (fn [a k] (assoc a k baseline-id)) acc xs) (concat tape tmp)])))
+
+(def x (let [xs  (rest (cursor conn "select bass_line_id, beg_bar_id, end_bar_id from bass_line_bar_v where song_id = 1 order by beg_bar_id"))
+             maxbar (integer (get (first (cursor conn "select max(bar_id) bar from bar where song_id = 1" [] true)) :bar))]
+          (println maxbar xs)
+          (reduce alloc_bass
+                  [(into (sorted-map) (zipmap (range 1 (inc maxbar)) (repeat nil))) []]
+                  xs)))
+
+
+
+           

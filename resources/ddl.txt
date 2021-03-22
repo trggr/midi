@@ -365,9 +365,9 @@ delete from bass_line_chord;
 
 insert into bass_line_chord (bass_line_id, bar_id, beat_id, chord_id)
 values
-  ('Line-A',  1, 1, 'Cm7'), ('Line-A',  2, 1, 'Fm7'), ('Line-A',  3, 1, 'Bb7'),    ('Line-A',  4, 1, 'Ebmaj7'),
-  ('Line-A1', 1, 1, 'Cm7'), ('Line-A1', 2, 1, 'Fm7'), ('Line-A1', 3, 1, 'Bbmaj7'), ('Line-A1', 4, 1, 'Ebmaj7'),
-  ('251',     1, 1, 'Am7'), ('251',     2, 1, 'D7'),  ('251',     3, 1, 'Gmaj7'),
+  ('Line-A',  1, 1, 'Cm7'), ('Line-A',  2, 1, 'Fm7'),  ('Line-A',  3, 1, 'Bb7'),    ('Line-A',  4, 1, 'Ebmaj7'),
+  ('Line-A1', 1, 1, 'Cm7'), ('Line-A1', 2, 1, 'Fm7'),  ('Line-A1', 3, 1, 'Bbmaj7'), ('Line-A1', 4, 1, 'Ebmaj7'),
+  ('251',     1, 1, 'Am7'), ('251',     2, 1, 'D7'),   ('251',     3, 1, 'Gmaj7'),
   ('Line-B',  1, 1, 'Fm7'), ('Line-B',  2, 1, 'Bbm7'), ('Line-B',  3, 1, 'Eb7'),    ('Line-B',  4, 1, 'Abmaj7');
 
 drop table bass_line_note;
@@ -388,7 +388,6 @@ values
   ('Line-B', 13, 'Ab3', 1);
   
 select * from bass_line_note;
-
     
 drop view bass_line_v;
 
