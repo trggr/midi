@@ -340,13 +340,16 @@ create table bass_line (
   primary key (bass_line_id)
 );
 
-delete from base_line;
+delete from bass_line;
 
 insert into bass_line(bass_line_id, bar_cnt)
 values
   ('Line-A',  4),
   ('Line-A1', 4),
-  ('251',     3);
+  ('251',     3),
+  ('Line-B',  4);
+
+select * from bass_line;
 
 create table bass_line_chord (
   bass_line_id varchar(20) not null,
@@ -364,8 +367,29 @@ insert into bass_line_chord (bass_line_id, bar_id, beat_id, chord_id)
 values
   ('Line-A',  1, 1, 'Cm7'), ('Line-A',  2, 1, 'Fm7'), ('Line-A',  3, 1, 'Bb7'),    ('Line-A',  4, 1, 'Ebmaj7'),
   ('Line-A1', 1, 1, 'Cm7'), ('Line-A1', 2, 1, 'Fm7'), ('Line-A1', 3, 1, 'Bbmaj7'), ('Line-A1', 4, 1, 'Ebmaj7'),
-  ('251',     1, 1, 'Am7'), ('251',     2, 1, 'D7'),  ('251',     3, 1, 'Gmaj7');
+  ('251',     1, 1, 'Am7'), ('251',     2, 1, 'D7'),  ('251',     3, 1, 'Gmaj7'),
+  ('Line-B',  1, 1, 'Fm7'), ('Line-B',  2, 1, 'Bbm7'), ('Line-B',  3, 1, 'Eb7'),    ('Line-B',  4, 1, 'Abmaj7');
+
+drop table bass_line_note;
+
+create table bass_line_note (
+  bass_line_id  varchar(20),
+  order_num     integer,
+  note_cd       varchar(10),
+  note_dur_num  float,
+  primary key (bass_line_id, order_num)
+);
+
+insert into bass_line_note (bass_line_id, order_num, note_cd, note_dur_num)
+values
+  ('Line-B', 1, 'F2',  4), ('Line-B', 2, 'G2', 4),  ('Line-B', 3, 'Ab2', 4),  ('Line-B', 4, 'A2', 4), 
+  ('Line-B', 5, 'Bb2', 4), ('Line-B', 6, 'C3', 4),  ('Line-B', 7, 'Db3', 4),  ('Line-B', 8, 'F3', 4), 
+  ('Line-B', 9, 'Eb3', 4), ('Line-B', 10, 'G3', 4), ('Line-B', 11, 'Bb3', 4), ('Line-B', 12, 'A3', 4), 
+  ('Line-B', 13, 'Ab3', 1);
   
+select * from bass_line_note;
+
+    
 drop view bass_line_v;
 
 create view bass_line_v as
@@ -391,4 +415,6 @@ from t
 
 select * from bass_line_v
 order by bass_line_id, transp_num, bar_id, beat_id;
+
+select * from bass_line_bar_v where song_id = 1;
 
