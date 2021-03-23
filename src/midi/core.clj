@@ -60,6 +60,9 @@
               (sorted-map)
               beats)))
 
+; no bass
+(defn bass-none [_ _ _] nil)
+
 ; ascending
 (defn bass-15   [_ beat [r _ n5]]  (case beat 1 r           3 n5   nil))
 (defn bass-1234 [_ beat [r n3 n5]] (case beat 1 r 2 (+ 2 r) 3 n3 4 (inc n3)))
@@ -84,17 +87,26 @@
   ([beats]
       (chord-ttape beats bass-15))
   ([beats bassf]
-      (chord-ttape beats bassf [[0 :set-tempo 800000][0 :time-signature [4 2 24 8]]]))
-  ([beats bassf timing]
       (let [qn      96   ; quarter's duration
             offpct  0.99 ; notes off events at %
             x2  (bass-skelet beats qn bassf)
             on  (for [[_ bar] x2, [_ chord] bar, note chord] note)
             off (map (fn [[t c n _]] [(+ t (* qn offpct)) c n 0]) on)
-            x3  (concat on off)
-            x4  (sort-by key (group-by first x3))
-            x5  (for [[tc data] x4] [tc :data data])]
-        (concat timing x5))))
+            rc  (concat on off)]
+         rc)))
+
+; return here
+;            x4  (sort-by key (group-by first x3))
+;            x5  (for [[tc data] x4] [tc :data data])]
+;        (concat timing x5))))
+
+(defn assemble-ttape
+   ([raw]
+      (assemble-ttape raw [[0 :set-tempo 800000][0 :time-signature [4 2 24 8]]]))
+   ([raw timing]
+     (let [xs (sort-by key (group-by first raw))
+           ys (for [[tc data] xs] [tc :data data])]
+          (concat timing ys))))
 
 (defn note-player [instr]
    (let [synth    (javax.sound.midi.MidiSystem/getSynthesizer)
@@ -170,26 +182,53 @@
 ;(cursor conn "select * from bass_line_bar_v where song_id = 1")
 ;(cursor conn "select * from bass_line_note  where bass_line_id = 'Line-B'")
 
-(defn alloc_bass [[acc tape] [baseline-id begin end]]
-  (let [xs (range (integer begin) (inc (integer end)))
-        tmp (cursor conn
-                              (str "select n.midi_num, b.note_dur_num "
-                                   "from bass_line_note b join note n on (n.note_cd = b.note_cd) "
-                                   "where b.bass_line_id = ? order by order_num")
-                              [[baseline-id]] false)
-        _  (println tmp)]
-     (println "here")
-     (if-not (every? nil? (map #(get acc %) xs))
-        [acc tape]
-        [(reduce (fn [a k] (assoc a k baseline-id)) acc xs) (concat tape tmp)])))
+(def qn 96)
 
-(def x (let [xs  (rest (cursor conn "select bass_line_id, beg_bar_id, end_bar_id from bass_line_bar_v where song_id = 1 order by beg_bar_id"))
-             maxbar (integer (get (first (cursor conn "select max(bar_id) bar from bar where song_id = 1" [] true)) :bar))]
-          (println maxbar xs)
+(defn make-bass-ttape [bar bassline transp]
+  (let [notes (rest (cursor conn
+                   (str "select n.midi_num, b.note_dur_num "
+                        "from bass_line_note b join note n on (n.note_cd = b.note_cd) "
+                        "where b.bass_line_id = ? order by order_num")
+                   [bassline] false))]
+     (loop [acc []
+             tc (+ (* qn bar 4))
+             xs notes]
+        (if (empty? xs)
+           acc
+           (let [[midi dur] (first xs)
+                  midin  (read-string midi)
+                  durn   (read-string dur)
+                  n      (+ midin transp)
+                  nexttc (+ tc (/ (* 4 qn) durn))]
+               (recur (conj (conj acc [tc 3 n 80]) [(dec nexttc) 3 n 0])
+                      nexttc
+                      (rest xs)))))))
+
+(defn alloc_bass [[timeline tape :as rc]
+                  [bassline begin end transp-num]]
+  (let [b      (integer begin)
+        e      (integer end)
+        transp (integer transp-num)
+        bars (range b e)]
+     (if (some identity (vals (select-keys timeline bars)))
+        rc
+        [(reduce (fn [a k] (assoc a k bassline)) timeline bars)
+         (concat tape (make-bass-ttape b bassline transp))])))
+
+(def x (let [ptrns  (rest (cursor conn
+                                  (str "select bass_line_id, beg_bar_id, end_bar_id, transp_num "
+                                       "from bass_line_bar_v "
+                                       "where song_id = 1 "
+                                       "order by beg_bar_id")))
+             maxbar (-> (cursor conn "select max(bar_id) bar from bar where song_id = 1" [] true) first :bar integer)]
+          (println maxbar ptrns)
           (reduce alloc_bass
-                  [(into (sorted-map) (zipmap (range 1 (inc maxbar)) (repeat nil))) []]
-                  xs)))
+                  [(into (sorted-map) (zipmap (range 1 (inc maxbar)) (repeat nil)))
+                   []]
+                  ptrns)))
 
+(def raw (chord-ttape (get-beats conn "all the things you are") bass-none))
 
+(def playa (make-tape (assemble-ttape (concat raw (second x)))))
 
            
