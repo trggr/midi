@@ -279,7 +279,7 @@ drop view bass_line_bar_v;
 create view bass_line_bar_v as
 with recursive
 s (song_id, bass_line_id, beg_bar_id, next_bar_id, chord_id, step_num, bar_cnt,
-   ptrn_root_midi_num, transp_root_midi_num) as (
+   ptrn_root_midi_num, transp_root_midi_num, transp_num) as (
          select b.song_id,
                 p.bass_line_id,
                 b.bar_id        beg_bar_id,
@@ -288,7 +288,8 @@ s (song_id, bass_line_id, beg_bar_id, next_bar_id, chord_id, step_num, bar_cnt,
                 p.bar_id        step_num,
                 p.bar_cnt,
                 p.ptrn_root_midi_num,
-                p.transp_root_midi_num
+                p.transp_root_midi_num,
+                p.transp_num
          from bar              b
               join bass_line_v p on (p.chord_id = b.chord_id and
                                      p.beat_id  = b.beat_id)
@@ -302,7 +303,8 @@ s (song_id, bass_line_id, beg_bar_id, next_bar_id, chord_id, step_num, bar_cnt,
                 p.bar_id,
                 s.bar_cnt,
                 s.ptrn_root_midi_num,
-                s.transp_root_midi_num
+                s.transp_root_midi_num,
+                s.transp_num
          from s
               join bar         b  on (b.song_id  = s.song_id  and
                                       b.bar_id   = s.next_bar_id)
@@ -311,13 +313,12 @@ s (song_id, bass_line_id, beg_bar_id, next_bar_id, chord_id, step_num, bar_cnt,
                                       p.bass_line_id = s.bass_line_id)
        where p.bar_id = s.step_num + 1)
 select song_id, bass_line_id, beg_bar_id, next_bar_id - 1 end_bar_id, bar_cnt,
-       ptrn_root_midi_num, transp_root_midi_num
+       ptrn_root_midi_num, transp_root_midi_num, transp_num
 from s
 where step_num = bar_cnt
 order by song_id, bar_cnt desc, beg_bar_id;
 
 select * from bass_line_bar_v;
-
 
 -- New terminology:
 -- chord ptrn       - base_line_chord
@@ -365,9 +366,9 @@ delete from bass_line_chord;
 
 insert into bass_line_chord (bass_line_id, bar_id, beat_id, chord_id)
 values
-  ('Line-A',  1, 1, 'Cm7'), ('Line-A',  2, 1, 'Fm7'),  ('Line-A',  3, 1, 'Bb7'),    ('Line-A',  4, 1, 'Ebmaj7'),
+  ('Line-A',  1, 1, 'DONOT-Cm7'), ('Line-A',  2, 1, 'Fm7'),  ('Line-A',  3, 1, 'Bb7'),    ('Line-A',  4, 1, 'Ebmaj7'),
   ('Line-A1', 1, 1, 'Cm7'), ('Line-A1', 2, 1, 'Fm7'),  ('Line-A1', 3, 1, 'Bbmaj7'), ('Line-A1', 4, 1, 'Ebmaj7'),
-  ('251',     1, 1, 'Am7'), ('251',     2, 1, 'D7'),   ('251',     3, 1, 'Gmaj7'),
+  ('251',     1, 1, 'DONOT-Am7'), ('251',     2, 1, 'D7'),   ('251',     3, 1, 'Gmaj7'),
   ('Line-B',  1, 1, 'Fm7'), ('Line-B',  2, 1, 'Bbm7'), ('Line-B',  3, 1, 'Eb7'),    ('Line-B',  4, 1, 'Abmaj7');
 
 drop table bass_line_note;
@@ -412,8 +413,30 @@ from t
                          c.chord_form_cd = t.chord_form_cd);
                          
 
-select * from bass_line_v
-order by bass_line_id, transp_num, bar_id, beat_id;
+select *
+from bass_line_bar_v           a
+     left join bass_line_bar_v b on (a.song_id = b.song_id and
+                                     a.beg_bar_id < b.end_bar_id and
+                                     a.end_bar_id > b.beg_bar_id and
+                                     a.bass_line_id <> b.bass_line_id)
+where
+    a.song_id = b.song_id and
+    a.song_id = 1 and
+    b.song_id = 1;
 
-select * from bass_line_bar_v where song_id = 1;
+select bass_line_id, beg_bar_id, end_bar_id
+from bass_line_bar_v
+where song_id = 1
+order by beg_bar_id;
+    
+select * from bass_line_note where bass_line_id in ('Line-B', '251');
+
+select * from bass_line_bar_v;
+
+
+select n.midi_num, b.note_dur_num
+from bass_line_note b
+     join note      n on (n.note_cd = b.note_cd)
+where b.bass_line_id = 'Line-B'
+order by order_num;
 
