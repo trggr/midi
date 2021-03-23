@@ -333,22 +333,27 @@ alter table chord add root_num integer;
 
 select * from note;
 
-drop table bass_ptrn;
+drop table bass_line;
 
 create table bass_line (
   bass_line_id varchar2(20) not null,
   bar_cnt      integer,
+  bass_line_desc varchar(200),
   primary key (bass_line_id)
 );
 
 delete from bass_line;
 
-insert into bass_line(bass_line_id, bar_cnt)
+insert into bass_line(bass_line_id, bar_cnt, bass_line_desc)
 values
-  ('Line-A',  4),
-  ('Line-A1', 4),
-  ('251',     3),
-  ('Line-B',  4);
+  ('Line-A',  4, 'Regular chord notes'),
+  ('Line-B',  4, 'Better directs ear to next chord'),
+  ('Line-C',  5, 'Downbeats of bars 2, 3, 4 start on third'),
+  ('Line-D',  5, 'Common tones between chords where the low tones and high tones ascend together in parallel motion'),
+  ('Line-E',  5, 'Classical approach - harmonic enclosure'),
+  ('Line-F',  5, 'Classical approach - harmonic enclosure'),
+  ('S251',    3, 'Sobolev p.14'),
+  ('S25',     2, 'Sobolev p.14');
 
 select * from bass_line;
 
@@ -367,9 +372,13 @@ delete from bass_line_chord;
 insert into bass_line_chord (bass_line_id, bar_id, beat_id, chord_id)
 values
   ('Line-A',  1, 1, 'DONOT-Cm7'), ('Line-A',  2, 1, 'Fm7'),  ('Line-A',  3, 1, 'Bb7'),    ('Line-A',  4, 1, 'Ebmaj7'),
-  ('Line-A1', 1, 1, 'Cm7'), ('Line-A1', 2, 1, 'Fm7'),  ('Line-A1', 3, 1, 'Bbmaj7'), ('Line-A1', 4, 1, 'Ebmaj7'),
-  ('251',     1, 1, 'DONOT-Am7'), ('251',     2, 1, 'D7'),   ('251',     3, 1, 'Gmaj7'),
-  ('Line-B',  1, 1, 'Fm7'), ('Line-B',  2, 1, 'Bbm7'), ('Line-B',  3, 1, 'Eb7'),    ('Line-B',  4, 1, 'Abmaj7');
+  ('S251',    1, 1, 'Cm7'), ('S251',   2, 1, 'F7'),   ('S251',     3, 1, 'Bbmaj7'),
+  ('Line-B',  1, 1, 'Fm7'), ('Line-B',  2, 1, 'Bbm7'), ('Line-B',  3, 1, 'Eb7'),    ('Line-B',  4, 1, 'Abmaj7'),
+  ('Line-C',  1, 1, 'DOFm7'), ('Line-C',  2, 1, 'Bbm7'), ('Line-C',  3, 1, 'Eb7'),    ('Line-C',  4, 1, 'Abmaj7'), ('Line-C',  5, 1, 'Dbmaj7'),
+  ('Line-D',  1, 1, 'DONOT-Fm7'), ('Line-D',  2, 1, 'Bbm7'), ('Line-D',  3, 1, 'Eb7'),    ('Line-D',  4, 1, 'Abmaj7'), ('Line-D',  5, 1, 'Dbmaj7'),
+  ('Line-E',  1, 1, 'DOFm7'), ('Line-E',  2, 1, 'Bbm7'), ('Line-E',  3, 1, 'Eb7'),    ('Line-E',  4, 1, 'Abmaj7'), ('Line-E',  5, 1, 'Dbmaj7'),
+  ('Line-F',  1, 1, 'Fm7'), ('Line-F',  2, 1, 'Bbm7'), ('Line-F',  3, 1, 'Eb7'),    ('Line-F',  4, 1, 'Abmaj7'), ('Line-F',  5, 1, 'Dbmaj7'),
+  ('S25',     1, 1, 'Cm7'),   ('S25',   2, 1, 'F7');
 
 drop table bass_line_note;
 
@@ -381,12 +390,48 @@ create table bass_line_note (
   primary key (bass_line_id, order_num)
 );
 
+-- Lines A, B, C, D, E, F from
+-- https://www.learnjazzstandards.com/blog/learning-jazz/bass/keep-bass-lines-interesting/
+
+delete from bass_line_note;
+
 insert into bass_line_note (bass_line_id, order_num, note_cd, note_dur_num)
 values
   ('Line-B', 1, 'F2',  4), ('Line-B', 2, 'G2', 4),  ('Line-B', 3, 'Ab2', 4),  ('Line-B', 4, 'A2', 4), 
   ('Line-B', 5, 'Bb2', 4), ('Line-B', 6, 'C3', 4),  ('Line-B', 7, 'Db3', 4),  ('Line-B', 8, 'F3', 4), 
   ('Line-B', 9, 'Eb3', 4), ('Line-B', 10, 'G3', 4), ('Line-B', 11, 'Bb3', 4), ('Line-B', 12, 'A3', 4), 
-  ('Line-B', 13, 'Ab3', 1);
+  ('Line-B', 13, 'Ab3', 1),
+  ('Line-C', 1,  'F2',  4),  ('Line-C', 2,  'G2',  4),  ('Line-C', 3, 'Ab2', 4),  ('Line-C', 4, 'C3', 4), 
+  ('Line-C', 5,  'Db2', 4),  ('Line-C', 6,  'F3',  4),  ('Line-C', 7, 'Bb3', 4),  ('Line-C', 8, 'Ab3', 4), 
+  ('Line-C', 9,  'G3',  4),  ('Line-C', 10, 'F3',  4),  ('Line-C', 11,'Eb3', 4),  ('Line-C', 12, 'Db3', 4), 
+  ('Line-C', 13, 'C3',  4),  ('Line-C', 14, 'Ab2', 4),  ('Line-C', 15,'Bb2', 4),  ('Line-C', 16, 'C3', 4), 
+  ('Line-C', 17, 'Db3', 1),
+  ('Line-D', 1,  'C3',  4),  ('Line-D', 2,  'C3',  4),  ('Line-D', 3, 'F3', 4),   ('Line-D', 4, 'C3', 4), 
+  ('Line-D', 5,  'Db3', 4),  ('Line-D', 6,  'Db3', 4),  ('Line-D', 7, 'F3', 4),   ('Line-D', 8, 'Db3', 4), 
+  ('Line-D', 9,  'Eb3', 4),  ('Line-D', 10, 'Eb3', 4),  ('Line-D', 11,'G3', 4),   ('Line-D', 12, 'D3', 4), 
+  ('Line-D', 13, 'Eb3', 4),  ('Line-D', 14, 'Eb3', 4),  ('Line-D', 15,'Ab3', 4),  ('Line-D', 16, 'C3', 4), 
+  ('Line-D', 17, 'Db3', 1),
+  ('Line-E', 1,  'F3',  4),  ('Line-E', 2,  'G3',  4),  ('Line-E', 3, 'F3', 4),   ('Line-E', 4, 'C3', 4), 
+  ('Line-E', 5,  'Db3', 4),  ('Line-E', 6,  'C3', 4),   ('Line-E', 7, 'Db3', 4),  ('Line-E', 8, 'Bb3', 4), 
+  ('Line-E', 9,  'Eb3', 4),  ('Line-E', 10, 'F3', 4),  ('Line-E', 11,'Eb3', 4),   ('Line-E', 12, 'Db3', 4), 
+  ('Line-E', 13, 'C3', 4),  ('Line-E', 14, 'B2', 4),  ('Line-E', 15,'C3', 4),  ('Line-E', 16, 'Ab2', 4), 
+  ('Line-E', 17, 'Db3', 1),
+  ('Line-F', 1,  'F3',  4),  ('Line-F', 2,  'E3',  4),  ('Line-F', 3, 'F3', 4),   ('Line-F', 4, 'C3', 4), 
+  ('Line-F', 5,  'Db3', 4),  ('Line-F', 6,  'C3', 4),   ('Line-F', 7, 'Db3', 4),  ('Line-F', 8, 'Bb3', 4), 
+  ('Line-F', 9,  'Eb3', 4),  ('Line-F', 10, 'Db3', 4),  ('Line-F', 11,'C3', 4),   ('Line-F', 12, 'Bb3', 4), 
+  ('Line-F', 13, 'C3', 4),  ('Line-F', 14, 'B2', 4),  ('Line-F', 15,'C3', 4),  ('Line-F', 16, 'Ab2', 4), 
+  ('Line-F', 17, 'Db3', 1),
+--  ('S251', 1,  'C3',  4),   ('S251', 2,  'C-2',  8/3),  ('S251', 3, 'Eb3', 8/3),
+--  ('S251', 4,  'F3',  4),   ('S251', 5,  'C-2',  8/3),  ('S251', 6, 'A3', 8/3),
+--  ('S251', 7,  'Bb3', 8/3), ('S251', 8, 'F3', 16),       ('S251', 9,'D3', 16),   ('S251', 10, 'Bb2', 4), ('S251', 11,  'C-2',  4)
+  ('S251', 1,  'C3',  4),  ('S251', 2,  'C#3',  4), ('S251', 3, 'D3', 4),  ('S251', 4,  'C#3',  4),
+  ('S251', 5,  'C3',  4),  ('S251', 6,  'A2',   4), ('S251', 7, 'F2', 4),  ('S251', 8,  'A2',  4),
+  ('S251', 9,  'Bb2', 4),  ('S251', 10, 'D2',   4), ('S251', 11, 'F2', 4), ('S251', 12,  'Eb3',  4),
+  ('S25', 1,  'C3',  4),   ('S25', 2,  'C-2',   4), ('S25', 3, 'G2', 4),   ('S25', 4,  'C-2',  4),
+  ('S25', 5,  'F2',  4),   ('S25', 6,  'C-2',   4), ('S25', 7, 'C3', 4),   ('S25', 8,  'C-2',  4);
+  
+select * from note order by midi_num;
+
   
 select * from bass_line_note;
     

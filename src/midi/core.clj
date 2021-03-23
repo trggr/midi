@@ -93,7 +93,7 @@
 
 (defn assemble-ttape
    ([raw]
-      (assemble-ttape raw [[0 :set-tempo 800000][0 :time-signature [4 2 24 8]]]))
+      (assemble-ttape raw [[0 :set-tempo 600000][0 :time-signature [4 2 24 8]]]))
    ([raw timing]
      (let [xs (sort-by key (group-by first raw))
            ys (for [[tc data] xs] [tc :data data])]
@@ -163,7 +163,7 @@
                   durn   (read-string dur)
                   n      (+ midin transp)
                   nexttc (+ tc (/ (* 4 qn) durn))]
-               (recur (conj (conj acc [tc 3 n 80]) [(dec nexttc) 3 n 0])
+               (recur (conj (conj acc [tc 3 n 100]) [(dec nexttc) 3 n 0])
                       nexttc
                       (rest xs)))))))
 
@@ -172,7 +172,7 @@
   (let [b      (integer begin)
         e      (integer end)
         transp (integer transp-num)
-        bars (range b e)]
+        bars (range b (inc e))]
      (if (some identity (vals (select-keys timeline bars)))
         rc
         [(reduce (fn [a k] (assoc a k bassline)) timeline bars)
@@ -180,47 +180,33 @@
 
 (defn raw-bass [songid]
   (let [ptrns  (rest (cursor conn
-                             (str "select bass_line_id, beg_bar_id, end_bar_id, transp_num "
+                             (str "select bass_line_id, beg_bar_id, end_bar_id, (transp_num - 12) transp_num "
                                   "from bass_line_bar_v "
                                   "where song_id = ? "
                                   "order by beg_bar_id")
                               [songid] false))
         maxbar (-> (cursor conn "select max(bar_id) bar from bar where song_id = ?" [songid] true) first :bar integer)]
-       (println maxbar ptrns)
+;       (println maxbar ptrns)
        (reduce alloc_bass
                [(into (sorted-map) (zipmap (range 1 (inc maxbar)) (repeat nil)))
                 []]
                 ptrns)))
 
-(defn -main2 [& _]
-   (println "starting")
-   (doseq [bassf [bass-ud2 bass-ud3
-                  bass-15
-                  bass-4321
-                  bass-5321
-                  bass-1234
-                  bass-1235]]
-     (doseq [song ["ALL THE THINGS YOU ARE"
-;                   "IN A SENTIMENTAL MOOD"
-;                   "ALL OF ME"
-;                   "AUTUMN LEAVES"
-;                   "ALL BY MYSELF"
-;                   "LET IT BE"
-                  ]]
-           (println song bassf)
-           (-> (get-beats conn song)
-               (chord-ttape bassf)
-               assemble-ttape
-               make-tape
-               play-tape))))
+; "ALL THE THINGS YOU ARE"
+; "IN A SENTIMENTAL MOOD"
+; "ALL OF ME"
+; "AUTUMN LEAVES"
+; "ALL BY MYSELF"
+; "LET IT BE"
 
 (defn -main [& _]
-   (let [song   "ALL THE THINGS YOU ARE"
-         songid "1"
+   (let [song   "ALL THE THINGS YOU ARE" ; "ALL BY MYSELF"; "AUTUMN LEAVES" ;  ;  ; "IN A SENTIMENTAL MOOD" ; "ALL OF ME"
+         id     (-> (cursor conn "select song_id from song where upper(song_nm) = ?" [song] true) first :song_id)
          beats  (get-beats conn song)
          rawc   (chord-ttape beats bass-none)
-         bass   (raw-bass songid)
+         bass   (raw-bass id)
          [info rawb] bass]
+         (view info)
      (-> (concat rawc rawb) assemble-ttape make-tape play-tape)))
 
 
