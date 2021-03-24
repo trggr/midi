@@ -141,56 +141,50 @@
                from rc
                where chord_id is not null
                order by bar_id, beat_id"
-        beats  (cursor conn query [(str/upper-case song-name)] false)]
-     (map (fn [[bar beat chord]] (vector bar beat (keyword chord))) (rest beats))))
+        beats  (cursor conn query [(str/upper-case song-name)])]
+     (map (fn [[bar beat chord]] [bar beat (keyword chord)]) (rest beats))))
       
 
 (def qn 96)
 
 (defn make-bass-ttape [bar bassline transp]
-  (let [notes (rest (cursor conn
-                            (str "select n.midi_num, b.note_dur_num "
-                                 "from bass_line_note b join note n on (n.note_cd = b.note_cd) "
-                                 "where b.bass_line_id = ? order by order_num")
-                            [bassline] false))]
+  (let [notes (cursor conn
+                      (str "select n.midi_num, b.note_dur_num "
+                           "from bass_line_note b join note n on (n.note_cd = b.note_cd) "
+                           "where b.bass_line_id = ? order by order_num")
+                      [bassline])]
      (loop [acc []
              tc (+ (* qn bar 4))
-             xs notes]
+             xs (rest notes)]
         (if (empty? xs)
            acc
            (let [[midi dur] (first xs)
-                  midin  midi
-                  durn   dur
-                  n      (+ midin transp)
-                  nexttc (+ tc (/ (* 4 qn) durn))]
+                  n      (+ midi transp)
+                  nexttc (+ tc (/ (* 4 qn) dur))]
                (recur (conj (conj acc [tc 3 n 100]) [(dec nexttc) 3 n 0])
                       nexttc
                       (rest xs)))))))
 
 (defn alloc_bass [[timeline tape :as rc]
-                  [bassline begin end transp-num]]
-  (let [b      begin
-        e      end
-        transp transp-num
-        bars (range b (inc e))]
+                  [bassline begin end transp]]
+  (let [bars (range begin (inc end))]
      (if (some identity (vals (select-keys timeline bars)))
         rc
         [(reduce (fn [a k] (assoc a k bassline)) timeline bars)
-         (concat tape (make-bass-ttape b bassline transp))])))
+         (concat tape (make-bass-ttape begin bassline transp))])))
 
 (defn raw-bass [songid]
-  (let [ptrns  (rest (cursor conn
-                             (str "select bass_line_id, beg_bar_id, end_bar_id, (transp_num - 12) transp_num "
-                                  "from bass_line_bar_v "
-                                  "where song_id = ? "
-                                  "order by beg_bar_id")
-                              [(str songid)] false))
-        maxbar (-> (cursor conn "select max(bar_id) bar from bar where song_id = ?" [(str songid)] true) first :bar)]
-;       (println maxbar ptrns)
+  (let [ptrns  (cursor conn
+                       (str "select bass_line_id, beg_bar_id, end_bar_id, (transp_num - 12) transp_num "
+                            "from bass_line_bar_v "
+                            "where song_id = ? "
+                            "order by beg_bar_id")
+                        [(str songid)])
+        maxbar (-> (cursor conn "select max(bar_id) bar from bar where song_id = ?" [(str songid)]) second first)]
        (reduce alloc_bass
                [(into (sorted-map) (zipmap (range 1 (inc maxbar)) (repeat nil)))
                 []]
-                ptrns)))
+                (rest ptrns))))
 
 ; "ALL THE THINGS YOU ARE"
 ; "IN A SENTIMENTAL MOOD"
@@ -201,7 +195,7 @@
 
 (defn -main [& _]
    (let [song   "ALL THE THINGS YOU ARE"  ; "ALL BY MYSELF" ; "ALL THE THINGS YOU ARE" ; "ALL BY MYSELF"; "AUTUMN LEAVES" ;  ;  ; "IN A SENTIMENTAL MOOD" ; "ALL OF ME"
-         id     (-> (cursor conn "select song_id from song where upper(song_nm) = ?" [song] true) first :song_id)
+         id     (-> (cursor conn "select song_id from song where upper(song_nm) = ?" [song]) second first)
          beats  (get-beats conn song)
          rawc   (chord-ttape beats bass-none)
          bass   (raw-bass id)

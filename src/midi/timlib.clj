@@ -89,6 +89,7 @@
 ;; or as maps where column names represents the keys.
 (defn cursor
    ([conn query] (cursor conn query [] false))
+   ([conn query params] (cursor conn query params false))
    ([conn query params return-map?]
       (let [stmt    (let [st (.prepareStatement conn query)]
                        (for-loop [i 0 (< i (count params)) (inc i)]
@@ -100,7 +101,6 @@
             ns      (range 1 (inc ncols))
             header  (map #(.getColumnLabel meta %) ns)
             kheader (mapv #(keyword (lower-case %)) header)
-;            values  (fn [] (mapv #(.getString rs %1) ns))
             values  (fn [] (mapv #(.getObject rs %1) ns))
             as-map  (fn f1 []
                       (when (.next rs)
