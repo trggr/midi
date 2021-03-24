@@ -37,10 +37,10 @@
 (def songdb [
   {:id 1, :nm "ALL THE THINGS YOU ARE", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 120,
    :bars (bars (str "Fm7    | Bbm7     | Eb7    | Abmaj7    |"
-                    "Dbmaj7 | G7       | Cmaj7  |           |"
+                    "Dbmaj7 | G7       | Cmaj7  | Cmaj7     |"
                     "Cm7    | Fm7      | Bb7    | Ebmaj7    |"
                     "Abmaj7 | Am7-5 D7 | Gmaj7  | Gmaj7 E9  |"
-                    "Am7    | D7       | Gmaj7  |           |" 
+                    "Am7    | D7       | Gmaj7  | Gmaj7     |" 
                     "F#m7   | B7       | Emaj7  | C7+5      |"
                     "Fm7    | Bbm7     | Eb7    | Abmaj7    |"
                     "Dbmaj7 | Gb7      | Cm7    | Bdim7     |"
@@ -55,7 +55,7 @@
                     "Dm       Dmmaj7 | Dm7    Dm6 | Gm      Gmmaj7 | Gm7      Gm6 A7   |"
                     "Dm              | D7         | Gm7     C11-9  | Fmaj7              "))}
   {:id 3, :nm "ALL OF ME", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 120,
-   :bars (bars (str "C6  |     | E7           |         |"
+   :bars (bars (str "C6  | C6  | E7           | E7      |"
                     "A7  |     | Dm7          |         |"
                     "E7  |     | Am7          |         |"
                     "D7  |     | Dm7          | G7      |"

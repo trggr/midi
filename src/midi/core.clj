@@ -200,7 +200,7 @@
 ; "LET IT BE"
 
 (defn -main [& _]
-   (let [song   "ALL THE THINGS YOU ARE" ; "ALL BY MYSELF"; "AUTUMN LEAVES" ;  ;  ; "IN A SENTIMENTAL MOOD" ; "ALL OF ME"
+   (let [song   "ALL BY MYSELF" ; "ALL THE THINGS YOU ARE" ; "ALL BY MYSELF"; "AUTUMN LEAVES" ;  ;  ; "IN A SENTIMENTAL MOOD" ; "ALL OF ME"
          id     (-> (cursor conn "select song_id from song where upper(song_nm) = ?" [song] true) first :song_id)
          beats  (get-beats conn song)
          rawc   (chord-ttape beats bass-none)

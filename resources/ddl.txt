@@ -328,7 +328,7 @@ select * from bass_line_bar_v;
 
 
 select * from bar where song_id = 1 order by bar_id, beat_id;
-
+typical
 alter table chord add root_num integer;
 
 select * from note;
@@ -353,7 +353,8 @@ values
   ('Line-E',  5, 'Classical approach - harmonic enclosure'),
   ('Line-F',  5, 'Classical approach - harmonic enclosure'),
   ('S251',    3, 'Sobolev p.14'),
-  ('S25',     2, 'Sobolev p.14');
+  ('S25',     2, 'Sobolev p.14'),
+  ('A25',     2, 'https://andylemaire.com/walking-bass/');
 
 select * from bass_line;
 
@@ -378,7 +379,8 @@ values
   ('Line-D',  1, 1, 'DONOT-Fm7'), ('Line-D',  2, 1, 'Bbm7'), ('Line-D',  3, 1, 'Eb7'),    ('Line-D',  4, 1, 'Abmaj7'), ('Line-D',  5, 1, 'Dbmaj7'),
   ('Line-E',  1, 1, 'DOFm7'), ('Line-E',  2, 1, 'Bbm7'), ('Line-E',  3, 1, 'Eb7'),    ('Line-E',  4, 1, 'Abmaj7'), ('Line-E',  5, 1, 'Dbmaj7'),
   ('Line-F',  1, 1, 'Fm7'), ('Line-F',  2, 1, 'Bbm7'), ('Line-F',  3, 1, 'Eb7'),    ('Line-F',  4, 1, 'Abmaj7'), ('Line-F',  5, 1, 'Dbmaj7'),
-  ('S25',     1, 1, 'Cm7'),   ('S25',   2, 1, 'F7');
+  ('S25',     1, 1, 'Cm7'),   ('S25',   2, 1, 'F7'),
+  ('A25',     1, 1, 'Am7'),   ('A25',   2, 1, 'D7');
 
 drop table bass_line_note;
 
@@ -428,7 +430,9 @@ values
   ('S251', 5,  'C3',  4),  ('S251', 6,  'A2',   4), ('S251', 7, 'F2', 4),  ('S251', 8,  'A2',  4),
   ('S251', 9,  'Bb2', 4),  ('S251', 10, 'D2',   4), ('S251', 11, 'F2', 4), ('S251', 12,  'Eb3',  4),
   ('S25', 1,  'C3',  4),   ('S25', 2,  'C-2',   4), ('S25', 3, 'G2', 4),   ('S25', 4,  'C-2',  4),
-  ('S25', 5,  'F2',  4),   ('S25', 6,  'C-2',   4), ('S25', 7, 'C3', 4),   ('S25', 8,  'C-2',  4);
+  ('S25', 5,  'F2',  4),   ('S25', 6,  'C-2',   4), ('S25', 7, 'C3', 4),   ('S25', 8,  'C-2',  4),
+  ('A25', 1,  'A2',  4),   ('A25', 2,  'B2',    4), ('A25', 3, 'C3', 4),   ('A25', 4,  'C#3',  4),
+  ('A25', 5,  'D3',  4),   ('A25', 6,  'A2',    4), ('A25', 7, 'F#2', 4),  ('A25', 8,  'A2',  4);
   
 select * from note order by midi_num;
 
@@ -485,3 +489,6 @@ from bass_line_note b
 where b.bass_line_id = 'Line-B'
 order by order_num;
 
+delete from song;
+
+delete from bar;
