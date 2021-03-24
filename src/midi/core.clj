@@ -30,13 +30,9 @@
           acc
           (let [[[tc cmd val] & others] xs]
               (cond (= :set-tempo cmd)
-                        (do
-                           (println "set-tempo" val)
-                           (recur tc   ppq  val acc others))
+                           (recur tc   ppq  val acc others)
                     (= :time-signature cmd)
-                        (let [x (* (first val) (nth val 2))
-                              x (* x tempo-correction)
-                              _ (println "time-signature" x val)] 
+                        (let [x (* (first val) (nth val 2) tempo-correction)] 
                           (recur tc  x tempo acc others))
                     :else
                         (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
@@ -73,15 +69,11 @@
 (defn bass-5321 [_ beat [r n3 n5]] (case beat 1 n5       2 n3  3 (+ 2 r) 4 r))
 
 ; alternating asc and desc
-(defn bass-ud2 [bar beat chord]
-   ((nth [bass-1234 bass-1235 bass-5321 bass-4321] (mod bar 4)) bar beat chord))
+(defn bass-ud2 [bar beat chord] ((nth [bass-1234 bass-1235 bass-5321 bass-4321] (mod bar 4)) bar beat chord))
+(defn bass-ud3 [bar beat chord] ((nth [bass-1234 bass-5321 bass-1235 bass-5321] (mod bar 4)) bar beat chord))
 
-(defn bass-ud3 [bar beat chord]
-   ((nth [bass-1234 bass-5321 bass-1235 bass-5321] (mod bar 4)) bar beat chord))
-
-(defn chord-ttape
-  ([beats]
-      (chord-ttape beats bass-15))
+(defn raw-chord
+  ([beats]  (raw-chord beats bass-15))
   ([beats bassf]
       (let [qn      96   ; quarter's duration
             offpct  0.99 ; notes off events at %
@@ -91,9 +83,8 @@
             rc  (concat on off)]
          rc)))
 
-(defn assemble-ttape
-   ([raw]
-      (assemble-ttape raw [[0 :set-tempo 600000][0 :time-signature [4 2 24 8]]]))
+(defn ttape
+   ([raw]  (ttape raw [[0 :set-tempo 600000][0 :time-signature [4 2 24 8]]]))
    ([raw timing]
      (let [xs (sort-by key (group-by first raw))
            ys (for [[tc data] xs] [tc :data data])]
@@ -144,18 +135,14 @@
         beats  (cursor conn query [(str/upper-case song-name)])]
      (map (fn [[bar beat chord]] [bar beat (keyword chord)]) (rest beats))))
       
-
-(def qn 96)
-
-(defn make-bass-ttape [bar bassline transp]
-  (let [notes (cursor conn
-                      (str "select n.midi_num, b.note_dur_num "
-                           "from bass_line_note b join note n on (n.note_cd = b.note_cd) "
-                           "where b.bass_line_id = ? order by order_num")
+(defn expand-bass-line [bar bassline transp]
+  (let [qn    96
+        notes (cursor conn
+                      "select n.midi_num, b.note_dur_num
+                       from bass_line_note b join note n on (n.note_cd = b.note_cd)
+                       where b.bass_line_id = :1 order by order_num"
                       [bassline])]
-     (loop [acc []
-             tc (+ (* qn bar 4))
-             xs (rest notes)]
+     (loop [acc [], tc (+ (* qn bar 4)), xs (rest notes)]
         (if (empty? xs)
            acc
            (let [[midi dur] (first xs)
@@ -171,7 +158,7 @@
      (if (some identity (vals (select-keys timeline bars)))
         rc
         [(reduce (fn [a k] (assoc a k bassline)) timeline bars)
-         (concat tape (make-bass-ttape begin bassline transp))])))
+         (concat tape (expand-bass-line begin bassline transp))])))
 
 (defn raw-bass [songid]
   (let [ptrns  (cursor conn
@@ -184,25 +171,19 @@
        (reduce alloc_bass
                [(into (sorted-map) (zipmap (range 1 (inc maxbar)) (repeat nil)))
                 []]
-                (rest ptrns))))
-
-; "ALL THE THINGS YOU ARE"
-; "IN A SENTIMENTAL MOOD"
-; "ALL OF ME"
-; "AUTUMN LEAVES"
-; "ALL BY MYSELF"
-; "LET IT BE"
+               (rest ptrns))))
 
 (defn -main [& _]
-   (let [song   "ALL THE THINGS YOU ARE"  ; "ALL BY MYSELF" ; "ALL THE THINGS YOU ARE" ; "ALL BY MYSELF"; "AUTUMN LEAVES" ;  ;  ; "IN A SENTIMENTAL MOOD" ; "ALL OF ME"
-         id     (-> (cursor conn "select song_id from song where upper(song_nm) = ?" [song]) second first)
-         beats  (get-beats conn song)
-         rawc   (chord-ttape beats bass-none)
-         bass   (raw-bass id)
-         [info rawb] bass]
-         (view info)
-     (-> (concat rawc rawb) assemble-ttape make-tape play-tape)))
-
-
-
-           
+   (doseq [song [
+                ;;"ALL THE THINGS YOU ARE"
+                ;;"IN A SENTIMENTAL MOOD"
+                ;;"ALL OF ME"
+                "AUTUMN LEAVES"
+                "ALL BY MYSELF"
+                "LET IT BE"]]
+     (let [id    (-> (cursor conn "select song_id from song where upper(song_nm) = ?" [song]) second first)
+           beats   (get-beats conn song)
+           chords  (raw-chord beats bass-15)
+           [info bass] (raw-bass id)]
+       (view info)
+       (-> (concat chords bass) ttape make-tape play-tape))))
