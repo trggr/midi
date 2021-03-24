@@ -379,7 +379,7 @@ values
   ('Line-D',  1, 1, 'DONOT-Fm7'), ('Line-D',  2, 1, 'Bbm7'), ('Line-D',  3, 1, 'Eb7'),    ('Line-D',  4, 1, 'Abmaj7'), ('Line-D',  5, 1, 'Dbmaj7'),
   ('Line-E',  1, 1, 'DOFm7'), ('Line-E',  2, 1, 'Bbm7'), ('Line-E',  3, 1, 'Eb7'),    ('Line-E',  4, 1, 'Abmaj7'), ('Line-E',  5, 1, 'Dbmaj7'),
   ('Line-F',  1, 1, 'Fm7'), ('Line-F',  2, 1, 'Bbm7'), ('Line-F',  3, 1, 'Eb7'),    ('Line-F',  4, 1, 'Abmaj7'), ('Line-F',  5, 1, 'Dbmaj7'),
-  ('S25',     1, 1, 'Cm7'),   ('S25',   2, 1, 'F7'),
+  ('S25',     1, 1, 'DOCm7'),   ('S25',   2, 1, 'F7'),
   ('A25',     1, 1, 'Am7'),   ('A25',   2, 1, 'D7');
 
 drop table bass_line_note;

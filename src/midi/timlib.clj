@@ -99,11 +99,11 @@
             ncols   (.getColumnCount meta)
             ns      (range 1 (inc ncols))
             header  (map #(.getColumnLabel meta %) ns)
-            header-as-keywords (map #(-> % lower-case keyword) header)
-            values  (fn f0 [] (mapv #(.getString rs %1) ns))
+            kheader (mapv #(keyword (lower-case %)) header)
+            values  (fn [] (mapv #(.getString rs %1) ns))
             as-map  (fn f1 []
                       (when (.next rs)
-                         (lazy-seq (cons (zipmap header-as-keywords (values)) (f1)))))
+                         (lazy-seq (cons (zipmap kheader (values)) (f1)))))
             as-list (fn f1 []
                       (when (.next rs)
                          (lazy-seq (cons (values) (f1)))))]
