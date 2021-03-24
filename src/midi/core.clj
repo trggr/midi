@@ -142,7 +142,7 @@
                where chord_id is not null
                order by bar_id, beat_id"
         beats  (cursor conn query [(str/upper-case song-name)] false)]
-     (map (fn [[bar beat chord]] (vector (integer bar) (integer beat) (keyword chord))) (rest beats))))
+     (map (fn [[bar beat chord]] (vector bar beat (keyword chord))) (rest beats))))
       
 
 (def qn 96)
@@ -159,8 +159,8 @@
         (if (empty? xs)
            acc
            (let [[midi dur] (first xs)
-                  midin  (read-string midi)
-                  durn   (read-string dur)
+                  midin  midi
+                  durn   dur
                   n      (+ midin transp)
                   nexttc (+ tc (/ (* 4 qn) durn))]
                (recur (conj (conj acc [tc 3 n 100]) [(dec nexttc) 3 n 0])
@@ -169,9 +169,9 @@
 
 (defn alloc_bass [[timeline tape :as rc]
                   [bassline begin end transp-num]]
-  (let [b      (integer begin)
-        e      (integer end)
-        transp (integer transp-num)
+  (let [b      begin
+        e      end
+        transp transp-num
         bars (range b (inc e))]
      (if (some identity (vals (select-keys timeline bars)))
         rc
@@ -184,8 +184,8 @@
                                   "from bass_line_bar_v "
                                   "where song_id = ? "
                                   "order by beg_bar_id")
-                              [songid] false))
-        maxbar (-> (cursor conn "select max(bar_id) bar from bar where song_id = ?" [songid] true) first :bar integer)]
+                              [(str songid)] false))
+        maxbar (-> (cursor conn "select max(bar_id) bar from bar where song_id = ?" [(str songid)] true) first :bar)]
 ;       (println maxbar ptrns)
        (reduce alloc_bass
                [(into (sorted-map) (zipmap (range 1 (inc maxbar)) (repeat nil)))
@@ -200,7 +200,7 @@
 ; "LET IT BE"
 
 (defn -main [& _]
-   (let [song   "ALL BY MYSELF" ; "ALL THE THINGS YOU ARE" ; "ALL BY MYSELF"; "AUTUMN LEAVES" ;  ;  ; "IN A SENTIMENTAL MOOD" ; "ALL OF ME"
+   (let [song   "ALL THE THINGS YOU ARE"  ; "ALL BY MYSELF" ; "ALL THE THINGS YOU ARE" ; "ALL BY MYSELF"; "AUTUMN LEAVES" ;  ;  ; "IN A SENTIMENTAL MOOD" ; "ALL OF ME"
          id     (-> (cursor conn "select song_id from song where upper(song_nm) = ?" [song] true) first :song_id)
          beats  (get-beats conn song)
          rawc   (chord-ttape beats bass-none)

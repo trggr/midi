@@ -100,7 +100,8 @@
             ns      (range 1 (inc ncols))
             header  (map #(.getColumnLabel meta %) ns)
             kheader (mapv #(keyword (lower-case %)) header)
-            values  (fn [] (mapv #(.getString rs %1) ns))
+;            values  (fn [] (mapv #(.getString rs %1) ns))
+            values  (fn [] (mapv #(.getObject rs %1) ns))
             as-map  (fn f1 []
                       (when (.next rs)
                          (lazy-seq (cons (zipmap kheader (values)) (f1)))))
