@@ -489,6 +489,11 @@ from bass_line_note b
 where b.bass_line_id = 'Line-B'
 order by order_num;
 
-delete from song;
+select * from bass_line where bass_line_id = 'test';
+select * from bass_line_chord where bass_line_id = 'test';
+select * from bass_line_note where bass_line_id = 'test';
 
-delete from bar;
+delete from bass_line       where bass_line_id = 'test';
+delete from bass_line_chord where bass_line_id = 'test';
+delete from bass_line_note  where bass_line_id = 'test';
+

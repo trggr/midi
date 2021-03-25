@@ -200,6 +200,27 @@
                                   :eb1 :g1 :bb1 :a1]}})
 
  
+(defn save-bass-line [conn bass-line]
+  (let [{:keys [id cnt desc chords notes]} bass-line
+        chords (for [[bar beat chord] chords]
+                  [id bar beat (name chord)])
+        notes  (for [i (range (count notes))]
+                   (let [[note dur] (nth notes i)]
+                       [id (inc i) (name note) dur]))]
+     (batch-update conn "insert into bass_line(bass_line_id, bar_cnt, bass_line_desc) values (?, ?, ?)"
+          [[id cnt desc]])
+     (batch-update conn "insert into bass_line_chord (bass_line_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)"
+          chords)
+     (batch-update conn "insert into bass_line_note (bass_line_id, order_num, note_cd, note_dur_num) values (?, ?, ?, ?)"
+          notes)))
 
+;(save-bass-line conn {:id "test", :cnt 10, :desc "Test bass line"
+;                      :chords [[1 1 :Fm7 ]
+;                               [2 1 :Bbm7]
+;                               [3 1 :Eb7 ]
+;                               [4 1 :Ab7 ]]
+;                      :notes  [[:f0 4]  [:ab0 4] [:c1 4]  [:eb1 4]
+;                               [:bb0 4] [:db1 4] [:f1 4]  [:b1  4]
+;                               [:g1  4] [:eb1 4] [:db1 4] [:bb0 4]]})
 
 
