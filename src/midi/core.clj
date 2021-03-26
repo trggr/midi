@@ -148,7 +148,7 @@
            (let [[midi dur] (first xs)
                   n      (+ midi transp)
                   nexttc (+ tc (/ (* 4 qn) dur))]
-               (recur (conj (conj acc [tc 3 n 100]) [(dec nexttc) 3 n 0])
+               (recur (conj (conj acc [tc 3 n 70]) [(dec nexttc) 3 n 0])
                       nexttc
                       (rest xs)))))))
 
@@ -174,7 +174,7 @@
                (rest ptrns))))
 
 (defn -main [& _]
-   (doseq [song [
+   (doseq [song ["MEDIUM BLUES" "MEDIUM BLUES" "MEDIUM BLUES" "MEDIUM BLUES" "MEDIUM BLUES"
                 ;;"ALL THE THINGS YOU ARE"
                 ;;"IN A SENTIMENTAL MOOD"
                 ;;"ALL OF ME"

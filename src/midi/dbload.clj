@@ -87,7 +87,10 @@
                     "C  | G  | Am | F |"
                     "C  | G  | F  | C |"
                     "Am | G  | F  | C |"
-                    "C  | G  | F  | C |"))}])
+                    "C  | G  | F  | C |"))}
+  {:id 7, :nm "MEDIUM BLUES", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 120,
+    :bars (bars "C | F7 F#dim | C | C7 | F | F#dim | C | Em7-5 A7 | Dm7 | G7 | Em7-5 A7 | Dm G7")}
+])
 
 ; Middle octave - C3 (also just C for convenience)
 (def notedb {:C 60, :C# 61, :Db 61,
@@ -189,24 +192,19 @@
 ; (for [s songdb] (save-song conn s))
 ;
 
-; (def normalize-baseline-db  
-(def basslinedb {:linea {:chords [:Fm7 :Bbm7 :Eb7 :Ab7]
-                         :bass   [:f0  :ab0 :c1  :eb1
-                                  :bb0 :db1 :f1  :b1
-                                  :g1  :eb1 :db1 :bb0]}
-                 :lineb {:chords [:Fm7 :Bbm7 :Eb7]
-                         :bass   [:f0  :g    :ab0 :a
-                                  :bb0 :c1 :db1 :f1
-                                  :eb1 :g1 :bb1 :a1]}})
 
- 
 (defn save-bass-line [conn bass-line]
-  (let [{:keys [id cnt desc chords notes]} bass-line
-        chords (for [[bar beat chord] chords]
-                  [id bar beat (name chord)])
+  (let [{:keys [id desc chords notes]} bass-line
+        chords (->> (str/split chords #"\|")
+                    (map str/trim)
+                    (map #(str/split % #"\s+"))
+                    (map bar-to-beats)
+                    (map-indexed #(vector (inc %1) %2)))
+        chords (for [[barno bar] chords, [beat chord] bar] [id barno beat chord])
+        cnt    (str (reduce max (map second chords)))
         notes  (for [i (range (count notes))]
                    (let [[note dur] (nth notes i)]
-                       [id (inc i) (name note) dur]))]
+                       [id (inc i) (name note) (or dur 4)]))]
      (batch-update conn "insert into bass_line(bass_line_id, bar_cnt, bass_line_desc) values (?, ?, ?)"
           [[id cnt desc]])
      (batch-update conn "insert into bass_line_chord (bass_line_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)"
@@ -214,13 +212,26 @@
      (batch-update conn "insert into bass_line_note (bass_line_id, order_num, note_cd, note_dur_num) values (?, ?, ?, ?)"
           notes)))
 
-;(save-bass-line conn {:id "test", :cnt 10, :desc "Test bass line"
-;                      :chords [[1 1 :Fm7 ]
-;                               [2 1 :Bbm7]
-;                               [3 1 :Eb7 ]
-;                               [4 1 :Ab7 ]]
-;                      :notes  [[:f0 4]  [:ab0 4] [:c1 4]  [:eb1 4]
-;                               [:bb0 4] [:db1 4] [:f1 4]  [:b1  4]
-;                               [:g1  4] [:eb1 4] [:db1 4] [:bb0 4]]})
+(def basslinedb [
+   {:id "SMEDBLUES", :desc "Medium blues, Sobolev p. 14"
+    :chords "C | F7 F#dim | C | C7 | F | F#dim | C | Em7-5 A7 | Dm7 | G7 | Em7-5 A7 | Dm G7"
+    :notes  [[:C4] [:G3] [:E3] [:C3]  
+             [:F3] [:E3] [:F3] [:F#3]
+             [:G3] [:B3] [:C4] [:B3] 
+             [:Bb3] [:C3] [:D3] [:E3]
 
+             [:F3] [:A2] [:BB2] [:B2]
+             [:C3] [:E3] [:F3] [:F#3] 
+             [:G3] [:E3] [:F3] [:D3] 
+             [:E3] [:Bb3] [:A3] [:C#2] 
+
+             [:D3] [:A3] [:F3] [:F#3]
+             [:G3] [:D3] [:G3] [:F3] 
+             [:E3] [:Bb2] [:A2] [:C#4] 
+             [:D4] [:A3] [:B3] [:G3]
+   ]}
+])
+
+; Saving
+; (map (partial save-bass-line conn) basslinedb)
 

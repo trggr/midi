@@ -490,10 +490,18 @@ where b.bass_line_id = 'Line-B'
 order by order_num;
 
 select * from bass_line where bass_line_id = 'test';
-select * from bass_line_chord where bass_line_id = 'test';
+select * from bass_line_chord where bass_line_id = 'test' order by 1, 2, 3;
 select * from bass_line_note where bass_line_id = 'test';
 
 delete from bass_line       where bass_line_id = 'test';
 delete from bass_line_chord where bass_line_id = 'test';
 delete from bass_line_note  where bass_line_id = 'test';
 
+delete from bass_line_chord where bass_line_id = '';
+
+select * from bass_line_note;
+
+select bass_line_id, beg_bar_id, end_bar_id, (transp_num - 12) transp_num
+from bass_line_bar_v
+where song_id = 7
+order by beg_bar_id;
