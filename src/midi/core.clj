@@ -90,24 +90,24 @@
            ys (for [[tc data] xs] [tc :data data])]
           (concat timing ys))))
 
-(defn note-player [instr]
+(defn note-player [instruments]
    (let [synth    (javax.sound.midi.MidiSystem/getSynthesizer)
          _        (.open synth)
-         channels (-> synth .getChannels)
-         i        (-> synth .getDefaultSoundbank .getInstruments (nth instr))]
-      (println "Playing" (.getName i))
-      (.loadInstrument synth i)
-;      (.programChange c instr)
+         channels (-> synth .getChannels)]
+     (doseq [[ch prog] instruments]
+         (let [p (-> synth .getDefaultSoundbank .getInstruments (nth prog))]
+            (println "Playing" (.getName p) "on channel" ch)
+            (.loadInstrument synth p)
+            (.programChange (nth channels ch) prog)))
       (fn [c note vol]
-         (let [ch (nth channels c)]
-            (.noteOn ch note vol)))))
+          (.noteOn (nth channels c) note vol))))
 
 (defn play-tape [tape]
-   (let [play-note (note-player 1)]
+   (let [f (note-player [[2 28] [3 33]])]
       (doseq [[tc notes] tape]
          (Thread/sleep tc)
          (doseq [[_ ch note vel] notes]
-            (play-note ch note vel)))))
+            (f ch note vel)))))
 
 (defn get-beats [conn song-name]
   (let [query "with
@@ -152,7 +152,7 @@
                       nexttc
                       (rest xs)))))))
 
-(defn alloc_bass [[timeline tape :as rc]
+(defn alloc-bass [[timeline tape :as rc]
                   [bassline begin end transp]]
   (let [bars (range begin (inc end))]
      (if (some identity (vals (select-keys timeline bars)))
@@ -168,22 +168,26 @@
                             "order by beg_bar_id")
                         [(str songid)])
         maxbar (-> (cursor conn "select max(bar_id) bar from bar where song_id = ?" [(str songid)]) second first)]
-       (reduce alloc_bass
+       (reduce alloc-bass
                [(into (sorted-map) (zipmap (range 1 (inc maxbar)) (repeat nil)))
                 []]
                (rest ptrns))))
 
 (defn -main [& _]
-   (doseq [song ["MEDIUM BLUES" "MEDIUM BLUES" "MEDIUM BLUES" "MEDIUM BLUES" "MEDIUM BLUES"
-                ;;"ALL THE THINGS YOU ARE"
-                ;;"IN A SENTIMENTAL MOOD"
-                ;;"ALL OF ME"
+   (doseq [song ["MEDIUM BLUES"
+                "ALL THE THINGS YOU ARE"
+                "IN A SENTIMENTAL MOOD"
+                "ALL OF ME"
                 "AUTUMN LEAVES"
                 "ALL BY MYSELF"
                 "LET IT BE"]]
-     (let [id    (-> (cursor conn "select song_id from song where upper(song_nm) = ?" [song]) second first)
-           beats   (get-beats conn song)
-           chords  (raw-chord beats bass-15)
+     (let [id     (-> (cursor conn "select song_id from song where upper(song_nm) = ?" [song]) second first)
+           beats  (get-beats conn song)
+           chords (raw-chord beats bass-none)
            [info bass] (raw-bass id)]
-       (view info)
+       (println song)
+       (view (map (fn [[k v] c] [k v (pr-str c)])
+                   info
+                   (partition 4 (map (fn [[_ _ c]] c) beats))))
        (-> (concat chords bass) ttape make-tape play-tape))))
+
