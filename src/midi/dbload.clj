@@ -248,8 +248,10 @@
              [:D3] [:A3] [:F3] [:F#3]
              [:G3] [:D3] [:G3] [:F3] 
              [:E3] [:Bb2] [:A2] [:C#4] 
-             [:D4] [:A3] [:B3] [:G3]
-   ]}
+             [:D4] [:A3] [:B3] [:G3]]}
+   {:id "T51", :desc "Walk from dominant to root"
+    :chords "G7 G7 | C C"
+    :notes  [[:G3] [:F3] [:E3] [:D3]  [:C3 2] [:G3 2]]}
 ])
 
 ; Saving
