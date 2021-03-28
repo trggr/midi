@@ -175,33 +175,39 @@
                 []]
                (rest ptrns))))
 
+;(def swing-cymbal (let [hh    (notedb :ride-cymbal-1)
+;                        s     (notedb :C-2)]
+;                     [[hh]    [hh 12][s 12][hh 12]    [hh]    [hh 12][s 12][hh 12]]))
+;
+;(def swing-hi-hat (let [hh    (notedb :open-hi-hat)
+;                        s     (notedb :C-2)]
+;                     [[s]    [hh] [s] [hh]]))
+;
+;(def swing-bass-drum (let [b  (notedb :acoustic-bass-drum)]
+;                        [[b] [b] [b] [b]]))
 
-(defn raw-drum-bar [bar pattern vel]
+(defn expand-drum [pattern note bar]
    (loop [acc [],
           tc  (+ (* qn bar 4)),
           xs pattern]
       (if (empty? xs)
          acc
-         (let [[midi dur] (first xs)
+         (let [[velpct dur] (first xs)
                dur (or dur 4)
                nexttc (+ tc (/ (* 4 qn) dur))]
-             (recur (conj (conj acc [tc 9 midi vel]) [(dec nexttc) 9 midi 0])
+             (recur (conj (conj acc [tc 9 note (/ (* 40 velpct) 100)]) [(dec nexttc) 9 note 0])
                     nexttc
                     (rest xs))))))
 
-(def swing-cymbal
-   (let [hh    (notedb :ride-cymbal-1)
-         s     (notedb :C-2)]
-      [[hh]    [hh 12][s 12][hh 12]    [hh]    [hh 12][s 12][hh 12]]))
+(def swing {:ride-cymbal-1      [[70]    [70 12][0 12][40 12]    [70]    [70 12][0 12][40 12]]
+            :closed-hi-hat        [[0]      [70]                    [0]      [70]]
+            :acoustic-bass-drum [[90]     [70]                     [90]     [70]]})
 
-(def swing-hi-hat
-   (let [hh    (notedb :open-hi-hat)
-         s     (notedb :C-2)]
-      [[s]    [hh] [s] [hh]]))
+(defn single-drum [pattern note bars]
+   (mapcat #(expand-drum pattern note %) bars))
 
-(def swing-bass-drum
-   (let [b  (notedb :acoustic-bass-drum)]
-      [[b] [b] [b] [b]]))
+(defn raw-drums [pattern bars]
+   (mapcat #(single-drum (pattern %) (notedb %) bars) (keys pattern)))
 
 (defn -main [& _]
    (doseq [song ["MEDIUM BLUES"
@@ -213,39 +219,12 @@
                 "LET IT BE"]]
      (let [id     (-> (cursor conn "select song_id from song where upper(song_nm) = ?" [song]) second first)
            beats  (get-beats conn song)
-           maxbar (reduce max (map first beats))
+           bars   (range 1 (inc (reduce max (map first beats))))
            chords (raw-chord beats bass-none)
-           cymbal   (reduce (fn [acc bar] (concat acc (raw-drum-bar bar swing-cymbal    40))) [] (range 1 (inc maxbar)))
-           hihat    (reduce (fn [acc bar] (concat acc (raw-drum-bar bar swing-hi-hat    40))) [] (range 1 (inc maxbar)))
-           bassdrum (reduce (fn [acc bar] (concat acc (raw-drum-bar bar swing-bass-drum 40))) [] (range 1 (inc maxbar)))
+           drums  (raw-drums swing bars)
            [info bass] (raw-bass id)]
        (println song)
        (view (map (fn [[k v] c] [k v (pr-str c)])
                    info
                    (partition 4 (map (fn [[_ _ c]] c) beats))))
-       (-> (concat chords bass cymbal hihat bassdrum) ttape make-tape play-tape))))
-
-
-;(def raw (reduce (fn [acc bar] (concat acc (raw-drum-bar bar swing))) [] (range 1 10)))
-;
-;(-> raw ttape make-tape play-tape)
-
-
-           
-
-;(defn -main [& _]
-;  (let [pch   9 ; MIDI channel for percussion
-;        hh    (notedb :open-hi-hat) 
-;        s     (notedb :C-2) 
-;        notes [[hh]    [hh 12][s 12][hh 12]    [hh]    [hh 12][s 12][hh 12]]
-;        raw   (for [bar (range 10) n notes]
-;                 [(* bar 4 96) pch hh 60])]
-;      (-> raw ttape make-tape play-tape)))
-;
-;[1 2 3   1 2 3    1 2 3   1 2 3]
-;
-;        notes  (for [i (range (count notes))]
-;                   (let [[note dur] (nth notes i)]
-;                       [id (inc i) (name note) (or dur 4)]))]
-
-
+       (-> (concat bass drums chords) ttape make-tape play-tape))))
