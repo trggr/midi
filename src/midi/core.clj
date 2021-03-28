@@ -3,6 +3,9 @@
    (:use [midi.timlib])
    (:use [midi.dbload]))
 
+; Length of quarter note
+(def qn 96)
+
 ; Tick Tape format:
 ;     Field       Type      Description
 ;     --------------------------------------------------------------------------------------
@@ -51,7 +54,7 @@
                        shell-pretty (map #(vector tc cchannel % cvel) (rest chord))
                        notes        (if (nil? bass)
                                        shell-pretty 
-                                       (cons (vector tc bchannel (- bass 24) bvel) shell-pretty))]
+                                       (cons (vector tc bchannel (- bass 36) bvel) shell-pretty))]
                   (assoc-in acc [bar tc] notes)))
               (sorted-map)
               beats)))
@@ -75,8 +78,7 @@
 (defn raw-chord
   ([beats]  (raw-chord beats bass-15))
   ([beats bassf]
-      (let [qn      96   ; quarter's duration
-            offpct  0.99 ; notes off events at %
+      (let [offpct  0.99 ; notes off events at %
             x2  (bass-skelet beats qn bassf)
             on  (for [[_ bar] x2, [_ chord] bar, note chord] note)
             off (map (fn [[t c n _]] [(+ t (* qn offpct)) c n 0]) on)
@@ -135,9 +137,8 @@
         beats  (cursor conn query [(str/upper-case song-name)])]
      (map (fn [[bar beat chord]] [bar beat (keyword chord)]) (rest beats))))
       
-(defn expand-bass-line [bar bassline transp]
-  (let [qn    96
-        notes (cursor conn
+(defn expand-bass-line [bar bassline transp vel]
+  (let [notes (cursor conn
                       "select n.midi_num, b.note_dur_num
                        from bass_line_note b join note n on (n.note_cd = b.note_cd)
                        where b.bass_line_id = :1 order by order_num"
@@ -148,21 +149,22 @@
            (let [[midi dur] (first xs)
                   n      (+ midi transp)
                   nexttc (+ tc (/ (* 4 qn) dur))]
-               (recur (conj (conj acc [tc 3 n 70]) [(dec nexttc) 3 n 0])
+               (recur (conj (conj acc [tc 3 n vel]) [(dec nexttc) 3 n 0])
                       nexttc
                       (rest xs)))))))
 
 (defn alloc-bass [[timeline tape :as rc]
                   [bassline begin end transp]]
-  (let [bars (range begin (inc end))]
+  (let [bars (range begin (inc end))
+        vel  90]
      (if (some identity (vals (select-keys timeline bars)))
         rc
         [(reduce (fn [a k] (assoc a k bassline)) timeline bars)
-         (concat tape (expand-bass-line begin bassline transp))])))
+         (concat tape (expand-bass-line begin bassline transp vel))])))
 
 (defn raw-bass [songid]
   (let [ptrns  (cursor conn
-                       (str "select bass_line_id, beg_bar_id, end_bar_id, (transp_num - 12) transp_num "
+                       (str "select bass_line_id, beg_bar_id, end_bar_id, (transp_num - 36) transp_num "
                             "from bass_line_bar_v "
                             "where song_id = ? "
                             "order by beg_bar_id")
@@ -172,6 +174,34 @@
                [(into (sorted-map) (zipmap (range 1 (inc maxbar)) (repeat nil)))
                 []]
                (rest ptrns))))
+
+
+(defn raw-drum-bar [bar pattern vel]
+   (loop [acc [],
+          tc  (+ (* qn bar 4)),
+          xs pattern]
+      (if (empty? xs)
+         acc
+         (let [[midi dur] (first xs)
+               dur (or dur 4)
+               nexttc (+ tc (/ (* 4 qn) dur))]
+             (recur (conj (conj acc [tc 9 midi vel]) [(dec nexttc) 9 midi 0])
+                    nexttc
+                    (rest xs))))))
+
+(def swing-cymbal
+   (let [hh    (notedb :ride-cymbal-1)
+         s     (notedb :C-2)]
+      [[hh]    [hh 12][s 12][hh 12]    [hh]    [hh 12][s 12][hh 12]]))
+
+(def swing-hi-hat
+   (let [hh    (notedb :open-hi-hat)
+         s     (notedb :C-2)]
+      [[s]    [hh] [s] [hh]]))
+
+(def swing-bass-drum
+   (let [b  (notedb :acoustic-bass-drum)]
+      [[b] [b] [b] [b]]))
 
 (defn -main [& _]
    (doseq [song ["MEDIUM BLUES"
@@ -183,15 +213,39 @@
                 "LET IT BE"]]
      (let [id     (-> (cursor conn "select song_id from song where upper(song_nm) = ?" [song]) second first)
            beats  (get-beats conn song)
+           maxbar (reduce max (map first beats))
            chords (raw-chord beats bass-none)
+           cymbal   (reduce (fn [acc bar] (concat acc (raw-drum-bar bar swing-cymbal    40))) [] (range 1 (inc maxbar)))
+           hihat    (reduce (fn [acc bar] (concat acc (raw-drum-bar bar swing-hi-hat    40))) [] (range 1 (inc maxbar)))
+           bassdrum (reduce (fn [acc bar] (concat acc (raw-drum-bar bar swing-bass-drum 40))) [] (range 1 (inc maxbar)))
            [info bass] (raw-bass id)]
        (println song)
        (view (map (fn [[k v] c] [k v (pr-str c)])
                    info
                    (partition 4 (map (fn [[_ _ c]] c) beats))))
-       (-> (concat chords bass) ttape make-tape play-tape))))
+       (-> (concat chords bass cymbal hihat bassdrum) ttape make-tape play-tape))))
+
+
+;(def raw (reduce (fn [acc bar] (concat acc (raw-drum-bar bar swing))) [] (range 1 10)))
+;
+;(-> raw ttape make-tape play-tape)
+
+
+           
 
 ;(defn -main [& _]
-;  (let [raw  (for [i (range 1 20)] [(* i 96) 9 46 60])]
+;  (let [pch   9 ; MIDI channel for percussion
+;        hh    (notedb :open-hi-hat) 
+;        s     (notedb :C-2) 
+;        notes [[hh]    [hh 12][s 12][hh 12]    [hh]    [hh 12][s 12][hh 12]]
+;        raw   (for [bar (range 10) n notes]
+;                 [(* bar 4 96) pch hh 60])]
 ;      (-> raw ttape make-tape play-tape)))
+;
+;[1 2 3   1 2 3    1 2 3   1 2 3]
+;
+;        notes  (for [i (range (count notes))]
+;                   (let [[note dur] (nth notes i)]
+;                       [id (inc i) (name note) (or dur 4)]))]
+
 
