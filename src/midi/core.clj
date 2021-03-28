@@ -211,7 +211,7 @@
    (mapcat #(single-drum (pattern %) (notedb %) bars) (keys pattern)))
 
 (defn -main [& _]
-   (doseq [song ["MEDIUM BLUES"
+   (doseq [song ["ALL OF ME" "MEDIUM BLUES"
                 "ALL THE THINGS YOU ARE"
                 "IN A SENTIMENTAL MOOD"
                 "ALL OF ME"

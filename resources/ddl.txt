@@ -28,20 +28,6 @@ where a.beat_id <= 4 and
       b.song_id = 1
 order by a.bar_id, a.beat_id;
 
-
-select * from bar_flat;
-
-drop view bar_flat;
-
-create view bar_flat
-as
-select b.song_id, b.bar_id, b.beat_id, b.chord_id,
-       s.song_nm, s.time_sig_nmrtr_num, s.time_sig_denom_num,
-       s.time_sig_ppq_num, s.time_sig_bb_num  
-from bar             b
-     inner join song s on (s.song_id = b.song_id);
-                 
-
 with
 song as (select * from bar_flat where song_id = 2),
 fill as (
@@ -87,23 +73,6 @@ select * from rc
 where chord_id is not null
 order by 1, 2;
 
-create table song_backup as select * from song;
-
-create table bar_backup as select * from bar;
-
-delete from song;
-delete from bar;
-
-
---select * from all_beat order by 1, 2;
---select * from bar_flat order by 1, 2;
---select bar_id, beat_id, '[' ||chord_id || ']', length(chord_id), case when chord_id is null then 'Y' else 'N' end from bar order by 1, 2;
---select * from all_beat where beat_id <= 4;
---delete from all_beat;
---update bar set chord_id = null where length(chord_id) = 0;
-    
-
-select upper("Hello");
 
 select * from bar where song_id = 5;
 
@@ -174,148 +143,7 @@ from bar              b
      left join chord c on (c.chord_id = b.chord_id)
 where b.song_id = 1;
 
-/*
-with
-t as (select bar_id, beat_id, b.chord_id, c.major_ind, midi1_num root, 
-             lead(midi1_num) over (order by bar_id, beat_id) next_chord
-      from bar              b
-           left join chord c on (c.chord_id = b.chord_id)
-      where b.song_id = 1)
-select t.*,
-       abs(root - next_chord)          d1,
-       abs(root - (next_chord + 12))   d2,
-       abs(root - (next_chord - 12))   d3,
-       min(abs(root - next_chord),
-           abs(root - (next_chord + 12)),
-           abs(root - (next_chord - 12))) mindist,
-       case when major_ind = 'N' then 'min' else 'maj' end ||
-       min(abs(root - next_chord),
-           abs(root - (next_chord + 12)),
-           abs(root - (next_chord - 12))) int
-from t;
-*/
 
-/*
-select b.bar_id, b.beat_id, b.chord_id, c.root_midi_num, c.major_ind, p.*
-from bar                  b
-     left join chord      c on (b.chord_id = c.chord_id)
-     left join chord_ptrn p on (p.chord_id = b.chord_id and
-                                p.beat_id  = b.beat_id)
-where b.song_id = 1 and
-      p.bar_id  = 1;
-
-*/      
-
-/*
-with
-s1 as (select b.song_id, p.bass_line_id, b.bar_id from_bar_id, b.bar_id + 1 next_bar_id, c.root_midi_num - 60 transp_num
-       from bar             b
-            join chord_ptrn_v p on (p.chord_id = b.chord_id and p.beat_id = b.beat_id)
-       where p.bar_id  = 1),
-s2 as (select s.song_id, s.bass_line_id, s.from_bar_id, s.transp_num, b.bar_id + 1 next_bar_id, b.chord_id
-       from s1              s
-            join bar        b  on (b.song_id  = s.song_id  and b.bar_id = s.next_bar_id)
-            join chord_ptrn_v p  on (p.chord_id = b.chord_id and p.beat_id = b.beat_id and p.bass_line_id = s.bass_line_id)
-       where p.bar_id = 2),
-s3 as (select s.song_id, s.bass_line_id, s.from_bar_id, s.transp_num, b.bar_id + 1 next_bar_id, b.chord_id
-       from s2              s
-            join bar        b  on (b.song_id  = s.song_id  and b.bar_id = s.next_bar_id)
-            join chord_ptrn_v p  on (p.chord_id = b.chord_id and p.beat_id = b.beat_id and p.bass_line_id = s.bass_line_id)
-       where p.bar_id = 3),
-s4 as (select s.song_id, s.bass_line_id, s.from_bar_id, s.transp_num, b.bar_id + 1 next_bar_id, b.chord_id
-       from s3              s
-            join bar        b  on (b.song_id  = s.song_id  and b.bar_id = s.next_bar_id)
-            join chord_ptrn_v p  on (p.chord_id = b.chord_id and p.beat_id = b.beat_id and p.bass_line_id = s.bass_line_id)
-       where p.bar_id = 4),
-s5 as (select s.song_id, s.bass_line_id, s.from_bar_id, s.transp_num, b.bar_id + 1 next_bar_id, b.chord_id
-       from s4              s
-            join bar        b  on (b.song_id  = s.song_id  and b.bar_id = s.next_bar_id)
-            join chord_ptrn_v p  on (p.chord_id = b.chord_id and p.beat_id = b.beat_id and p.bass_line_id = s.bass_line_id)
-       where p.bar_id = 5)
-select * from s4;
-*/
-
-/*
-with recursive
-s(song_id, bass_line_id, from_bar_id, next_bar_id, chord_id, step_num, bar_cnt) as (
-         select b.song_id,
-                p.bass_line_id,
-                b.bar_id from_bar_id,
-                b.bar_id + 1 next_bar_id,
---                c.root_midi_num - 60 transp_num,
-                b.chord_id,
-                p.bar_id step_num,
-                p.bar_cnt
-         from bar             b
-              join chord_ptrn_v p on (p.chord_id = b.chord_id and
-                                      p.beat_id  = b.beat_id)
-         where p.bar_id  = 1
-         union all
-         select s.song_id,
-                s.bass_line_id,
-                s.from_bar_id,
-                b.bar_id + 1 next_bar_id,
---                s.transp_num,
-                b.chord_id,
-                p.bar_id,
-                s.bar_cnt
-         from s
-              join bar          b  on (b.song_id  = s.song_id  and
-                                       b.bar_id   = s.next_bar_id)
-              join chord_ptrn_v p  on (p.chord_id     = b.chord_id   and
-                                       p.beat_id      = b.beat_id    and
-                                       p.bass_line_id = s.bass_line_id)
-       where p.bar_id = s.step_num + 1)
-select * from s
-where step_num = bar_cnt
-order by song_id, bar_cnt desc, from_bar_id;
-*/
-
-drop view bass_line_bar_v;
-
-create view bass_line_bar_v as
-with recursive
-s (song_id, bass_line_id, beg_bar_id, next_bar_id, chord_id, step_num, bar_cnt,
-   ptrn_root_midi_num, transp_root_midi_num, transp_num) as (
-         select b.song_id,
-                p.bass_line_id,
-                b.bar_id        beg_bar_id,
-                b.bar_id + 1    next_bar_id,
-                b.chord_id,
-                p.bar_id        step_num,
-                p.bar_cnt,
-                p.ptrn_root_midi_num,
-                p.transp_root_midi_num,
-                p.transp_num
-         from bar              b
-              join bass_line_v p on (p.chord_id = b.chord_id and
-                                     p.beat_id  = b.beat_id)
-         where p.bar_id  = 1
-         union all
-         select s.song_id,
-                s.bass_line_id,
-                s.beg_bar_id,
-                b.bar_id + 1,
-                b.chord_id,
-                p.bar_id,
-                s.bar_cnt,
-                s.ptrn_root_midi_num,
-                s.transp_root_midi_num,
-                s.transp_num
-         from s
-              join bar         b  on (b.song_id  = s.song_id  and
-                                      b.bar_id   = s.next_bar_id)
-              join bass_line_v p  on (p.chord_id     = b.chord_id   and
-                                      p.beat_id      = b.beat_id    and
-                                      p.bass_line_id = s.bass_line_id)
-       where p.bar_id = s.step_num + 1)
-select song_id, bass_line_id, beg_bar_id, next_bar_id - 1 end_bar_id, bar_cnt,
-       ptrn_root_midi_num, transp_root_midi_num, transp_num
-from s
-where step_num = bar_cnt
-order by song_id, bar_cnt desc, beg_bar_id;
-
-select * from bass_line_bar_v;
 
 -- New terminology:
 -- chord ptrn       - base_line_chord
@@ -431,34 +259,7 @@ values
   ('A25', 1,  'A2',  4),   ('A25', 2,  'B2',    4), ('A25', 3, 'C3', 4),   ('A25', 4,  'C#3',  4),
   ('A25', 5,  'D3',  4),   ('A25', 6,  'A2',    4), ('A25', 7, 'F#2', 4),  ('A25', 8,  'A2',  4);
   
-select * from note order by midi_num;
-
-  
-select * from bass_line_note;
     
-drop view bass_line_v;
-
-create view bass_line_v as
-with 
-t as (select p.*, c.root_midi_num, c.chord_form_cd, n.midi_num, h.bar_cnt
-      from bass_line_chord     p
-           join bass_line      h on (h.bass_line_id = p.bass_line_id)
-           join chord          c on (c.chord_id     = p.chord_id)
-           cross join note     n
-      where n.note_cd in ('c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b'))
-select t.bass_line_id, t.bar_id, t.beat_id, c.chord_id, t.bar_cnt,
-  case when c.root_midi_num >= t.root_midi_num then
-      (c.root_midi_num - t.root_midi_num)
-  else
-      (c.root_midi_num - t.root_midi_num) + 12
-  end transp_num,
-  t.root_midi_num ptrn_root_midi_num,
-  c.root_midi_num transp_root_midi_num
-from t
-   left join chord c on (c.root_midi_num = t.midi_num and
-                         c.chord_form_cd = t.chord_form_cd);
-                         
-
 select *
 from bass_line_bar_v           a
      left join bass_line_bar_v b on (a.song_id = b.song_id and
@@ -476,8 +277,6 @@ where song_id = 1
 order by beg_bar_id;
     
 select * from bass_line_note where bass_line_id in ('Line-B', '251');
-
-select * from bass_line_bar_v;
 
 
 select n.midi_num, b.note_dur_num
@@ -502,7 +301,4 @@ select bass_line_id, beg_bar_id, end_bar_id, (transp_num - 12) transp_num
 from bass_line_bar_v
 where song_id = 7
 order by beg_bar_id;
-
-select * from chord;
-
 

@@ -26,13 +26,6 @@
         x7 (for [[barno bar] x6, [beat chord] bar] [barno beat chord])]
      x7))
 
-(defn save-song [conn song]
-  (let [{:keys [id nm numer denom ppq bb bpm bars]} song]
-     (batch-update conn "insert into song(song_id, song_nm, time_sig_nmrtr_num, time_sig_denom_num, time_sig_ppq_num, time_sig_bb_num, bpm_num) values (?, ?, ?, ?, ?, ?, ?)"
-        [[id nm numer denom ppq bb bpm]])
-   (batch-update conn "insert into bar (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)"
-       (map #(cons id %) bars))
-   (batch-update conn "update bar set chord_id = null where length(chord_id) = 0" [[]])))
 
 (def songdb [
   {:id 1, :nm "ALL THE THINGS YOU ARE", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 120,
@@ -56,11 +49,11 @@
                     "Dm              | D7         | Gm7     C11-9  | Fmaj7              "))}
   {:id 3, :nm "ALL OF ME", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 120,
    :bars (bars (str "C6  | C6  | E7           | E7      |"
-                    "A7  |     | Dm7          |         |"
-                    "E7  |     | Am7          |         |"
-                    "D7  |     | Dm7          | G7      |"
-                    "C6  |     | E7           |         |"
-                    "A7  |     | Dm7          |         |"
+                    "A7  | A7  | Dm7          | Dm7     |"
+                    "E7  | E7  | Am7          | Am7     |"
+                    "D7  | D7  | Dm7          | G7      |"
+                    "C6  | C6  | E7           | E7      |"
+                    "A7  | A7  | Dm7          | Dm7     |"
                     "F6  | Fm6 | Cmaj7 Em7-5  | A7      |"
                     "Dm7 | G7  | C6    Ebdim7 | Dm7  G7 |"))}
   {:id 4, :nm "AUTUMN LEAVES", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 120,
@@ -91,6 +84,19 @@
   {:id 7, :nm "MEDIUM BLUES", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 120,
     :bars (bars "C | F7 F#dim | C | C7 | F | F#dim | C | Em7-5 A7 | Dm7 | G7 | Em7-5 A7 | Dm G7")}
 ])
+
+(defn save-song [conn song]
+  (let [{:keys [id nm numer denom ppq bb bpm bars]} song]
+     (batch-update conn "insert into song(song_id, song_nm, time_sig_nmrtr_num, time_sig_denom_num, time_sig_ppq_num, time_sig_bb_num, bpm_num) values (?, ?, ?, ?, ?, ?, ?)"
+        [[id nm numer denom ppq bb bpm]])
+   (batch-update conn "insert into bar (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)"
+       (map #(cons id %) bars))
+   (batch-update conn "update bar set chord_id = null where length(chord_id) = 0" [[]])))
+
+; Saving:
+;
+; (for [s songdb] (save-song conn s))
+;
 
 ; Middle octave - C3 (also just C for convenience)
 (def notedb {:C 60, :C# 61, :Db 61,
@@ -205,11 +211,6 @@
                      (for [k [:C :C# :Db :D :D# :Eb :E :F :F# :Gb :G :G# :Ab :A :A# :Bb :B]
                            f (keys chord-form)]
                         [k f])))
-
-; Saving:
-;
-; (for [s songdb] (save-song conn s))
-;
 
 
 (defn save-bass-line [conn bass-line]
