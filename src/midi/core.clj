@@ -191,3 +191,7 @@
                    (partition 4 (map (fn [[_ _ c]] c) beats))))
        (-> (concat chords bass) ttape make-tape play-tape))))
 
+;(defn -main [& _]
+;  (let [raw  (for [i (range 1 20)] [(* i 96) 9 46 60])]
+;      (-> raw ttape make-tape play-tape)))
+
