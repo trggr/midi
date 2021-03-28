@@ -63,6 +63,8 @@
 ; no bass
 (defn bass-none [_ _ _] nil)
 
+(defn bass-1   [_ beat [r _ _]]  (case beat 1 r nil))
+
 ; ascending
 (defn bass-15   [_ beat [r _ n5]]  (case beat 1 r           3 n5   nil))
 (defn bass-1234 [_ beat [r n3 n5]] (case beat 1 r 2 (+ 2 r) 3 n3 4 (inc n3)))
@@ -221,7 +223,7 @@
      (let [id     (-> (cursor conn "select song_id from song where upper(song_nm) = ?" [song]) second first)
            beats  (get-beats conn song)
            bars   (range 1 (inc (reduce max (map first beats))))
-           chords (raw-chord beats bass-none)
+           chords (raw-chord beats bass-1)
            drums  (raw-drums swing bars)
            [info bass] (raw-bass id)]
        (println song)
