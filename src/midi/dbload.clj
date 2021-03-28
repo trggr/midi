@@ -168,7 +168,7 @@
     :13-9  [[-2 2 6 10]      :Y]})
 
 (defn chord-notes [root form]
-   (map #(+ (notedb root) % -1) (first (chord-form form))))
+   (map #(+ -12 (notedb root) % -1) (first (chord-form form))))
 
 (def chord-sqlite
    (for [root [:C :C# :Db :D :D# :Eb :E :F :F# :Gb :G :G# :Ab :A :A# :Bb :B]

@@ -155,10 +155,7 @@ create table note (
   midi_num integer
 );
 
---         65  70   63   
--- (- 63)   2   7    0
--- (- 65)   0   5   -2
-
+(save;
 
 select bar_id, beat_id, chord_id, major_ind, midi1_num root, c.major_ind, midi1_num - 65
 from bar              b
@@ -489,9 +486,9 @@ from bass_line_note b
 where b.bass_line_id = 'Line-B'
 order by order_num;
 
-select * from bass_line where bass_line_id = 'test';
-select * from bass_line_chord where bass_line_id = 'test' order by 1, 2, 3;
-select * from bass_line_note where bass_line_id = 'test';
+select * from bass_line where bass_line_id = 'SMEDBLUES';
+select * from bass_line_chord where bass_line_id = 'SMEDBLUES' order by 1, 2, 3;
+select * from bass_line_note where bass_line_id = 'SMEDBLUES';
 
 delete from bass_line       where bass_line_id = 'test';
 delete from bass_line_chord where bass_line_id = 'test';
@@ -505,3 +502,7 @@ select bass_line_id, beg_bar_id, end_bar_id, (transp_num - 12) transp_num
 from bass_line_bar_v
 where song_id = 7
 order by beg_bar_id;
+
+select * from chord;
+
+
