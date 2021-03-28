@@ -49,9 +49,10 @@
          cchannel  2]   ; chords' MIDI channel
       (reduce (fn [acc [bar beat chord-nm]]
                  (let [tc           (* qn (+ (* bar 4) (dec beat)))
+                       vel         (* cvel (if (= beat 1) 1.0 0.6))
                        chord        (chorddb chord-nm)
                        bass         (bassf bar beat chord)
-                       shell-pretty (map #(vector tc cchannel % cvel) (rest chord))
+                       shell-pretty (map #(vector tc cchannel % vel) (rest chord))
                        notes        (if (nil? bass)
                                        shell-pretty 
                                        (cons (vector tc bchannel (- bass 36) bvel) shell-pretty))]
