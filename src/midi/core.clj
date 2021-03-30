@@ -4,31 +4,16 @@
    (:use [midi.dbload]))
 
 ; Length of quarter note
-(def ^:dynamic *qn* 96)
+(def ^:dynamic *qn*            96)
+(def ^:dynamic *chord-channel* 2)
+(def ^:dynamic *bass-channel*  4)
+(def ^:dynamic *drums-channel* 9)
 
-; Tick Tape format:
-;     Field       Type      Description
-;     --------------------------------------------------------------------------------------
-;  1: MIDI tick   integer   Gradually increasing throughout the tape. Treat it as a timecode
-;  2: event-type  keyword   One of :set-tempo, :time-signature, or :data
-;  3: data        varies    For :set-tempo is a single integer representing number of microseconds per quarter note
-;                           For :time-signature array of four matching to MIDI's time signature event
-;                           For :data - array of notes played during this MIDI tick
-;                              each note is [timecode, channel, note, velocity]. 
-; Example:
-;  [0	:set-tempo	434464
-;  [0	:time-signature	[4 2 24 8]
-;  [384	:data	        [[384 2 70 50]]
-;  [477	:data	        [[477 2 98 74]]
-;  [479	:data	        [[479 2 101 78]]
-;  [480	:data	        [[480 8 89 61] [480 8 86 55]]
-;  [489	:data	        [[489 8 86 0] [489 8 89 0]]
-;  [492	:data	        [[492 8 89 60] [492 8 86 63]]
-
-(defn make-tape
-  ([ticktape] (make-tape ticktape 1))
-  ([ticktape tempo-correction]
-   (loop [prior 0, ppq 0, tempo 0, acc [], xs ticktape]
+; Converts ttape to MIDI tape format
+(defn mtape
+  ([ttape] (mtape ttape 1))
+  ([ttape tempo-correction]
+   (loop [prior 0, ppq 0, tempo 0, acc [], xs ttape]
        (if-not (seq xs)
           acc
           (let [[[tc cmd val] & others] xs]
@@ -44,18 +29,16 @@
 ; Plugin
 (defn bass-skelet [beats bassf]
    (let [cvel      40   ; chord's velocity
-         bvel      80   ; bass velocity
-         bchannel  4    ; bass MIDI channel
-         cchannel  2]   ; chords' MIDI channel
+         bvel      80]   ; bass velocity
       (reduce (fn [acc [bar beat chord-nm]]
                  (let [tc           (* *qn* (+ (* bar 4) (dec beat)))
                        vel          (* cvel (if (= beat 1) 1.0 0.6))
                        chord        (chorddb chord-nm)
                        bass         (bassf bar beat chord)
-                       shell-pretty (map #(vector tc cchannel % vel) (rest chord))
+                       shell-pretty (map #(vector tc *chord-channel* % vel) (rest chord))
                        notes        (if (nil? bass)
                                        shell-pretty 
-                                       (cons (vector tc bchannel (- bass 12) bvel) shell-pretty))]
+                                       (cons (vector tc *bass-channel* (- bass 12) bvel) shell-pretty))]
                   (assoc-in acc [bar tc] notes)))
               (sorted-map)
               beats)))
@@ -88,6 +71,25 @@
             rc  (concat on off)]
          rc)))
 
+; Converts raw notes to ttape format:
+; Tick Tape format:
+;     Field       Type      Description
+;     --------------------------------------------------------------------------------------
+;  1: MIDI tick   integer   Gradually increasing throughout the tape. Treat it as a timecode
+;  2: event-type  keyword   One of :set-tempo, :time-signature, or :data
+;  3: data        varies    For :set-tempo is a single integer representing number of microseconds per quarter note
+;                           For :time-signature array of four matching to MIDI's time signature event
+;                           For :data - array of notes played during this MIDI tick
+;                              each note is [timecode, channel, note, velocity]. 
+; Example:
+;  [0	:set-tempo	434464
+;  [0	:time-signature	[4 2 24 8]
+;  [384	:data	        [[384 2 70 50]]
+;  [477	:data	        [[477 2 98 74]]
+;  [479	:data	        [[479 2 101 78]]
+;  [480	:data	        [[480 8 89 61] [480 8 86 55]]
+;  [489	:data	        [[489 8 86 0] [489 8 89 0]]
+;  [492	:data	        [[492 8 89 60] [492 8 86 63]]
 (defn ttape
    ([raw]  (ttape raw [[0 :set-tempo 600000][0 :time-signature [4 2 24 8]]]))
    ([raw timing]
@@ -107,8 +109,10 @@
       (fn [c note vol]
           (.noteOn (nth channels c) note vol))))
 
-(defn play-tape [tape]
-   (let [f (note-player [[2 28] [3 33]])]
+; Plays MIDI tape
+(defn play-mtape [tape]
+   (let [f (note-player [[*chord-channel* 28]
+                         [*bass-channel*  33]])]
       (doseq [[tc notes] tape]
          (Thread/sleep tc)
          (doseq [[_ ch note vel] notes]
@@ -152,7 +156,7 @@
            (let [[midi dur] (first xs)
                   n      (+ midi transp)
                   nexttc (+ tc (/ (* 4 *qn*) dur))]
-               (recur (conj (conj acc [tc 3 n vel]) [(dec nexttc) 3 n 0])
+               (recur (conj (conj acc [tc *bass-channel* n vel]) [(dec nexttc) 3 n 0])
                       nexttc
                       (rest xs)))))))
 
@@ -178,17 +182,6 @@
                 []]
                (rest ptrns))))
 
-;(def swing-cymbal (let [hh    (notedb :ride-cymbal-1)
-;                        s     (notedb :C-2)]
-;                     [[hh]    [hh 12][s 12][hh 12]    [hh]    [hh 12][s 12][hh 12]]))
-;
-;(def swing-hi-hat (let [hh    (notedb :open-hi-hat)
-;                        s     (notedb :C-2)]
-;                     [[s]    [hh] [s] [hh]]))
-;
-;(def swing-bass-drum (let [b  (notedb :acoustic-bass-drum)]
-;                        [[b] [b] [b] [b]]))
-
 (defn expand-drum [pattern note bar]
    (loop [acc [],
           tc  (+ (* *qn* bar 4)),
@@ -198,19 +191,32 @@
          (let [[velpct dur] (first xs)
                dur (or dur 4)
                nexttc (+ tc (/ (* 4 *qn*) dur))]
-             (recur (conj (conj acc [tc 9 note (/ (* 40 velpct) 100)]) [(dec nexttc) 9 note 0])
+             (recur (conj (conj acc [tc *drums-channel* note (/ (* 40 velpct) 100)]) [(dec nexttc) 9 note 0])
                     nexttc
                     (rest xs))))))
 
-(def swing {:ride-cymbal-1      [[70]    [70 12][0 12][40 12]    [70]    [70 12][0 12][40 12]]
-            :closed-hi-hat        [[0]      [70]                    [0]      [70]]
-            :acoustic-bass-drum [[90]     [70]                     [90]     [70]]})
+(def swing {:ride-cymbal-1      [[70]  [70 12][0 12][40 12]  [70]  [70 12][0 12][40 12]]
+            :closed-hi-hat      [[0]   [70]                  [0]   [70]]
+            :acoustic-bass-drum [[90]  [70]                  [90]  [70]]})
 
 (defn single-drum [pattern note bars]
    (mapcat #(expand-drum pattern note %) bars))
 
 (defn raw-drums [pattern bars]
    (mapcat #(single-drum (pattern %) (notedb %) bars) (keys pattern)))
+
+(defn play-song [song-nm]
+   (let [id     (-> (cursor conn "select song_id from song where upper(song_nm) = ?" [song-nm]) second first)
+         beats  (get-beats conn song-nm)
+         bars   (range 1 (inc (reduce max (map first beats))))
+         chords (raw-chord beats bass-none)
+         drums  (raw-drums swing bars)
+         [info bass] (raw-bass id)]
+     (println song-nm)
+     (view (map (fn [[k v] c] [k v (pr-str c)])
+                info
+                (partition 4 (map (fn [[_ _ c]] c) beats))))
+     (-> (concat bass drums chords) ttape mtape play-mtape)))
 
 (defn -main [& _]
    (doseq [song ["ALL OF ME" "MEDIUM BLUES"
@@ -220,14 +226,4 @@
                 "AUTUMN LEAVES"
                 "ALL BY MYSELF"
                 "LET IT BE"]]
-     (let [id     (-> (cursor conn "select song_id from song where upper(song_nm) = ?" [song]) second first)
-           beats  (get-beats conn song)
-           bars   (range 1 (inc (reduce max (map first beats))))
-           chords (raw-chord beats bass-none)
-           drums  (raw-drums swing bars)
-           [info bass] (raw-bass id)]
-       (println song)
-       (view (map (fn [[k v] c] [k v (pr-str c)])
-                   info
-                   (partition 4 (map (fn [[_ _ c]] c) beats))))
-       (-> (concat bass drums chords) ttape make-tape play-tape))))
+       (play-song song)))
