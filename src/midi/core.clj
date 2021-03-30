@@ -28,7 +28,7 @@
 
 ; Plugin
 (defn bass-skelet [beats bassf]
-   (let [cvel      40   ; chord's velocity
+   (let [cvel      50   ; chord's velocity
          bvel      80]  ; bass velocity
       (reduce (fn [acc [bar beat chord-nm]]
                  (let [tc           (* *qn* (+ (* bar 4) (dec beat)))
@@ -191,7 +191,7 @@
          (let [[velpct dur] (first xs)
                dur (or dur 4)
                nexttc (+ tc (/ (* 4 *qn*) dur))]
-             (recur (conj (conj acc [tc *drums-channel* note (/ (* 40 velpct) 100)]) [(dec nexttc) 9 note 0])
+             (recur (conj (conj acc [tc *drums-channel* note (/ (* 70 velpct) 100)]) [(dec nexttc) 9 note 0])
                     nexttc
                     (rest xs))))))
 
