@@ -173,10 +173,11 @@ values
   ('Line-C',  5, 'Downbeats of bars 2, 3, 4 start on third'),
   ('Line-D',  5, 'Common tones between chords where the low tones and high tones ascend together in parallel motion'),
   ('Line-E',  5, 'Classical approach - harmonic enclosure'),
-  ('Line-F',  5, 'Classical approach - harmonic enclosure'),
-  ('S251',    3, 'Sobolev p.14'),
-  ('S25',     2, 'Sobolev p.14'),
-  ('A25',     2, 'https://andylemaire.com/walking-bass/');
+  ('Line-F',  5, 'Classical approach - harmonic enclosure')
+--  ('S251',    3, 'Sobolev p.14'),
+--  ('S25',     2, 'Sobolev p.14'),
+--  ('A25',     2, 'https://andylemaire.com/walking-bass/')
+  ;
 
 select * from bass_line;
 
@@ -200,9 +201,10 @@ values
   ('Line-C',  1, 1, 'DOFm7'), ('Line-C',  2, 1, 'Bbm7'), ('Line-C',  3, 1, 'Eb7'),    ('Line-C',  4, 1, 'Abmaj7'), ('Line-C',  5, 1, 'Dbmaj7'),
   ('Line-D',  1, 1, 'DONOT-Fm7'), ('Line-D',  2, 1, 'Bbm7'), ('Line-D',  3, 1, 'Eb7'),    ('Line-D',  4, 1, 'Abmaj7'), ('Line-D',  5, 1, 'Dbmaj7'),
   ('Line-E',  1, 1, 'DOFm7'), ('Line-E',  2, 1, 'Bbm7'), ('Line-E',  3, 1, 'Eb7'),    ('Line-E',  4, 1, 'Abmaj7'), ('Line-E',  5, 1, 'Dbmaj7'),
-  ('Line-F',  1, 1, 'Fm7'), ('Line-F',  2, 1, 'Bbm7'), ('Line-F',  3, 1, 'Eb7'),    ('Line-F',  4, 1, 'Abmaj7'), ('Line-F',  5, 1, 'Dbmaj7'),
-  ('S25',     1, 1, 'DOCm7'),   ('S25',   2, 1, 'F7'),
-  ('A25',     1, 1, 'Am7'),   ('A25',   2, 1, 'D7');
+  ('Line-F',  1, 1, 'Fm7'), ('Line-F',  2, 1, 'Bbm7'), ('Line-F',  3, 1, 'Eb7'),    ('Line-F',  4, 1, 'Abmaj7'), ('Line-F',  5, 1, 'Dbmaj7')
+--  ('S25',     1, 1, 'DOCm7'),   ('S25',   2, 1, 'F7'),
+--  ('A25',     1, 1, 'Am7'),   ('A25',   2, 1, 'D7')
+  ;
 
 drop table bass_line_note;
 
@@ -244,17 +246,18 @@ values
   ('Line-F', 5,  'Db3', 4),  ('Line-F', 6,  'C3', 4),   ('Line-F', 7, 'Db3', 4),  ('Line-F', 8, 'Bb3', 4), 
   ('Line-F', 9,  'Eb3', 4),  ('Line-F', 10, 'Db3', 4),  ('Line-F', 11,'C3', 4),   ('Line-F', 12, 'Bb3', 4), 
   ('Line-F', 13, 'C3', 4),  ('Line-F', 14, 'B2', 4),  ('Line-F', 15,'C3', 4),  ('Line-F', 16, 'Ab2', 4), 
-  ('Line-F', 17, 'Db3', 1),
+  ('Line-F', 17, 'Db3', 1)
 --  ('S251', 1,  'C3',  4),   ('S251', 2,  'C-2',  8/3),  ('S251', 3, 'Eb3', 8/3),
 --  ('S251', 4,  'F3',  4),   ('S251', 5,  'C-2',  8/3),  ('S251', 6, 'A3', 8/3),
 --  ('S251', 7,  'Bb3', 8/3), ('S251', 8, 'F3', 16),       ('S251', 9,'D3', 16),   ('S251', 10, 'Bb2', 4), ('S251', 11,  'C-2',  4)
-  ('S251', 1,  'C3',  4),  ('S251', 2,  'C#3',  4), ('S251', 3, 'D3', 4),  ('S251', 4,  'C#3',  4),
-  ('S251', 5,  'C3',  4),  ('S251', 6,  'A2',   4), ('S251', 7, 'F2', 4),  ('S251', 8,  'A2',  4),
-  ('S251', 9,  'Bb2', 4),  ('S251', 10, 'D2',   4), ('S251', 11, 'F2', 4), ('S251', 12,  'Eb3',  4),
-  ('S25', 1,  'C3',  4),   ('S25', 2,  'C-2',   4), ('S25', 3, 'G2', 4),   ('S25', 4,  'C-2',  4),
-  ('S25', 5,  'F2',  4),   ('S25', 6,  'C-2',   4), ('S25', 7, 'C3', 4),   ('S25', 8,  'C-2',  4),
-  ('A25', 1,  'A2',  4),   ('A25', 2,  'B2',    4), ('A25', 3, 'C3', 4),   ('A25', 4,  'C#3',  4),
-  ('A25', 5,  'D3',  4),   ('A25', 6,  'A2',    4), ('A25', 7, 'F#2', 4),  ('A25', 8,  'A2',  4);
+--  ('S251', 1,  'C3',  4),  ('S251', 2,  'C#3',  4), ('S251', 3, 'D3', 4),  ('S251', 4,  'C#3',  4),
+--  ('S251', 5,  'C3',  4),  ('S251', 6,  'A2',   4), ('S251', 7, 'F2', 4),  ('S251', 8,  'A2',  4),
+--  ('S251', 9,  'Bb2', 4),  ('S251', 10, 'D2',   4), ('S251', 11, 'F2', 4), ('S251', 12,  'Eb3',  4),
+--  ('S25', 1,  'C3',  4),   ('S25', 2,  'C-2',   4), ('S25', 3, 'G2', 4),   ('S25', 4,  'C-2',  4),
+--  ('S25', 5,  'F2',  4),   ('S25', 6,  'C-2',   4), ('S25', 7, 'C3', 4),   ('S25', 8,  'C-2',  4),
+--  ('A25', 1,  'A2',  4),   ('A25', 2,  'B2',    4), ('A25', 3, 'C3', 4),   ('A25', 4,  'C#3',  4),
+--  ('A25', 5,  'D3',  4),   ('A25', 6,  'A2',    4), ('A25', 7, 'F#2', 4),  ('A25', 8,  'A2',  4)
+  ;
   
     
 select *
@@ -316,3 +319,17 @@ select * from bass_line_note where bass_line_id = 'S251';
 delete from bass_line       where bass_line_id like 'Milk%';
 delete from bass_line_chord where bass_line_id like 'Milk%';
 delete from bass_line_note  where bass_line_id like 'Milk%';
+
+delete from bass_line       where bass_line_id like 'S25%';
+delete from bass_line_chord where bass_line_id like 'S25%';
+delete from bass_line_note  where bass_line_id like 'S25%';
+
+delete from bass_line       where bass_line_id like 'A25%';
+delete from bass_line_chord where bass_line_id like 'A25%';
+delete from bass_line_note  where bass_line_id like 'A25%';
+
+select * from bass_line_v where bass_line_id = 'S251' and transp_num = 0;
+
+select * from note;
+
+insert into note values ('_', 0);

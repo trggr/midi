@@ -137,6 +137,8 @@
                    :mute-cuica      78 :open-cuica      79 :mute-triangle       80
                    :open-triangle   81}))
 
+(def notedb (assoc notedb :_ 0))  ; silence
+
 (defn save-notes [conn notes]
    (batch-update conn (str "insert into note (note_cd, midi_num) values (?, ?)")
       (for [[k v] notes] [(name k) v])))
@@ -233,7 +235,7 @@
           notes)))
 
 (def basslinedb [
-   {:id "SMEDBLUES", :desc "Medium blues, Sobolev p. 14"
+   {:id "SMEDBLUES", :desc "Medium blues, Sobolev p. 14",
     :chords "C | F7 F#dim | C | C7 | F | F#dim | C | Em7-5 A7 | Dm7 | G7 | Em7-5 A7 | Dm G7"
     :notes  [[:c4] [:g3] [:e3] [:c3]  
              [:f3] [:e3] [:f3] [:f#3]
@@ -249,14 +251,58 @@
              [:g3] [:d3] [:g3] [:f3] 
              [:e3] [:bb2] [:a2] [:c#4] 
              [:d4] [:a3] [:b3] [:g3]]}
-   {:id "T51", :desc "Walk from dominant to root"
-    :chords "G7 G7 | C C"  :notes  [[:g3] [:f3] [:e3] [:d3]  [:c3 2] [:g3 2]]}
-   {:id "Milk min", :desc "Miliking minor chord, Kaye, p.15"
-    :chords "Dm7 | Dm7"  :notes  [[:d3] [:e3] [:f3] [:g3]  [:a3] [:f3] [:e3] [:d3]]}
-   {:id "Milk maj", :desc "Miliking major chord"
-    :chords "D7 | D7"  :notes  [[:d3] [:e3] [:f#3] [:g3]  [:a3] [:f#3] [:e3] [:d3]]}
+   {:id "T51", :desc "Walk from dominant to root" :chords "G7 G7 | C C"
+    :notes  [[:g3] [:f3] [:e3] [:d3]  [:c3 2] [:g3 2]]}
+   {:id "Milk min", :desc "Miliking minor chord, Kaye, p.15" :chords "Dm7 | Dm7"
+    :notes  [[:d3] [:e3] [:f3] [:g3]  [:a3] [:f3] [:e3] [:d3]]}
+   {:id "Milk maj", :desc "Miliking major chord" :chords "D7 | D7"
+    :notes  [[:d3] [:e3] [:f#3] [:g3]  [:a3] [:f#3] [:e3] [:d3]]}
+   {:id "S25", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 "
+            :notes  [[:c3]  [:_] [:g3]  [:_]
+                     [:f3]  [:_] [:a2]  [:_]]}
+   {:id "S251", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 | Bb7 "
+            :notes  [[:c3]  [:_] [:g3]  [:_]
+                     [:f3]  [:_] [:a2]  [:_]
+                     [:bb2] [:_] [:f3]  [:e3]]}
+   {:id "S2514", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 | Bb7 | Eb7"
+            :notes  [[:c3]  [:_] [:g3]  [:_]
+                     [:f3]  [:_] [:a2]  [:_]
+                     [:bb2] [:_] [:f3]  [:e3]
+                     [:eb3] [:_] [:bb2] [:_]]}
+   {:id "S25147", :desc "Sobolev p. 14, A1"  :chords "Cm7 | F7 | Bb7 | Eb7 | Am7-5"  
+            :notes  [[:c3]  [:_] [:g3]  [:_]
+                     [:f3]  [:_] [:a2]  [:_]
+                     [:bb2] [:_] [:f3]  [:e3]
+                     [:eb3] [:_] [:bb2] [:_]
+                     [:a2]  [:_] [:eb3] [:_]]}
+   {:id "S251473", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 | Bb7 | Eb7 | Am7-5 | D7"
+            :notes  [[:c3]  [:_] [:g3]  [:_]
+                     [:f3]  [:_] [:a2]  [:_]
+                     [:bb2] [:_] [:f3]  [:e3]
+                     [:eb3] [:_] [:bb2] [:_]
+                     [:a2]  [:_] [:eb3] [:_]
+                     [:d3]  [:_] [:a3]  [:_]]}
+   {:id "S2514736", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 | Bb7 | Eb7 | Am7-5 | D7 | Gm7"
+            :notes  [[:c3]  [:_] [:g3]  [:_]
+                     [:f3]  [:_] [:a2]  [:_]
+                     [:bb2] [:_] [:f3]  [:e3]
+                     [:eb3] [:_] [:bb2] [:_]
+                     [:a2]  [:_] [:eb3] [:_]
+                     [:d3]  [:_] [:a3]  [:d3]
+                     [:g3]  [:_] [:a3]  [:_]]}
+   {:id "S25147366", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 | Bb7 | Eb7 | Am7-5 | D7 | Gm7 | Gm7"
+            :notes  [[:c3]  [:_] [:g3]  [:_]
+                     [:f3]  [:_] [:a2]  [:_]
+                     [:bb2] [:_] [:f3]  [:e3]
+                     [:eb3] [:_] [:bb2] [:_]
+                     [:a2]  [:_] [:eb3] [:_]
+                     [:d3]  [:_] [:a3]  [:d3]
+                     [:g3]  [:_] [:a3]  [:_]
+                     [:bb3] [:_] [:g3]  [:_]]}
 ])
 
 ; Saving
 ; (map (partial save-bass-line conn) basslinedb)
+; (map (partial save-bass-line conn) (drop 4 basslinedb))
+; (save-bass-line conn (last basslinedb))
 

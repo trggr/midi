@@ -29,7 +29,7 @@
 ; Plugin
 (defn bass-skelet [beats bassf]
    (let [cvel      40   ; chord's velocity
-         bvel      80]   ; bass velocity
+         bvel      80]  ; bass velocity
       (reduce (fn [acc [bar beat chord-nm]]
                  (let [tc           (* *qn* (+ (* bar 4) (dec beat)))
                        vel          (* cvel (if (= beat 1) 1.0 0.6))
@@ -111,8 +111,8 @@
 
 ; Plays MIDI tape
 (defn play-mtape [tape]
-   (let [f (note-player [[*chord-channel* 28]
-                         [*bass-channel*  33]])]
+   (let [f (note-player [[*chord-channel* 26]
+                         [*bass-channel*  34]])]
       (doseq [[tc notes] tape]
          (Thread/sleep tc)
          (doseq [[_ ch note vel] notes]
@@ -219,8 +219,7 @@
      (-> (concat bass drums chords) ttape mtape play-mtape)))
 
 (defn -main [& _]
-   (doseq [song ["ALL OF ME" "MEDIUM BLUES"
-                "ALL THE THINGS YOU ARE"
+   (doseq [song ["AUTUMN LEAVES" "ALL THE THINGS YOU ARE" "ALL OF ME" "MEDIUM BLUES"
                 "IN A SENTIMENTAL MOOD"
                 "ALL OF ME"
                 "AUTUMN LEAVES"
