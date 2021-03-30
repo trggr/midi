@@ -235,23 +235,26 @@
 (def basslinedb [
    {:id "SMEDBLUES", :desc "Medium blues, Sobolev p. 14"
     :chords "C | F7 F#dim | C | C7 | F | F#dim | C | Em7-5 A7 | Dm7 | G7 | Em7-5 A7 | Dm G7"
-    :notes  [[:C4] [:G3] [:E3] [:C3]  
-             [:F3] [:E3] [:F3] [:F#3]
-             [:G3] [:B3] [:C4] [:B3] 
-             [:Bb3] [:C3] [:D3] [:E3]
+    :notes  [[:c4] [:g3] [:e3] [:c3]  
+             [:f3] [:e3] [:f3] [:f#3]
+             [:g3] [:b3] [:c4] [:b3] 
+             [:bb3] [:c3] [:d3] [:e3]
 
-             [:F3] [:A2] [:BB2] [:B2]
-             [:C3] [:E3] [:F3] [:F#3] 
-             [:G3] [:E3] [:F3] [:D3] 
-             [:E3] [:Bb3] [:A3] [:C#2] 
+             [:f3] [:a2] [:bb2] [:b2]
+             [:c3] [:e3] [:f3] [:f#3] 
+             [:g3] [:e3] [:f3] [:d3] 
+             [:e3] [:bb3] [:a3] [:c#2] 
 
-             [:D3] [:A3] [:F3] [:F#3]
-             [:G3] [:D3] [:G3] [:F3] 
-             [:E3] [:Bb2] [:A2] [:C#4] 
-             [:D4] [:A3] [:B3] [:G3]]}
+             [:d3] [:a3] [:f3] [:f#3]
+             [:g3] [:d3] [:g3] [:f3] 
+             [:e3] [:bb2] [:a2] [:c#4] 
+             [:d4] [:a3] [:b3] [:g3]]}
    {:id "T51", :desc "Walk from dominant to root"
-    :chords "G7 G7 | C C"
-    :notes  [[:G3] [:F3] [:E3] [:D3]  [:C3 2] [:G3 2]]}
+    :chords "G7 G7 | C C"  :notes  [[:g3] [:f3] [:e3] [:d3]  [:c3 2] [:g3 2]]}
+   {:id "Milk min", :desc "Miliking minor chord, Kaye, p.15"
+    :chords "Dm7 | Dm7"  :notes  [[:d3] [:e3] [:f3] [:g3]  [:a3] [:f3] [:e3] [:d3]]}
+   {:id "Milk maj", :desc "Miliking major chord"
+    :chords "D7 | D7"  :notes  [[:d3] [:e3] [:f#3] [:g3]  [:a3] [:f#3] [:e3] [:d3]]}
 ])
 
 ; Saving

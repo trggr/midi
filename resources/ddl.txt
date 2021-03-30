@@ -143,17 +143,14 @@ from bar              b
      left join chord c on (c.chord_id = b.chord_id)
 where b.song_id = 1;
 
-
-
 -- New terminology:
 -- chord ptrn       - base_line_chord
 -- chord_ptrn_hdr   - base_line
 -- bar_chord_ptrn_v - base_line_bar_v
 -- chord_ptrn_v     - base_line_v
 
-
 select * from bar where song_id = 1 order by bar_id, beat_id;
-typical
+
 alter table chord add root_num integer;
 
 select * from note;
@@ -302,3 +299,20 @@ from bass_line_bar_v
 where song_id = 7
 order by beg_bar_id;
 
+drop view bar_v;
+
+create view bar_v
+as
+select b.*, c.root_midi_num, c.major_ind
+from bar             b
+     left join chord c on (c.chord_id = b.chord_id);
+
+select * from bass_line_bar_v where song_id = 3 order by beg_bar_id;
+
+select * from bass_line_v where bass_line_id = 'S251' and transp_num = 2;
+
+select * from bass_line_note where bass_line_id = 'S251';
+
+delete from bass_line       where bass_line_id like 'Milk%';
+delete from bass_line_chord where bass_line_id like 'Milk%';
+delete from bass_line_note  where bass_line_id like 'Milk%';

@@ -4,7 +4,7 @@
    (:use [midi.dbload]))
 
 ; Length of quarter note
-(def qn 96)
+(def ^:dynamic *qn* 96)
 
 ; Tick Tape format:
 ;     Field       Type      Description
@@ -42,20 +42,20 @@
                            (recur tc ppq tempo (conj acc [x val]) others))))))))
 
 ; Plugin
-(defn bass-skelet [beats qn bassf]
+(defn bass-skelet [beats bassf]
    (let [cvel      40   ; chord's velocity
          bvel      80   ; bass velocity
          bchannel  4    ; bass MIDI channel
          cchannel  2]   ; chords' MIDI channel
       (reduce (fn [acc [bar beat chord-nm]]
-                 (let [tc           (* qn (+ (* bar 4) (dec beat)))
-                       vel         (* cvel (if (= beat 1) 1.0 0.6))
+                 (let [tc           (* *qn* (+ (* bar 4) (dec beat)))
+                       vel          (* cvel (if (= beat 1) 1.0 0.6))
                        chord        (chorddb chord-nm)
                        bass         (bassf bar beat chord)
                        shell-pretty (map #(vector tc cchannel % vel) (rest chord))
                        notes        (if (nil? bass)
                                        shell-pretty 
-                                       (cons (vector tc bchannel (- bass 36) bvel) shell-pretty))]
+                                       (cons (vector tc bchannel (- bass 12) bvel) shell-pretty))]
                   (assoc-in acc [bar tc] notes)))
               (sorted-map)
               beats)))
@@ -82,9 +82,9 @@
   ([beats]  (raw-chord beats bass-15))
   ([beats bassf]
       (let [offpct  0.99 ; notes off events at %
-            x2  (bass-skelet beats qn bassf)
+            x2  (bass-skelet beats bassf)
             on  (for [[_ bar] x2, [_ chord] bar, note chord] note)
-            off (map (fn [[t c n _]] [(+ t (* qn offpct)) c n 0]) on)
+            off (map (fn [[t c n _]] [(+ t (* *qn* offpct)) c n 0]) on)
             rc  (concat on off)]
          rc)))
 
@@ -146,12 +146,12 @@
                        from bass_line_note b join note n on (n.note_cd = b.note_cd)
                        where b.bass_line_id = :1 order by order_num"
                       [bassline])]
-     (loop [acc [], tc (+ (* qn bar 4)), xs (rest notes)]
+     (loop [acc [], tc (+ (* *qn* bar 4)), xs (rest notes)]
         (if (empty? xs)
            acc
            (let [[midi dur] (first xs)
                   n      (+ midi transp)
-                  nexttc (+ tc (/ (* 4 qn) dur))]
+                  nexttc (+ tc (/ (* 4 *qn*) dur))]
                (recur (conj (conj acc [tc 3 n vel]) [(dec nexttc) 3 n 0])
                       nexttc
                       (rest xs)))))))
@@ -167,7 +167,7 @@
 
 (defn raw-bass [songid]
   (let [ptrns  (cursor conn
-                       (str "select bass_line_id, beg_bar_id, end_bar_id, (transp_num - 36) transp_num "
+                       (str "select bass_line_id, beg_bar_id, end_bar_id, (transp_num - 24) transp_num "
                             "from bass_line_bar_v "
                             "where song_id = ? "
                             "order by beg_bar_id")
@@ -191,13 +191,13 @@
 
 (defn expand-drum [pattern note bar]
    (loop [acc [],
-          tc  (+ (* qn bar 4)),
+          tc  (+ (* *qn* bar 4)),
           xs pattern]
       (if (empty? xs)
          acc
          (let [[velpct dur] (first xs)
                dur (or dur 4)
-               nexttc (+ tc (/ (* 4 qn) dur))]
+               nexttc (+ tc (/ (* 4 *qn*) dur))]
              (recur (conj (conj acc [tc 9 note (/ (* 40 velpct) 100)]) [(dec nexttc) 9 note 0])
                     nexttc
                     (rest xs))))))
@@ -223,7 +223,7 @@
      (let [id     (-> (cursor conn "select song_id from song where upper(song_nm) = ?" [song]) second first)
            beats  (get-beats conn song)
            bars   (range 1 (inc (reduce max (map first beats))))
-           chords (raw-chord beats bass-1)
+           chords (raw-chord beats bass-none)
            drums  (raw-drums swing bars)
            [info bass] (raw-bass id)]
        (println song)
