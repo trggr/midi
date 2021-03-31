@@ -156,7 +156,8 @@
            (let [[midi dur] (first xs)
                   n      (+ midi transp)
                   nexttc (+ tc (/ (* 4 *qn*) dur))]
-               (recur (conj (conj acc [tc *bass-channel* n vel]) [(dec nexttc) 3 n 0])
+               (recur (conj (conj acc [tc *bass-channel* n vel])
+                            [(dec nexttc) *bass-channel* n 0])
                       nexttc
                       (rest xs)))))))
 
@@ -191,7 +192,8 @@
          (let [[velpct dur] (first xs)
                dur (or dur 4)
                nexttc (+ tc (/ (* 4 *qn*) dur))]
-             (recur (conj (conj acc [tc *drums-channel* note (/ (* 70 velpct) 100)]) [(dec nexttc) 9 note 0])
+             (recur (conj (conj acc [tc *drums-channel* note (/ (* 70 velpct) 100)])
+                          [(dec nexttc) *drums-channel* note 0])
                     nexttc
                     (rest xs))))))
 
