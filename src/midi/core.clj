@@ -90,12 +90,14 @@
 ;  [480	:data	        [[480 8 89 61] [480 8 86 55]]
 ;  [489	:data	        [[489 8 86 0] [489 8 89 0]]
 ;  [492	:data	        [[492 8 89 60] [492 8 86 63]]
+
 (defn ttape
-   ([raw]  (ttape raw [[0 :set-tempo 600000][0 :time-signature [4 2 24 8]]]))
-   ([raw timing]
+   ([raw]     (ttape raw 120))
+   ([raw bpm] (ttape raw bpm [4 2 24 8]))
+   ([raw bpm signature]
      (let [xs (sort-by key (group-by first raw))
            ys (for [[tc data] xs] [tc :data data])]
-          (concat timing ys))))
+          (concat [[0 :set-tempo (/ 60000000 bpm)][0 :time-signature signature]] ys))))
 
 (defn note-player [instruments]
    (let [synth    (javax.sound.midi.MidiSystem/getSynthesizer)
@@ -208,17 +210,17 @@
    (mapcat #(single-drum (pattern %) (notedb %) bars) (keys pattern)))
 
 (defn play-song [song-nm]
-   (let [id     (-> (cursor conn "select song_id from song where upper(song_nm) = ?" [song-nm]) second first)
-         beats  (get-beats conn song-nm)
-         bars   (range 1 (inc (reduce max (map first beats))))
-         chords (raw-chord beats bass-none)
-         drums  (raw-drums swing bars)
+   (let [[id bpm] (-> (cursor conn "select song_id, bpm_num from song where upper(song_nm) = ?" [song-nm]) second)
+         beats    (get-beats conn song-nm)
+         bars     (range 1 (inc (reduce max (map first beats))))
+         chords   (raw-chord beats bass-none)
+         drums    (raw-drums swing bars)
          [info bass] (raw-bass id)]
      (println song-nm)
      (view (map (fn [[k v] c] [k v (pr-str c)])
                 info
                 (partition 4 (map (fn [[_ _ c]] c) beats))))
-     (-> (concat bass drums chords) ttape mtape play-mtape)))
+     (-> (concat bass drums chords) (ttape bpm) mtape play-mtape)))
 
 (defn -main [& _]
    (doseq [song ["AUTUMN LEAVES" "ALL THE THINGS YOU ARE" "ALL OF ME" "MEDIUM BLUES"
