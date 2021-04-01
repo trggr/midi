@@ -26,25 +26,6 @@
                         (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
                            (recur tc ppq tempo (conj acc [x val]) others))))))))
 
-
-; no bass
-(defn bass-none [_ _ _] nil)
-
-(defn bass-1   [_ beat [r _ _]]  (case beat 1 r nil))
-
-; ascending
-(defn bass-15   [_ beat [r _ n5]]  (case beat 1 r           3 n5   nil))
-(defn bass-1234 [_ beat [r n3 n5]] (case beat 1 r 2 (+ 2 r) 3 n3 4 (inc n3)))
-(defn bass-1235 [_ beat [r n3 n5]] (case beat 1 r 2 (+ 2 r) 3 n3 4 n5))
-
-; descending
-(defn bass-4321 [_ beat [r n3 n5]] (case beat 1 (inc n3) 2 n3  3 (+ 2 r) 4 r))
-(defn bass-5321 [_ beat [r n3 n5]] (case beat 1 n5       2 n3  3 (+ 2 r) 4 r))
-
-; alternating asc and desc
-(defn bass-ud2 [bar beat chord] ((nth [bass-1234 bass-1235 bass-5321 bass-4321] (mod bar 4)) bar beat chord))
-(defn bass-ud3 [bar beat chord] ((nth [bass-1234 bass-5321 bass-1235 bass-5321] (mod bar 4)) bar beat chord))
-
 (defn expand-chord [[bar beat chord-nm] bassf]
    (let [chord-vel     50
          bass-vel      80
@@ -64,7 +45,9 @@
             off (map (fn [[t c n _]] [(+ t *qn* -1) c n 0]) on)]
         (concat on off))))
 
-; Converts raw notes to ttape format:
+; Makes a tick tape from an array of raw notes each of which has a stucture:
+;  [timecode channel note velocity]
+;
 ; Tick Tape format:
 ;     Field       Type      Description
 ;     --------------------------------------------------------------------------------------
@@ -192,10 +175,6 @@
                     nexttc
                     (rest xs))))))
 
-(def swing {:ride-cymbal-1      [[70]  [70 12][0 12][40 12]  [70]  [70 12][0 12][40 12]]
-            :closed-hi-hat      [[0]   [70]                  [0]   [70]]
-            :acoustic-bass-drum [[90]  [70]                  [90]  [70]]})
-
 (defn single-drum [pattern note bars]
    (mapcat #(expand-drum pattern note %) bars))
 
@@ -204,10 +183,10 @@
 
 (defn play-song [song-nm]
    (let [[id bpm] (-> (cursor conn "select song_id, bpm_num from song where upper(song_nm) = ?" [song-nm]) second)
-         beats    (get-beats conn song-nm)
-         bars     (range 1 (inc (reduce max (map first beats))))
-         chords   (raw-chord beats bass-none)
-         drums    (raw-drums swing bars)
+         beats       (get-beats conn song-nm)
+         bars        (range 1 (inc (reduce max (map first beats))))
+         chords      (raw-chord beats bass-none)
+         drums       (raw-drums drums-swing bars)
          [info bass] (raw-bass id)]
      (println song-nm)
      (view (map (fn [[k v] c] [k v (pr-str c)])

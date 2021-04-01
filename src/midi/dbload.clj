@@ -306,3 +306,33 @@
 ; (map (partial save-bass-line conn) (drop 4 basslinedb))
 ; (save-bass-line conn (last basslinedb))
 
+;---------------------------------------------------
+; Bass patterns
+;---------------------------------------------------
+
+; no bass
+(defn bass-none [_ _ _] nil)
+
+(defn bass-1   [_ beat [r _ _]]  (case beat 1 r nil))
+
+; ascending
+(defn bass-15   [_ beat [r _ n5]]  (case beat 1 r           3 n5   nil))
+(defn bass-1234 [_ beat [r n3 n5]] (case beat 1 r 2 (+ 2 r) 3 n3 4 (inc n3)))
+(defn bass-1235 [_ beat [r n3 n5]] (case beat 1 r 2 (+ 2 r) 3 n3 4 n5))
+
+; descending
+(defn bass-4321 [_ beat [r n3 n5]] (case beat 1 (inc n3) 2 n3  3 (+ 2 r) 4 r))
+(defn bass-5321 [_ beat [r n3 n5]] (case beat 1 n5       2 n3  3 (+ 2 r) 4 r))
+
+; alternating asc and desc
+(defn bass-ud2 [bar beat chord] ((nth [bass-1234 bass-1235 bass-5321 bass-4321] (mod bar 4)) bar beat chord))
+(defn bass-ud3 [bar beat chord] ((nth [bass-1234 bass-5321 bass-1235 bass-5321] (mod bar 4)) bar beat chord))
+
+;---------------------------------------------------
+; Drum patterns
+;---------------------------------------------------
+
+(def drums-swing {:ride-cymbal-1      [[70]  [70 12][0 12][40 12]  [70]  [70 12][0 12][40 12]]
+                  :closed-hi-hat      [[0]   [70]                  [0]   [70]]
+                  :acoustic-bass-drum [[90]  [70]                  [90]  [70]]})
+
