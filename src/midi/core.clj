@@ -26,22 +26,6 @@
                         (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
                            (recur tc ppq tempo (conj acc [x val]) others))))))))
 
-; Plugin
-(defn bass-skelet [beats bassf]
-   (let [cvel      50   ; chord's velocity
-         bvel      80]  ; bass velocity
-      (reduce (fn [acc [bar beat chord-nm]]
-                 (let [tc           (* *qn* (+ (* bar 4) (dec beat)))
-                       vel          (* cvel (if (= beat 1) 1.0 0.6))
-                       chord        (chorddb chord-nm)
-                       bass         (bassf bar beat chord)
-                       shell-pretty (map #(vector tc *chord-channel* % vel) (rest chord))
-                       notes        (if (nil? bass)
-                                       shell-pretty 
-                                       (cons (vector tc *bass-channel* (- bass 12) bvel) shell-pretty))]
-                  (assoc-in acc [bar tc] notes)))
-              (sorted-map)
-              beats)))
 
 ; no bass
 (defn bass-none [_ _ _] nil)
@@ -61,15 +45,24 @@
 (defn bass-ud2 [bar beat chord] ((nth [bass-1234 bass-1235 bass-5321 bass-4321] (mod bar 4)) bar beat chord))
 (defn bass-ud3 [bar beat chord] ((nth [bass-1234 bass-5321 bass-1235 bass-5321] (mod bar 4)) bar beat chord))
 
+(defn expand-chord [[bar beat chord-nm] bassf]
+   (let [chord-vel     50
+         bass-vel      80
+         tc      (* *qn* (+ (* bar 4) (dec beat)))
+         vel     (* chord-vel (if (= beat 1) 1.0 0.6))
+         chord   (chorddb chord-nm)
+         bass    (bassf bar beat chord)
+         wobass  (map #(vector tc *chord-channel* % chord-vel) (rest chord))]
+      (if (nil? bass)
+          wobass
+          (cons (vector tc *bass-channel* (- bass 12) bass-vel) wobass))))
+
 (defn raw-chord
   ([beats]  (raw-chord beats bass-15))
   ([beats bassf]
-      (let [offpct  0.99 ; notes off events at %
-            x2  (bass-skelet beats bassf)
-            on  (for [[_ bar] x2, [_ chord] bar, note chord] note)
-            off (map (fn [[t c n _]] [(+ t (* *qn* offpct)) c n 0]) on)
-            rc  (concat on off)]
-         rc)))
+      (let [on  (mapcat #(expand-chord % bassf) beats)
+            off (map (fn [[t c n _]] [(+ t *qn* -1) c n 0]) on)]
+        (concat on off))))
 
 ; Converts raw notes to ttape format:
 ; Tick Tape format:
