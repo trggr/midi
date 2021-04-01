@@ -77,8 +77,7 @@
           (concat [[0 :set-tempo (/ 60000000 bpm)][0 :time-signature signature]] ys))))
 
 (defn note-player [instruments]
-   (let [synth    (javax.sound.midi.MidiSys;---------------------------------------------------
-tem/getSynthesizer)
+   (let [synth    (javax.sound.midi.MidiSystem/getSynthesizer)
          _        (.open synth)
          channels (-> synth .getChannels)]
      (doseq [[ch prog] instruments]
