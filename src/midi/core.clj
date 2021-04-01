@@ -38,8 +38,8 @@
           wobass
           (cons (vector tc *bass-channel* (- bass 12) bass-vel) wobass))))
 
-(defn raw-chord
-  ([beats]  (raw-chord beats bass-15))
+(defn raw-chords
+  ([beats]  (raw-chords beats bass-15))
   ([beats bassf]
       (let [on  (mapcat #(expand-chord % bassf) beats)
             off (map (fn [[t c n _]] [(+ t *qn* -1) c n 0]) on)]
@@ -69,6 +69,7 @@
 
 (defn ttape
    ([raw]     (ttape raw 120))
+;---------------------------------------------------
    ([raw bpm] (ttape raw bpm [4 2 24 8]))
    ([raw bpm signature]
      (let [xs (sort-by key (group-by first raw))
@@ -76,7 +77,8 @@
           (concat [[0 :set-tempo (/ 60000000 bpm)][0 :time-signature signature]] ys))))
 
 (defn note-player [instruments]
-   (let [synth    (javax.sound.midi.MidiSystem/getSynthesizer)
+   (let [synth    (javax.sound.midi.MidiSys;---------------------------------------------------
+tem/getSynthesizer)
          _        (.open synth)
          channels (-> synth .getChannels)]
      (doseq [[ch prog] instruments]
@@ -185,7 +187,7 @@
    (let [[id bpm] (-> (cursor conn "select song_id, bpm_num from song where upper(song_nm) = ?" [song-nm]) second)
          beats       (get-beats conn song-nm)
          bars        (range 1 (inc (reduce max (map first beats))))
-         chords      (raw-chord beats bass-none)
+         chords      (raw-chords beats bass-none)
          drums       (raw-drums drums-swing bars)
          [info bass] (raw-bass id)]
      (println song-nm)
