@@ -83,9 +83,13 @@
 (defn note-player [instruments]
    (let [synth    (javax.sound.midi.MidiSystem/getSynthesizer)
          _        (.open synth)
+;        g (java.io.File. "/home/tim/Downloads/GeneralUser_GS_SoftSynth.sf2")
+;        gsb (javax.sound.midi.MidiSystem/getSoundbank g)
+;        _ (.loadAllInstruments synth gsb)
          channels (-> synth .getChannels)]
      (doseq [[ch prog] instruments]
          (let [p (-> synth .getDefaultSoundbank .getInstruments (nth prog))]
+;         (let [p (-> gsb .getInstruments (nth prog))]
             (println "Playing" (.getName p) "on channel" ch)
             (.loadInstrument synth p)
             (.programChange (nth channels ch) prog)))
@@ -94,8 +98,8 @@
 
 ; Plays MIDI tape
 (defn play-mtape [tape]
-   (let [f (note-player [[*chord-channel* 30]
-                         [*bass-channel*  34]])]
+   (let [f (note-player [[*chord-channel* 26]
+                         [*bass-channel*  32]])]
       (doseq [[tc notes] tape]
          (Thread/sleep tc)
          (doseq [[_ ch note vel] notes]
@@ -198,6 +202,7 @@
                 info
                 (partition 4 (map (fn [[_ _ c]] c) beats))))
      (-> (concat bass drums chords) (ttape bpm) mtape play-mtape)))
+;     (-> (concat bass drums) (ttape bpm) mtape play-mtape)))
 
 (defn -main [& _]
    (doseq [song ["AUTUMN LEAVES" "ALL THE THINGS YOU ARE" "ALL OF ME" "MEDIUM BLUES"
@@ -207,3 +212,46 @@
                 "ALL BY MYSELF"
                 "LET IT BE"]]
        (play-song song)))
+
+
+;(def synth    (javax.sound.midi.MidiSystem/getSynthesizer))
+;#'midi.core/synth
+;midi.core=> (.getMaxPolyphony synth)
+;64
+;midi.core=> (def sb (.getDefaultSoundbank synth))
+;#'midi.core/sb
+;midi.core=> sb
+;#object[com.sun.media.sound.SF2Soundbank 0x53bb91e9 "com.sun.media.sound.SF2Soundbank@53bb91e9"]
+;midi.core=> (.getResources sb)
+;#object["[Ljavax.sound.midi.SoundbankResource;" 0x78c350f "[Ljavax.sound.midi.SoundbankResource;@78c350f"]
+;midi.core=> (.getVendor sb)
+;"Generated"
+;midi.core=> (.getDescription sb)
+;"Emergency generated soundbank"
+;
+;tim@allocator:/usr/share/sounds$ find . -name *.sf* -exec ls -l {} \;
+;lrwxrwxrwx 1 root root 32 Oct 23 17:40 ./sf3/default-GM.sf3 -> /etc/alternatives/default-GM.sf3
+;-rw-r--r-- 1 root root 5969788 Jun 17  2015 ./sf2/TimGM6mb.sf2
+;lrwxrwxrwx 1 root root 32 Oct 23 17:40 ./sf2/default-GM.sf2 -> /etc/alternatives/default-GM.sf2
+;
+;(vec (.getMethods (.getClass javax.sound.midi.MidiSystem)))
+;
+;(use 'clojure.reflect)
+;(map println (:members (reflect javax.sound.midi.MidiSystem)))
+;
+;(->> (reflect javax.sound.midi.MidiSystem) 
+;     :members 
+;     (filter #(= (:name %) "getSoundbank")))
+;
+;
+;(def g (java.io.File. "/home/tim/Downloads/GeneralUser_GS_SoftSynth.sf2"))
+;#'midi.core/g
+;midi.core=> g
+;#object[java.io.File 0x6f1a3c9d "/home/tim/Downloads/GeneralUser_GS_SoftSynth.sf2"]
+;midi.core=> (javax.sound.midi.MidiSystem/getSoundbank g)
+;
+; http://www.ronimusic.com/smp_ios_dls_files.htm
+;
+;(def gsb (javax.sound.midi.MidiSystem/getSoundbank g))
+;(.loadAllInstruments synth gsb)
+
