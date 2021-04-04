@@ -27,23 +27,27 @@
                            (recur tc ppq tempo (conj acc [x val]) others))))))))
 
 (defn expand-chord [[bar beat chord-nm] bassf]
-   (let [chord-vel     50
-         bass-vel      80
-         tc      (* *qn* (+ (* bar 4) (dec beat)))
-         vel     (* chord-vel (if (= beat 1) 1.0 0.6))
-         chord   (chorddb chord-nm)
-         bass    (bassf bar beat chord)
-         wobass  (map #(vector tc *chord-channel* % chord-vel) (rest chord))]
-      (if (nil? bass)
-          wobass
-          (cons (vector tc *bass-channel* (- bass 12) bass-vel) wobass))))
+   (let [chord-vel 50
+         bass-vel  80
+         tc        (* *qn* (+ (* bar 4) (dec beat)))
+         vel       (* chord-vel (if (= beat 1) 1.0 0.6))
+         chord     (chorddb chord-nm)
+         bass      (bassf bar beat chord)
+         bass      (when (not (nil? bass))
+                      [[tc *bass-channel* (- bass 12) bass-vel]])
+         rc        (concat (map #(vector tc *chord-channel* % chord-vel) (rest chord))
+                           bass)
+         rc        (concat rc 
+                           (map (fn [[t c n _]] [(+ t (* 2 *qn*) -1) c n 0]) rc))]
+     (if (or (= beat 1) (= beat 3))
+        rc
+        nil)))
 
 (defn raw-chords
   ([beats]  (raw-chords beats bass-15))
   ([beats bassf]
-      (let [on  (mapcat #(expand-chord % bassf) beats)
-            off (map (fn [[t c n _]] [(+ t *qn* -1) c n 0]) on)]
-        (concat on off))))
+      (let [on  (mapcat #(expand-chord % bassf) beats)]
+         on)))
 
 ; Makes a tick tape from an array of raw notes each of which has a stucture:
 ;  [timecode channel note velocity]
@@ -90,7 +94,7 @@
 
 ; Plays MIDI tape
 (defn play-mtape [tape]
-   (let [f (note-player [[*chord-channel* 26]
+   (let [f (note-player [[*chord-channel* 30]
                          [*bass-channel*  34]])]
       (doseq [[tc notes] tape]
          (Thread/sleep tc)
