@@ -41,22 +41,62 @@
                            (map (fn [[t c n _]] [(+ t (* 1 *qn*) -1) c n 0]) rc))]
      rc))
 
-;     (if (or (= beat 1) (= beat 3))
-;        rc
-;        nil)))
+(defn third [x] (nth x 2))
 
-;(defn synthetic-bass [[a b c d]]
-;  (let [[ar] (chorddb a)
-;        [br] (chorddb b)
-;        [cr] (chorddb c)]
-;     (cond (= a b c d)           [ar (dec ar) (- ar 3) (- ar 5)]
-;           (and (= a b) (= c d)) [ar 0 cr 0]
-;           :else                 [0  0  0 0])))
+; 1. Place the roots of the indicated chords on beats 1 and 3 to create the skeleton
+; of the bass line. As far as possible, select the root notes so that the interval 
+; between them is minimized (e.g., choose a fourth up rather than a fifth down, 
+; a third down rather than a sixth up, etc.). 
 ;
-;(defn third [x] (nth x 2))
+; 2. Fill in beats 2 and 4 according to the interval between the notes on beats 1 and 3:
+; a. If  the  roots  are  separated  by  a  third,  put  a  diatonic  passing  tone  between  them. 
+;    In measure 1 we insert E between F and D, and from measure 2 to measure 3,
+;    we insert Bb between C and A.
+; b. If  the  roots  are  separated  by  a  fourth  or  fifth,  fill  out  the  interval
+;    with  a  tone drawn from the first chord. In measure 1 we insert F between D and the G
+;    in the following measure, and in measure 2 we insert D between G and C.
+; c. If the roots are separated by a major or minor second, repeat the bass note as shown in measures 3 and 4.
+;    As can be seen in measure 4, an octave leap can  be  used  instead  of  a  repetition.  
+;    This  move  is  sometimes  used  reposition  a  bass  line  that  is  approaching  either  
+;    the  lower  or  the  upper  extreme of the range of the instrument. 
+; d. If a chord is held for the entire duration of a measure, the bass line can be filled out 
+;    with a scalewise line from the root of the chord down to the fifth. This is done under the FÎ chord in measure 5. 
+
+(defn fill24 [x y]
+  (let [[a n3] x
+        [b]    y
+        sep (Math/abs (- a b))]
+     (cond (<= 1 sep 2) a
+           (<= 3 sep 4) (+ a 2) 
+           (<= 5 sep 7) n3
+           :else        n3)))
+
+(defn synthetic-bass [[a b c d]]
+  (let [cha     (chorddb a)
+        chc     (chorddb c)
+        chd     (chorddb d)
+        [ar]    cha
+        [cr]    chc
+        [dr]    chd
+        rc      (cond (= a b c d)            [ar (dec ar) (- ar 3) (- ar 5)]
+                   (and (= a b) (=  c d)) [ar (fill24 cha chc) cr 0]
+                   (and (= a b) (not (= c d))) [ar (fill24 cha chc) cr dr]
+                   :else                 [0  0  0 0])]
+      rc))
+
+(defn tcbass [tick bass]
+   (let [chord-vel 50
+         bass-vel  80
+         tc        (+ (* *qn* 4) (* *qn* tick))
+         x (- bass 12)]
+      [[tc             *bass-channel* x bass-vel]
+       [(+ tc *qn* -1) *bass-channel* x 0]]))
+    
+;(map synthetic-bass xs)
 ;(def beats (get-beats conn "all of me"))
 ;(def xs    (partition 4 (map third beats)))
-;(map synthetic-bass xs)
+;(def ys    (map synthetic-bass xs))
+;(apply concat (map-indexed tcbass (flatten ys)))
 
 (defn raw-chords
   ([beats]  (raw-chords beats bass-15))
@@ -211,12 +251,15 @@
          bars        (range 1 (inc (reduce max (map first beats))))
          chords      (raw-chords beats bass-none)
          drums       (raw-drums drums-swing bars)
+         xs          (partition 4 (map third beats))
+         ys          (map synthetic-bass xs)
+         synbass     (apply concat (map-indexed tcbass (flatten ys)))
          [info bass] (raw-bass id)]
      (println song-nm)
      (view (map (fn [[k v] c] [k v (pr-str c)])
                 info
                 (partition 4 (map (fn [[_ _ c]] c) beats))))
-     (-> (concat bass drums chords) (ttape bpm) mtape play-mtape)))
+     (-> (concat synbass drums chords) (ttape bpm) mtape play-mtape)))
 
 (defn -main [& _]
    (doseq [song ["ALONE TOGETHER" "AUTUMN LEAVES" "ALL THE THINGS YOU ARE" "ALL OF ME" "MEDIUM BLUES"
