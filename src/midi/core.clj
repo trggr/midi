@@ -38,10 +38,25 @@
          rc        (concat (map #(vector tc *chord-channel* % chord-vel) (rest chord))
                            bass)
          rc        (concat rc 
-                           (map (fn [[t c n _]] [(+ t (* 2 *qn*) -1) c n 0]) rc))]
-     (if (or (= beat 1) (= beat 3))
-        rc
-        nil)))
+                           (map (fn [[t c n _]] [(+ t (* 1 *qn*) -1) c n 0]) rc))]
+     rc))
+
+;     (if (or (= beat 1) (= beat 3))
+;        rc
+;        nil)))
+
+;(defn synthetic-bass [[a b c d]]
+;  (let [[ar] (chorddb a)
+;        [br] (chorddb b)
+;        [cr] (chorddb c)]
+;     (cond (= a b c d)           [ar (dec ar) (- ar 3) (- ar 5)]
+;           (and (= a b) (= c d)) [ar 0 cr 0]
+;           :else                 [0  0  0 0])))
+;
+;(defn third [x] (nth x 2))
+;(def beats (get-beats conn "all of me"))
+;(def xs    (partition 4 (map third beats)))
+;(map synthetic-bass xs)
 
 (defn raw-chords
   ([beats]  (raw-chords beats bass-15))
@@ -202,10 +217,9 @@
                 info
                 (partition 4 (map (fn [[_ _ c]] c) beats))))
      (-> (concat bass drums chords) (ttape bpm) mtape play-mtape)))
-;     (-> (concat bass drums) (ttape bpm) mtape play-mtape)))
 
 (defn -main [& _]
-   (doseq [song ["AUTUMN LEAVES" "ALL THE THINGS YOU ARE" "ALL OF ME" "MEDIUM BLUES"
+   (doseq [song ["ALONE TOGETHER" "AUTUMN LEAVES" "ALL THE THINGS YOU ARE" "ALL OF ME" "MEDIUM BLUES"
                 "IN A SENTIMENTAL MOOD"
                 "ALL OF ME"
                 "AUTUMN LEAVES"

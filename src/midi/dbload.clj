@@ -83,6 +83,19 @@
                     "C  | G  | F  | C |"))}
   {:id 7, :nm "MEDIUM BLUES", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 120,
     :bars (bars "C | F7 F#dim | C | C7 | F | F#dim | C | Em7-5 A7 | Dm7 | G7 | Em7-5 A7 | Dm G7")}
+  {:id 8, :nm "ALONE TOGETHER", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 120,
+   :bars (bars (str "Dm          | Em7-5 A7  | Dm           | Em7-5  A7 |"
+                    "Dm          | Am7-5 D7  | Gm           | Gm7       |"
+                    "Bm7     E7  | Gm7   C7  | F      F7    | Em7-5  A7 |"
+                    "Dmaj7       | Em7-5 A7  |"
+                    "Dm          | Em7-5 A7  | Dm           | Em7-5  A7 |"
+                    "Dm          | Am7-5 D7  | Gm           | Gm7       |"
+                    "Bm7     E7  | Gm7   C7  | F      F7    | Em7-5  A7 |"
+                    "Dmaj7       | Dmaj7     |"
+                    "Am7-5       | D7        | Gm           | Gm        |"
+                    "Gm7-5       | C7        | F      F7    | Em7-5  A7 |"
+                    "Dm          | Em7-5 A7  | Dm           | Em7-5  A7 |"
+                    "Dm          | Bb7   A7  | Dm           | Em7-5  A7 |"))}
 ])
 
 (defn save-song [conn song]
@@ -170,6 +183,7 @@
     :m11   [[1 4 8 11 15 18] :N]
     :11    [[1 5 8 11 15 18] :Y]
     :11-9  [[1 5 8 11 14 18] :Y]
+    :7-9   [[1 5 8 11 13]    :Y]
     :maj13 [[-1 3 6 10]      :Y]
     :m13   [[-2 3 6 10]      :N]
     :13    [[-2 3 6 10]      :Y] ; same as m13?
@@ -299,6 +313,10 @@
                      [:d3]  [:_] [:a3]  [:d3]
                      [:g3]  [:_] [:a3]  [:_]
                      [:bb3] [:_] [:g3]  [:_]]}
+   {:id "Majdown", :desc "Scalewise from root to fifth, Stuart Smith, p. 27", :chords "F7"
+            :notes  [[:f3]  [:e3] [:d3]  [:c3]]}
+   {:id "Mindown", :desc "Scalewise from root to fifth, Stuart Smith, p. 27", :chords "Fm"
+            :notes  [[:f3]  [:eb3] [:db3]  [:c3]]}
 ])
 
 ; Saving
