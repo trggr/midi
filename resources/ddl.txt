@@ -333,3 +333,9 @@ select * from bass_line_v where bass_line_id = 'S251' and transp_num = 0;
 select * from note;
 
 insert into note values ('_', 0);
+
+select * from song;
+
+alter table song add drum_ptrn_cd varchar(30);
+
+update song set drum_ptrn_cd = 'drums-swing';

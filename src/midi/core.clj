@@ -80,10 +80,10 @@
        [(+ tc *qn* -1) *bass-channel* x 0]]))
     
 (defn raw-chords
-  ([beats]  (raw-chords beats bass-15))
+  ([beats]
+      (raw-chords beats bass-15))
   ([beats bassf]
-      (let [on  (mapcat #(expand-chord % bassf) beats)]
-         on)))
+      (mapcat #(expand-chord % bassf) beats)))
 
 ; Makes a tick tape from an array of raw notes each of which has a stucture:
 ;  [timecode channel note velocity]
@@ -242,23 +242,27 @@
    (mapcat #(single-drum (pattern %) (notedb %) bars) (keys pattern)))
 
 (defn play-song [song-nm]
-   (let [[id bpm] (-> (cursor conn "select song_id, bpm_num from song where upper(song_nm) = ?" [song-nm]) second)
-         drum-pattern drums-swing
+   (let [[song-id bpm drum-ptrn-cd bass-ty-cd] 
+            (-> (cursor conn "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd from song where upper(song_nm) = ?" [song-nm]) second)
+         ; drums-swing
+         drum-ptrn   (resolve (symbol drum-ptrn-cd))
          embedded-bass bass-none
          beats       (get-beats conn song-nm)
          bars        (range 1 (inc (reduce max (map first beats))))
          chords      (raw-chords beats embedded-bass)
-         drums       (raw-drums drum-pattern bars)
+         drums       (raw-drums drum-ptrn bars)
+         _           (println drum-ptrn-cd (symbol drum-ptrn-cd) (ns-resolve *ns* (symbol drum-ptrn-cd)) drums)
          xs          (second (reduce compress-beats [nil []] beats))
          ys          (mapcat2 synthetic-bass xs)
          synbass     (apply concat (map-indexed tcbass ys))
-         [info bass] (raw-bass id)]
+         [info bass] (raw-bass song-id)]
      (println song-nm)
-     (println "bpm=" bpm "drum-pattern=" drum-pattern "bass=" embedded-bass)
+     (println "bpm=" bpm drum-ptrn-cd "drum-pattern=" drum-ptrn "bass=" embedded-bass)
      (view (map (fn [[k v] c] [k v (pr-str c)])
                 info
                 (partition 4 (map (fn [[_ _ c]] c) beats))))
-     (-> (concat synbass drums chords) (ttape bpm) mtape play-mtape)))
+;     (-> (concat bass drums chords) (ttape bpm) mtape play-mtape)))
+     (-> (concat bass drums) (ttape bpm) mtape play-mtape)))
 
 (defn -main [& _]
    (doseq [song ["AUTUMN LEAVES" "ALONE TOGETHER" "ALL THE THINGS YOU ARE" "ALL OF ME" "MEDIUM BLUES"
