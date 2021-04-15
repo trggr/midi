@@ -71,19 +71,6 @@
            (<= 5 sep 7) n3
            :else        n3)))
 
-(defn synthetic-bass [[a b c d]]
-  (let [cha     (chorddb a)
-        chc     (chorddb c)
-        chd     (chorddb d)
-        [ar]    cha
-        [cr]    chc
-        [dr]    chd
-        rc      (cond (= a b c d)            [ar (dec ar) (- ar 3) (- ar 5)]
-                   (and (= a b) (=  c d)) [ar (fill24 cha chc) cr (- cr 12)]
-                   (and (= a b) (not (= c d))) [ar (fill24 cha chc) cr dr]
-                   :else                 [0  0  0 0])]
-      rc))
-
 (defn tcbass [tick bass]
    (let [chord-vel 50
          bass-vel  120
@@ -92,12 +79,6 @@
       [[tc             *bass-channel* x bass-vel]
        [(+ tc *qn* -1) *bass-channel* x 0]]))
     
-;(map synthetic-bass xs)
-;(def beats (get-beats conn "all of me"))
-;(def xs    (partition 4 (map third beats)))
-;(def ys    (map synthetic-bass xs))
-;(apply concat (map-indexed tcbass (flatten ys)))
-
 (defn raw-chords
   ([beats]  (raw-chords beats bass-15))
   ([beats bassf]
@@ -106,7 +87,6 @@
 
 ; Makes a tick tape from an array of raw notes each of which has a stucture:
 ;  [timecode channel note velocity]
-;
 ; Tick Tape format:
 ;     Field       Type      Description
 ;     --------------------------------------------------------------------------------------
@@ -217,20 +197,7 @@
         (= c p)   [[p (inc n)] acc]
         :else     [[c 1]       (conj acc x)]))
 
-;(def beats (get-beats conn "all of me"))
-;
-;(def compressed (second (reduce compress-beats [nil []] beats)))
-
-;(defn mapcat2 [f xs]
-;  (loop [acc [] xs xs]
-;     (if (empty? xs)
-;        acc
-;        (let [[a b & others] xs]
-;            (recur (concat acc (f a b))
-;                   (rest xs))))))
-
-(defn synthetic-bass2 [[a n] [b m]]
-  (println a n b m)
+(defn synthetic-bass [[a n] [b m]]
   (let [cha     (chorddb a)
         chb     (if (nil? b) cha (chorddb b))
         [a1 a3 a5 a7]    cha
@@ -240,16 +207,6 @@
                       (= n 8) [a1 (+ a1 2) a3 (- a5 2) a5 a3 (+ a1 2) a1]
                       :else   [])]
       rc))
-
-; (mapcat2 synthetic-bass2 compressed)
-;
-;(defn tcbass2 [tick bass]
-;   (let [chord-vel 50
-;         bass-vel  120
-;         tc        (+ (* *qn* 4) (* *qn* tick))
-;         x (- bass 12)]
-;      [[tc             *bass-channel* x bass-vel]
-;       [(+ tc *qn* -1) *bass-channel* x 0]]))
 
 (defn raw-bass [songid]
   (let [ptrns  (cursor conn
@@ -286,19 +243,6 @@
 
 (defn play-song [song-nm]
    (let [[id bpm] (-> (cursor conn "select song_id, bpm_num from song where upper(song_nm) = ?" [song-nm]) second)
-         beats       (get-beats conn song-nm)
-         bars        (range 1 (inc (reduce max (map first beats))))
-         chords      (raw-chords beats bass-none)
-         drums       (raw-drums drums-swing bars)
-         [info bass] (raw-bass id)]
-     (println song-nm)
-     (view (map (fn [[k v] c] [k v (pr-str c)])
-                info
-                (partition 4 (map (fn [[_ _ c]] c) beats))))
-     (-> (concat bass drums chords) (ttape bpm) mtape play-mtape)))
-
-(defn play-song2 [song-nm]
-   (let [[id bpm] (-> (cursor conn "select song_id, bpm_num from song where upper(song_nm) = ?" [song-nm]) second)
          drum-pattern drums-swing
          embedded-bass bass-none
          beats       (get-beats conn song-nm)
@@ -306,7 +250,7 @@
          chords      (raw-chords beats embedded-bass)
          drums       (raw-drums drum-pattern bars)
          xs          (second (reduce compress-beats [nil []] beats))
-         ys          (mapcat2 synthetic-bass2 xs)
+         ys          (mapcat2 synthetic-bass xs)
          synbass     (apply concat (map-indexed tcbass ys))
          [info bass] (raw-bass id)]
      (println song-nm)
@@ -323,7 +267,7 @@
                 "AUTUMN LEAVES"
                 "ALL BY MYSELF"
                 "LET IT BE"]]
-       (play-song2 song)))
+       (play-song song)))
 
 
 ;(def synth    (javax.sound.midi.MidiSystem/getSynthesizer))
