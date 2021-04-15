@@ -58,6 +58,15 @@
 
 (defn in? [xs x]      (contains? (set xs) x))
 
+; Applies f to every two elements in the reduction of coll, concatenating the result
+; colls of (f x y).
+(defn mapcat2 [f coll]
+  (loop [acc [] xs coll]
+     (if (empty? xs)
+        acc
+        (let [[a b & others] xs]
+            (recur (concat acc (f a b))
+                   (rest xs))))))
 
 (defmacro for-loop [[sym init check change :as params] & steps]
  `(loop [~sym ~init value# nil]
