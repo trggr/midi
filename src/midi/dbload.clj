@@ -337,26 +337,33 @@
 ; (save-bass-line conn (last basslinedb))
 
 ;---------------------------------------------------
-; Bass patterns
+; Bass patterns available from the chords
 ;---------------------------------------------------
+(def embedded-bass-db {
+    "bass-none" (fn [_ _ _] nil)
+    "bass-1"    (fn [_ beat [r _ _]]  (case beat 1 r nil))
 
-; no bass
-(defn bass-none [_ _ _] nil)
+    ; ascending
+    "bass-15"   (fn [_ beat [r _ n5]]  (case beat 1 r 3 n5 nil))
+    "bass-1234" (fn [_ beat [r n3 n5]] (case beat 1 r 2 (+ 2 r) 3 n3 4 (inc n3)))
+    "bass-1235" (fn [_ beat [r n3 n5]] (case beat 1 r 2 (+ 2 r) 3 n3 4 n5))
 
-(defn bass-1   [_ beat [r _ _]]  (case beat 1 r nil))
+    ; descending
+    "bass-4321" (fn [_ beat [r n3 n5]] (case beat 1 (inc n3) 2 n3  3 (+ 2 r) 4 r))
+    "bass-5321" (fn [_ beat [r n3 n5]] (case beat 1 n5       2 n3  3 (+ 2 r) 4 r))
+})
 
-; ascending
-(defn bass-15   [_ beat [r _ n5]]  (case beat 1 r           3 n5   nil))
-(defn bass-1234 [_ beat [r n3 n5]] (case beat 1 r 2 (+ 2 r) 3 n3 4 (inc n3)))
-(defn bass-1235 [_ beat [r n3 n5]] (case beat 1 r 2 (+ 2 r) 3 n3 4 n5))
-
-; descending
-(defn bass-4321 [_ beat [r n3 n5]] (case beat 1 (inc n3) 2 n3  3 (+ 2 r) 4 r))
-(defn bass-5321 [_ beat [r n3 n5]] (case beat 1 n5       2 n3  3 (+ 2 r) 4 r))
-
-; alternating asc and desc
-(defn bass-ud2 [bar beat chord] ((nth [bass-1234 bass-1235 bass-5321 bass-4321] (mod bar 4)) bar beat chord))
-(defn bass-ud3 [bar beat chord] ((nth [bass-1234 bass-5321 bass-1235 bass-5321] (mod bar 4)) bar beat chord))
+(defn bass-8bar [ptrn bar beat chord]
+    (let [k (nth ptrn (mod (dec bar) 8))
+          f (embedded-bass-db k)]
+       (f bar beat chord)))
+    
+(def embedded-bass-db
+    (assoc embedded-bass-db
+          "bass-15-8"  (partial bass-8bar ["bass-15" "bass-15" "bass-15" "bass-15" "bass-15"   "bass-15" "bass-15" "bass-5321"])
+          "bass-15-68" (partial bass-8bar ["bass-15" "bass-15" "bass-15" "bass-15" "bass-5321" "bass-15" "bass-15" "bass-5321"])
+          "bass-ud2"   (partial bass-8bar ["bass-1234" "bass-1235" "bass-5321" "bass-4321" "bass-1234" "bass-1235" "bass-5321" "bass-4321"])
+          "bass-ud3"   (partial bass-8bar ["bass-1234" "bass-5321" "bass-1235" "bass-5321" "bass-1234" "bass-5321" "bass-1235" "bass-5321"])))
 
 ;---------------------------------------------------
 ; Drum patterns

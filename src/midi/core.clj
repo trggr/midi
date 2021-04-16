@@ -81,7 +81,7 @@
     
 (defn raw-chords
   ([beats]
-      (raw-chords beats bass-15))
+      (raw-chords beats (embedded-bass-db "bass-15")))
   ([beats bassf]
       (mapcat #(expand-chord % bassf) beats)))
 
@@ -208,18 +208,19 @@
                       :else   [])]
       rc))
 
-(defn raw-bass [songid]
+(defn bass-patterns [songid]
   (let [ptrns  (cursor conn
                        (str "select bass_line_id, beg_bar_id, end_bar_id, (transp_num - 24) transp_num "
                             "from bass_line_bar_v "
                             "where song_id = ? "
                             "order by beg_bar_id")
                         [(str songid)])
-        maxbar (-> (cursor conn "select max(bar_id) bar from bar where song_id = ?" [(str songid)]) second first)]
-       (reduce alloc-bass
-               [(into (sorted-map) (zipmap (range 1 (inc maxbar)) (repeat nil)))
-                []]
-               (rest ptrns))))
+        maxbar (-> (cursor conn "select max(bar_id) bar from bar where song_id = ?" [(str songid)]) second first)
+        [info rc] (reduce alloc-bass
+                          [(into (sorted-map) (zipmap (range 1 (inc maxbar)) (repeat nil)))
+                           []]
+                          (rest ptrns))]
+       (with-meta rc {:bass info})))
 
 (defn expand-drum [pattern note bar]
    (loop [acc [],
@@ -230,7 +231,7 @@
          (let [[velpct dur] (first xs)
                dur (or dur 4)
                nexttc (+ tc (/ (* 4 *qn*) dur))]
-             (recur (conj (conj acc [tc *drums-channel* note (/ (* 50 velpct) 100)])
+             (recur (conj (conj acc [tc *drums-channel* note (/ (* 100 velpct) 100)])
                           [(dec nexttc) *drums-channel* note 0])
                     nexttc
                     (rest xs))))))
@@ -249,8 +250,7 @@
                  ys          (mapcat2 synthetic-bass xs)]
               (apply concat (map-indexed tcbass ys)))
         (= bass-ty "patterns")
-           (let [[info rc] (raw-bass song-id)]
-              rc)
+           (bass-patterns song-id)
         :else
            nil))
 
@@ -259,17 +259,7 @@
       drums-swing)) 
 
 (defn embedded-bass [bass-ty-cd]
-   (let [m {"bass-none" bass-none
-            "bass-1"    bass-1
-            "bass-15"   bass-15
-            "bass-1234" bass-1234
-            "bass-1235" bass-1235
-            "bass-4321" bass-4321
-            "bass-5321" bass-5321
-            "bass-ud2"  bass-ud2
-            "bass-ud3"  bass-ud3}
-         rc (m bass-ty-cd)]
-     (if (identity rc) rc bass-none))) 
+   (embedded-bass-db (if (contains? embedded-bass-db bass-ty-cd) bass-ty-cd "bass-none" )))
         
 (defn compose-drums [drum-ptrn-cd beats]
    (let [bars  (range 1 (inc (reduce max (map first beats))))
@@ -283,15 +273,17 @@
          chords      (raw-chords beats (embedded-bass bass-ty-cd))                                        
          drums       (compose-drums drum-ptrn-cd beats)
          bass        (compose-bass bass-ty-cd song-id beats)
-         info        ""]
+         m           (meta bass)
+         _           (println m)
+         info        (if (identity m) (m :bass) (apply sorted-map (interleave (range 1 100) (repeat bass-ty-cd))))]
      (println (format "song=%s, bpm=%d, drum-pattern-cd=%s, bass-ty-cd=%s" song-nm bpm drum-ptrn-cd bass-ty-cd))
-     (view (map (fn [[k v] c] [k v (pr-str c)])
+     (view (map (fn [[bar v] c] [bar v (pr-str c)])
                 info
                 (partition 4 (map (fn [[_ _ c]] c) beats))))
-     (-> (concat bass chords drums) (ttape bpm) mtape play-mtape)))
+     (-> (concat chords bass drums) (ttape bpm) mtape play-mtape)))
 
 (defn -main [& _]
-   (doseq [song ["MISTY" "AUTUMN LEAVES" "ALONE TOGETHER" "ALL THE THINGS YOU ARE" "ALL OF ME" "MEDIUM BLUES"
+   (doseq [song ["LET IT BE" "ALONE TOGETHER" "MISTY" "ALL THE THINGS YOU ARE" "AUTUMN LEAVES" "ALL OF ME" "MEDIUM BLUES"
                 "IN A SENTIMENTAL MOOD"
                 "ALL OF ME"
                 "AUTUMN LEAVES"
@@ -308,7 +300,7 @@
 ;#'midi.core/sb
 ;midi.core=> sb
 ;#object[com.sun.media.sound.SF2Soundbank 0x53bb91e9 "com.sun.media.sound.SF2Soundbank@53bb91e9"]
-;midi.core=> (.getResources sb)
+;midi.core=> (.getResources sb)                                                                                                             
 ;#object["[Ljavax.sound.midi.SoundbankResource;" 0x78c350f "[Ljavax.sound.midi.SoundbankResource;@78c350f"]
 ;midi.core=> (.getVendor sb)
 ;"Generated"
