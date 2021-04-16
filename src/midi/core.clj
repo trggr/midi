@@ -243,28 +243,21 @@
    (mapcat #(single-drum (pattern %) (notedb %) bars) (keys pattern)))
 
 (defn compose-bass [bass-ty song-id beats]
-  (cond (= bass-ty "embedded")
-           nil
-        (= bass-ty "synthetic")
-           (let [xs          (second (reduce compress-beats [nil []] beats))
-                 ys          (mapcat2 synthetic-bass xs)]
-              (apply concat (map-indexed tcbass ys)))
-        (= bass-ty "patterns")
-           (bass-patterns song-id)
-        :else
-           nil))
-
-(defn drum-ptrn [drum-ptrn-cd]
-   (when (= drum-ptrn-cd "drums-swing")
-      drums-swing)) 
+  (case bass-ty
+        "synthetic" (let [xs (second (reduce compress-beats [nil []] beats))
+                           ys (mapcat2 synthetic-bass xs)]
+                        (apply concat (map-indexed tcbass ys)))
+        "patterns"  (bass-patterns song-id)
+        nil))
 
 (defn embedded-bass [bass-ty-cd]
    (embedded-bass-db (if (contains? embedded-bass-db bass-ty-cd) bass-ty-cd "bass-none" )))
         
 (defn compose-drums [drum-ptrn-cd beats]
-   (let [bars  (range 1 (inc (reduce max (map first beats))))
-         drums (raw-drums (drum-ptrn drum-ptrn-cd) bars)]
-      drums))
+   (let [maxbar (inc (reduce max (map first beats)))
+         drums (raw-drums (drum-ptrn-db drum-ptrn-cd) (range 1 maxbar))
+         intro (raw-drums (drum-ptrn-db "drums-intro") [0])]
+      (concat intro drums)))
       
 (defn play-song [song-nm]
    (let [[song-id bpm drum-ptrn-cd bass-ty-cd] 
@@ -283,12 +276,13 @@
      (-> (concat chords bass drums) (ttape bpm) mtape play-mtape)))
 
 (defn -main [& _]
-   (doseq [song ["LET IT BE" "ALONE TOGETHER" "MISTY" "ALL THE THINGS YOU ARE" "AUTUMN LEAVES" "ALL OF ME" "MEDIUM BLUES"
-                "IN A SENTIMENTAL MOOD"
-                "ALL OF ME"
-                "AUTUMN LEAVES"
-                "ALL BY MYSELF"
-                "LET IT BE"]]
+   (doseq [song ["MISTY" "ALL THE THINGS YOU ARE" "AUTUMN LEAVES" "MEDIUM BLUES"
+                 "ALONE TOGETHER"
+                 "IN A SENTIMENTAL MOOD"
+                 "ALL OF ME"
+                 "AUTUMN LEAVES"
+                 "ALL BY MYSELF"
+                 "LET IT BE"]]
        (play-song song)))
 
 
