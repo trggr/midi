@@ -30,7 +30,7 @@
    (let [chord-vel 50
          bass-vel  80
          tc        (* *qn* (+ (* bar 4) (dec beat)))
-         vel       (* chord-vel ({1 0.2 2 0.7 3 0.2 4 0.7} beat))
+         vel       (* chord-vel ({1 0.0 2 0.7 3 0.2 4 0.7} beat))
          chord     (chorddb chord-nm)
          bass      (bassf bar beat chord)
          bass      (when (not (nil? bass))
@@ -241,28 +241,54 @@
 (defn raw-drums [pattern bars]
    (mapcat #(single-drum (pattern %) (notedb %) bars) (keys pattern)))
 
+(defn compose-bass [bass-ty song-id beats]
+  (cond (= bass-ty "embedded")
+           nil
+        (= bass-ty "synthetic")
+           (let [xs          (second (reduce compress-beats [nil []] beats))
+                 ys          (mapcat2 synthetic-bass xs)]
+              (apply concat (map-indexed tcbass ys)))
+        (= bass-ty "patterns")
+           (let [[info rc] (raw-bass song-id)]
+              rc)
+        :else
+           nil))
+
+(defn drum-ptrn [drum-ptrn-cd]
+   (when (= drum-ptrn-cd "drums-swing")
+      drums-swing)) 
+
+(defn embedded-bass [bass-ty-cd]
+   (let [m {"bass-none" bass-none
+            "bass-1"    bass-1
+            "bass-15"   bass-15
+            "bass-1234" bass-1234
+            "bass-1235" bass-1235
+            "bass-4321" bass-4321
+            "bass-5321" bass-5321
+            "bass-ud2"  bass-ud2
+            "bass-ud3"  bass-ud3}
+         rc (m bass-ty-cd)]
+     (if (identity rc) rc bass-none))) 
+        
+(defn compose-drums [drum-ptrn-cd beats]
+   (let [bars  (range 1 (inc (reduce max (map first beats))))
+         drums (raw-drums (drum-ptrn drum-ptrn-cd) bars)]
+      drums))
+      
 (defn play-song [song-nm]
    (let [[song-id bpm drum-ptrn-cd bass-ty-cd] 
             (-> (cursor conn "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd from song where upper(song_nm) = ?" [song-nm]) second)
-         ; drums-swing
-         drum-ptrn   (resolve (symbol drum-ptrn-cd))
-         embedded-bass bass-none
          beats       (get-beats conn song-nm)
-         bars        (range 1 (inc (reduce max (map first beats))))
-         chords      (raw-chords beats embedded-bass)
-         drums       (raw-drums drum-ptrn bars)
-         _           (println drum-ptrn-cd (symbol drum-ptrn-cd) (ns-resolve *ns* (symbol drum-ptrn-cd)) drums)
-         xs          (second (reduce compress-beats [nil []] beats))
-         ys          (mapcat2 synthetic-bass xs)
-         synbass     (apply concat (map-indexed tcbass ys))
-         [info bass] (raw-bass song-id)]
-     (println song-nm)
-     (println "bpm=" bpm drum-ptrn-cd "drum-pattern=" drum-ptrn "bass=" embedded-bass)
+         chords      (raw-chords beats (embedded-bass bass-ty-cd))                                        
+         drums       (compose-drums drum-ptrn-cd beats)
+         bass        (compose-bass bass-ty-cd song-id beats)
+         info        ""]
+     (println (format "song=%s, bpm=%d, drum-pattern-cd=%s, bass-ty-cd=%s" song-nm bpm drum-ptrn-cd bass-ty-cd))
      (view (map (fn [[k v] c] [k v (pr-str c)])
                 info
                 (partition 4 (map (fn [[_ _ c]] c) beats))))
-;     (-> (concat bass drums chords) (ttape bpm) mtape play-mtape)))
-     (-> (concat bass drums) (ttape bpm) mtape play-mtape)))
+     (-> (concat bass chords drums) (ttape bpm) mtape play-mtape)))
 
 (defn -main [& _]
    (doseq [song ["AUTUMN LEAVES" "ALONE TOGETHER" "ALL THE THINGS YOU ARE" "ALL OF ME" "MEDIUM BLUES"
