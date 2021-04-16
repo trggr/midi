@@ -291,7 +291,7 @@
      (-> (concat bass chords drums) (ttape bpm) mtape play-mtape)))
 
 (defn -main [& _]
-   (doseq [song ["AUTUMN LEAVES" "ALONE TOGETHER" "ALL THE THINGS YOU ARE" "ALL OF ME" "MEDIUM BLUES"
+   (doseq [song ["MISTY" "AUTUMN LEAVES" "ALONE TOGETHER" "ALL THE THINGS YOU ARE" "ALL OF ME" "MEDIUM BLUES"
                 "IN A SENTIMENTAL MOOD"
                 "ALL OF ME"
                 "AUTUMN LEAVES"

@@ -337,5 +337,7 @@ insert into note values ('_', 0);
 select * from song;
 
 alter table song add drum_ptrn_cd varchar(30);
+alter table song add bass_ty_cd varchar(30);
 
 update song set drum_ptrn_cd = 'drums-swing';
+update song set bass_ty_cd = 'patterns';

@@ -96,12 +96,24 @@
                     "Gm7-5       | C7        | F      F7    | Em7-5  A7 |"
                     "Dm          | Em7-5 A7  | Dm           | Em7-5  A7 |"
                     "Dm          | Bb7   A7  | Dm           | Em7-5  A7 |"))}
+  {:id 9, :nm "MISTY", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 80, :drum "drums-swing", :bass "patterns",
+   :bars (bars (str "Ebmaj7      | Bbm7  Eb7 | Abmaj7       | Abm7   Db7|"
+                    "Ebmaj7  Cm7 | Fm7   Bb7 | Gm7    C7    | Fm7    Bb7|"
+                    "Ebmaj7      | Bbm7  Eb7 | Abmaj7       | Abm7   Db7|"
+                    "Ebmaj7  Cm7 | Fm7   Bb7 | Eb6    Db9   | Ebmaj7    |"
+                    "Bbm7        | Eb7-9     | Abmaj7       | Abmaj7    |"
+                    "Am7         | D7    F7  | Gm7    C7-9  | Fm7    Bb7|"
+                    "Ebmaj7      | Bbm7  Eb7 | Abmaj7       | Abm7   Db7|"
+                    "Ebmaj7 Cm7  | Fm7   Bb7 | Eb6    Cm7   | Fm7    Bb7|"))}
 ])
 
 (defn save-song [conn song]
-  (let [{:keys [id nm numer denom ppq bb bpm bars]} song]
-     (batch-update conn "insert into song(song_id, song_nm, time_sig_nmrtr_num, time_sig_denom_num, time_sig_ppq_num, time_sig_bb_num, bpm_num) values (?, ?, ?, ?, ?, ?, ?)"
-        [[id nm numer denom ppq bb bpm]])
+  (let [{:keys [id nm numer denom ppq bb bpm bars drum bass]} song]
+     (batch-update conn
+       (str "insert into song(song_id, song_nm, time_sig_nmrtr_num, time_sig_denom_num,"
+                             "time_sig_ppq_num, time_sig_bb_num, bpm_num, drum_ptrn_cd, bass_ty_cd) "
+            "values (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        [[id nm numer denom ppq bb bpm drum bass]])
    (batch-update conn "insert into bar (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)"
        (map #(cons id %) bars))
    (batch-update conn "update bar set chord_id = null where length(chord_id) = 0" [[]])))
