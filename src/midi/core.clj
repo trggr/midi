@@ -1,7 +1,7 @@
 (ns midi.core
    (:require [clojure.string :as str]
              [midi.timlib :as tla]
-             [midi.dbload :as db :refer [conn]])) 
+             [midi.dbload :as db])) 
 
 ; Length of quarter note
 (def ^:dynamic *qn*            96)
@@ -9,8 +9,8 @@
 (def ^:dynamic *bass-channel*  4)
 (def ^:dynamic *drums-channel* 9)
 
-; Converts ttape to MIDI tape format
 (defn mtape
+  "Converts ttape to MIDI tape format"
   ([ttape] (mtape ttape 1))
   ([ttape tempo-correction]
    (loop [prior 0, ppq 0, tempo 0, acc [], xs ttape]
@@ -26,7 +26,9 @@
                         (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
                            (recur tc ppq tempo (conj acc [x val]) others))))))))
 
-(defn expand-chord [[bar beat chord-nm] bassf]
+(defn expand-chord 
+  "Expands chord into notes for a given bar, beat, and bass fn"
+  [[bar beat chord-nm] bassf]
    (let [chord-vel 50
          bass-vel  80
          tc        (* *qn* (+ (* bar 4) (dec beat)))
@@ -282,6 +284,7 @@
        (play-song song)))
 
 
+(pla)
 ;(def synth    (javax.sound.midi.MidiSystem/getSynthesizer))
 ;#'midi.core/synth
 ;midi.core=> (.getMaxPolyphony synth)
