@@ -1,8 +1,8 @@
 (ns midi.dbload
-   (:require [clojure.string :as str])
-   (:use [midi.timlib]))
+   (:require [clojure.string :as str]
+             [midi.timlib :as tla]))
 
-(def conn (connect-sqlite "resources/synth.db"))
+(def conn (tla/connect-sqlite "resources/synth.db"))
 ; references
 ; (batch-update conn "insert into all_beat(bar_id, beat_id) values (?, ?)" (for [bar (range 1 101) beat (range 1 5)] [bar beat]))
 ; (batch-update conn "update bar set chord_id = null where length(chord_id) = 0" [[]])
@@ -109,14 +109,14 @@
 
 (defn save-song [conn song]
   (let [{:keys [id nm numer denom ppq bb bpm bars drum bass]} song]
-     (batch-update conn
+     (tla/batch-update conn
        (str "insert into song(song_id, song_nm, time_sig_nmrtr_num, time_sig_denom_num,"
                              "time_sig_ppq_num, time_sig_bb_num, bpm_num, drum_ptrn_cd, bass_ty_cd) "
             "values (?, ?, ?, ?, ?, ?, ?, ?, ?)")
         [[id nm numer denom ppq bb bpm drum bass]])
-   (batch-update conn "insert into bar (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)"
+   (tla/batch-update conn "insert into bar (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)"
        (map #(cons id %) bars))
-   (batch-update conn "update bar set chord_id = null where length(chord_id) = 0" [[]])))
+   (tla/batch-update conn "update bar set chord_id = null where length(chord_id) = 0" [[]])))
 
 ; Saving:
 ;
@@ -124,26 +124,26 @@
 ;
 
 ; Middle octave - C3 (also just C for convenience)
-(def notedb {:C 60, :C# 61, :Db 61,
-             :D 62, :D# 63, :Eb 63,
-             :E 64,
-             :F 65, :F# 66, :Gb 66,
-             :G 67, :G# 68, :Ab 68,
-             :A 69, :A# 70, :Bb 70,
-             :B 71})
+(def notedb1 {:C 60, :C# 61, :Db 61,
+              :D 62, :D# 63, :Eb 63,
+              :E 64,
+              :F 65, :F# 66, :Gb 66,
+              :G 67, :G# 68, :Ab 68,
+              :A 69, :A# 70, :Bb 70,
+              :B 71})
 
-(def notedb (reduce (fn [acc [k v]] (assoc acc k v))
-                    notedb
+(def notedb2 (reduce (fn [acc [k v]] (assoc acc k v))
+                    notedb1
                     (for [octave   (range -2 9)
-                          [id freq] notedb]
+                          [id freq] notedb1]
                         [(keyword (str (name id) octave))
                          (+ freq (* 12 (- octave 3)))])))
 
-(def notedb (reduce (fn [acc [k v]] (assoc acc (keyword (str/lower-case (name k))) v))
-                    notedb
-                    notedb))
+(def notedb3 (reduce (fn [acc [k v]] (assoc acc (keyword (str/lower-case (name k))) v))
+                    notedb2
+                    notedb2))
 
-(def notedb (merge notedb 
+(def notedb4 (merge notedb3 
                   {:metronome-click 33 :metronome-bell  34 :acoustic-bass-drum  35
                    :bass-drum-1     36 :side-stick      37 :acoustic-snare      38
                    :hand-clap       39 :electric-snare  40 :low-floor-tom       41
@@ -162,10 +162,10 @@
                    :mute-cuica      78 :open-cuica      79 :mute-triangle       80
                    :open-triangle   81}))
 
-(def notedb (assoc notedb :_ 0))  ; silence
+(def notedb (assoc notedb4 :_ 0))  ; silence
 
 (defn save-notes [conn notes]
-   (batch-update conn (str "insert into note (note_cd, midi_num) values (?, ?)")
+   (tla/batch-update conn (str "insert into note (note_cd, midi_num) values (?, ?)")
       (for [[k v] notes] [(name k) v])))
 
 (def chord-form {
@@ -223,7 +223,7 @@
          :f    f})))
 
 (defn save-chords [conn chords]
-   (batch-update conn (str "insert into chord(chord_id, root_midi_num, chord_form_cd, root_note_cd,"
+   (tla/batch-update conn (str "insert into chord(chord_id, root_midi_num, chord_form_cd, root_note_cd,"
                            "  major_ind, midi1_num, midi2_num, midi3_num, midi4_num,"
                            "  midi5_num, midi6_num"
                            ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
@@ -253,11 +253,11 @@
         notes  (for [i (range (count notes))]
                    (let [[note dur] (nth notes i)]
                        [id (inc i) (name note) (or dur 4)]))]
-     (batch-update conn "insert into bass_line(bass_line_id, bar_cnt, bass_line_desc) values (?, ?, ?)"
+     (tla/batch-update conn "insert into bass_line(bass_line_id, bar_cnt, bass_line_desc) values (?, ?, ?)"
           [[id cnt desc]])
-     (batch-update conn "insert into bass_line_chord (bass_line_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)"
+     (tla/batch-update conn "insert into bass_line_chord (bass_line_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)"
           chords)
-     (batch-update conn "insert into bass_line_note (bass_line_id, order_num, note_cd, note_dur_num) values (?, ?, ?, ?)"
+     (tla/batch-update conn "insert into bass_line_note (bass_line_id, order_num, note_cd, note_dur_num) values (?, ?, ?, ?)"
           notes)))
 
 (def basslinedb [
@@ -339,27 +339,27 @@
 ;---------------------------------------------------
 ; Bass patterns available from the chords
 ;---------------------------------------------------
-(def embedded-bass-db {
+(def embedded-bass-db1 {
     "bass-none" (fn [_ _ _] nil)
     "bass-1"    (fn [_ beat [r _ _]]  (case beat 1 r nil))
 
     ; ascending
     "bass-15"   (fn [_ beat [r _ n5]]  (case beat 1 r 3 n5 nil))
-    "bass-1234" (fn [_ beat [r n3 n5]] (case beat 1 r 2 (+ 2 r) 3 n3 4 (inc n3)))
+    "bass-1234" (fn [_ beat [r n3 _]] (case beat 1 r 2 (+ 2 r) 3 n3 4 (inc n3)))
     "bass-1235" (fn [_ beat [r n3 n5]] (case beat 1 r 2 (+ 2 r) 3 n3 4 n5))
 
     ; descending
-    "bass-4321" (fn [_ beat [r n3 n5]] (case beat 1 (inc n3) 2 n3  3 (+ 2 r) 4 r))
+    "bass-4321" (fn [_ beat [r n3 _]] (case beat 1 (inc n3) 2 n3  3 (+ 2 r) 4 r))
     "bass-5321" (fn [_ beat [r n3 n5]] (case beat 1 n5       2 n3  3 (+ 2 r) 4 r))
 })
 
 (defn bass-8bar [ptrn bar beat chord]
     (let [k (nth ptrn (mod (dec bar) 8))
-          f (embedded-bass-db k)]
+          f (embedded-bass-db1 k)]
        (f bar beat chord)))
     
 (def embedded-bass-db
-    (assoc embedded-bass-db
+    (assoc embedded-bass-db1
           "bass-15-8"  (partial bass-8bar ["bass-15" "bass-15" "bass-15" "bass-15" "bass-15"   "bass-15" "bass-15" "bass-5321"])
           "bass-15-68" (partial bass-8bar ["bass-15" "bass-15" "bass-15" "bass-15" "bass-5321" "bass-15" "bass-15" "bass-5321"])
           "bass-ud2"   (partial bass-8bar ["bass-1234" "bass-1235" "bass-5321" "bass-4321" "bass-1234" "bass-1235" "bass-5321" "bass-4321"])

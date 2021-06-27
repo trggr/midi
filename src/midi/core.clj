@@ -1,7 +1,7 @@
 (ns midi.core
-   (:require [clojure.string :as str])
-   (:use [midi.timlib])
-   (:use [midi.dbload]))
+   (:require [clojure.string :as str]
+             [midi.timlib :as tla]
+             [midi.dbload :as db :refer [conn]])) 
 
 ; Length of quarter note
 (def ^:dynamic *qn*            96)
@@ -30,8 +30,7 @@
    (let [chord-vel 50
          bass-vel  80
          tc        (* *qn* (+ (* bar 4) (dec beat)))
-         vel       (* chord-vel ({1 0.0 2 0.7 3 0.2 4 0.7} beat))
-         chord     (chorddb chord-nm)
+         chord     (db/chorddb chord-nm)
          bass      (bassf bar beat chord)
          bass      (when (not (nil? bass))
                       [[tc *bass-channel* (- bass 12) bass-vel]])
@@ -40,8 +39,6 @@
          rc        (concat rc 
                            (map (fn [[t c n _]] [(+ t (* 1 *qn*) -1) c n 0]) rc))]
      rc))
-
-(defn third [x] (nth x 2))
 
 ; 1. Place the roots of the indicated chords on beats 1 and 3 to create the skeleton
 ; of the bass line. As far as possible, select the root notes so that the interval 
@@ -72,8 +69,7 @@
            :else        n3)))
 
 (defn tcbass [tick bass]
-   (let [chord-vel 50
-         bass-vel  120
+   (let [bass-vel  120
          tc        (+ (* *qn* 4) (* *qn* tick))
          x (- bass 12)]
       [[tc             *bass-channel* x bass-vel]
@@ -81,7 +77,7 @@
     
 (defn raw-chords
   ([beats]
-      (raw-chords beats (embedded-bass-db "bass-15")))
+      (raw-chords beats (db/embedded-bass-db "bass-15")))
   ([beats bassf]
       (mapcat #(expand-chord % bassf) beats)))
 
@@ -163,11 +159,11 @@
                from rc
                where chord_id is not null
                order by bar_id, beat_id"
-        beats  (cursor conn query [(str/upper-case song-name)])]
+        beats  (tla/cursor conn query [(str/upper-case song-name)])]
      (map (fn [[bar beat chord]] [bar beat (keyword chord)]) (rest beats))))
       
 (defn expand-bass-line [bar bassline transp vel]
-  (let [notes (cursor conn
+  (let [notes (tla/cursor db/conn
                       "select n.midi_num, b.note_dur_num
                        from bass_line_note b join note n on (n.note_cd = b.note_cd)
                        where b.bass_line_id = :1 order by order_num"
@@ -197,10 +193,10 @@
         (= c p)   [[p (inc n)] acc]
         :else     [[c 1]       (conj acc x)]))
 
-(defn synthetic-bass [[a n] [b m]]
-  (let [cha     (chorddb a)
-        chb     (if (nil? b) cha (chorddb b))
-        [a1 a3 a5 a7]    cha
+(defn synthetic-bass [[a n] [b _]]
+  (let [cha     (db/chorddb a)
+        chb     (if (nil? b) cha (db/chorddb b))
+        [a1 a3 a5 _]    cha
         rc      (cond (= n 1) [a1]
                       (= n 2) [a1 (fill24 cha chb)]
                       (= n 4) [a1 (dec a1) (- a1 3) (- a1 5)]
@@ -209,13 +205,13 @@
       rc))
 
 (defn bass-patterns [songid]
-  (let [ptrns  (cursor conn
+  (let [ptrns  (tla/cursor db/conn
                        (str "select bass_line_id, beg_bar_id, end_bar_id, (transp_num - 24) transp_num "
                             "from bass_line_bar_v "
                             "where song_id = ? "
                             "order by beg_bar_id")
                         [(str songid)])
-        maxbar (-> (cursor conn "select max(bar_id) bar from bar where song_id = ?" [(str songid)]) second first)
+        maxbar (-> (tla/cursor db/conn "select max(bar_id) bar from bar where song_id = ?" [(str songid)]) second first)
         [info rc] (reduce alloc-bass
                           [(into (sorted-map) (zipmap (range 1 (inc maxbar)) (repeat nil)))
                            []]
@@ -240,29 +236,29 @@
    (mapcat #(expand-drum pattern note %) bars))
 
 (defn raw-drums [pattern bars]
-   (mapcat #(single-drum (pattern %) (notedb %) bars) (keys pattern)))
+   (mapcat #(single-drum (pattern %) (db/notedb %) bars) (keys pattern)))
 
 (defn compose-bass [bass-ty song-id beats]
   (case bass-ty
         "synthetic" (let [xs (second (reduce compress-beats [nil []] beats))
-                           ys (mapcat2 synthetic-bass xs)]
+                          ys (tla/mapcat2 synthetic-bass xs)]
                         (apply concat (map-indexed tcbass ys)))
         "patterns"  (bass-patterns song-id)
         nil))
 
 (defn embedded-bass [bass-ty-cd]
-   (embedded-bass-db (if (contains? embedded-bass-db bass-ty-cd) bass-ty-cd "bass-none" )))
+   (db/embedded-bass-db (if (contains? db/embedded-bass-db bass-ty-cd) bass-ty-cd "bass-none" )))
         
 (defn compose-drums [drum-ptrn-cd beats]
    (let [maxbar (inc (reduce max (map first beats)))
-         drums (raw-drums (drum-ptrn-db drum-ptrn-cd) (range 1 maxbar))
-         intro (raw-drums (drum-ptrn-db "drums-intro") [0])]
+         drums (raw-drums (db/drum-ptrn-db drum-ptrn-cd) (range 1 maxbar))
+         intro (raw-drums (db/drum-ptrn-db "drums-intro") [0])]
       (concat intro drums)))
       
 (defn play-song [song-nm]
    (let [[song-id bpm drum-ptrn-cd bass-ty-cd] 
-            (-> (cursor conn "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd from song where upper(song_nm) = ?" [song-nm]) second)
-         beats       (get-beats conn song-nm)
+            (-> (tla/cursor db/conn "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd from song where upper(song_nm) = ?" [song-nm]) second)
+         beats       (get-beats db/conn song-nm)
          chords      (raw-chords beats (embedded-bass bass-ty-cd))                                        
          drums       (compose-drums drum-ptrn-cd beats)
          bass        (compose-bass bass-ty-cd song-id beats)
@@ -270,7 +266,7 @@
          _           (println m)
          info        (if (identity m) (m :bass) (apply sorted-map (interleave (range 1 100) (repeat bass-ty-cd))))]
      (println (format "song=%s, bpm=%d, drum-pattern-cd=%s, bass-ty-cd=%s" song-nm bpm drum-ptrn-cd bass-ty-cd))
-     (view (map (fn [[bar v] c] [bar v (pr-str c)])
+     (tla/view (map (fn [[bar v] c] [bar v (pr-str c)])
                 info
                 (partition 4 (map (fn [[_ _ c]] c) beats))))
      (-> (concat chords bass drums) (ttape bpm) mtape play-mtape)))
