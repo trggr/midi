@@ -2,14 +2,18 @@
 ; https://www.fileformat.info/format/midi/corion.htm
 ; http://www.music.mcgill.ca/~ich/classes/mumt306/StandardMIDIfileformat.html
 
+(ns midi.file
+  (:require [clojure.java.io :as io]
+            [clojure.pprint :as pp]))
+
 (defn slurp-bytes [x]
   (with-open [out (java.io.ByteArrayOutputStream.)]
     (clojure.java.io/copy (clojure.java.io/input-stream x) out)
     (.toByteArray out)))
 
 (defn slice [b start end]
-   (for [i (range start end)]
-      (nth b i)))
+  (for [i (range start end)]
+    (nth b i)))
 
 (def s (slurp-bytes "FALL_01.MID"))
 
@@ -18,11 +22,11 @@
 ; (def hdr (first tracks))
 
 (defn bnum [data]
-  (reduce bit-or 
-         (map-indexed
-             (fn [i x]
-                (bit-shift-left (bit-and x 0x0FF) (* 8 (- (count data) i 1))))
-             data)))
+  (reduce bit-or
+          (map-indexed
+           (fn [i x]
+             (bit-shift-left (bit-and x 0x0FF) (* 8 (- (count data) i 1))))
+           data)))
 
 ; begin at start, and find the beginning of the next midi track which starts with "Mtrk"
 (defn findnexttrk [s start]
@@ -56,7 +60,7 @@
 (defn stop [text]
   (throw (Exception. text)))
 
-; read variable integer from Midi file. 
+; read variable integer from Midi file.
 (defn read-varint [s p]
    (println "in read-varint" p)
    (if (>= p (count s))
@@ -96,7 +100,7 @@
          0x06 (partial ff-meta-len-txt "Marker")
          0x20 (fn [xs p] (let [[_ cc] (slice xs p (+ 2 p))]
                              ["Channel prefix" [cc] (+ 2 p)]))
-         0x2F (fn [xs p] ["End of track" "" (inc p)])
+         0x2F (fn [_ p] ["End of track" "" (inc p)])
          0x51 (fn [xs p] (let [[_ tttttt] (slice xs p (+ 4 p))]
                              ["Set tempo" [tttttt] (+ 4 p)]))
          0x54 (fn [xs p] (let [[_ hr mn se fr ff] (slice xs p (+ 6 p))]
@@ -106,27 +110,26 @@
          0x59 (fn [xs p] (let [[_ sf mi] (slice xs p (+ 3 p))]
                              ["Key signature" [sf mi] (+ 3 p)]))}})
 
-(parsetrack events2)
-
 (defn parsetrack [s]
-   (loop [i 0, acc []]
-      (if (>= i (count s))
-          acc
-          (let [[val q] (read-varint s i)
-                p       (+ i q 1)
-                event   (bnum (vector (nth s p)))
-                p       (inc p)
-                ty      (bnum (vector (nth s p)))
-                p       (inc p)
-                f       (get-in semantic [event ty])]
-             (if (nil? f)
-                 (do 
-                    (pprint acc)
-                    (println (map #(format "%x" %) (slice s (+ i q 1) (count s))))
-                    (stop (format " unsupported: event=%x(%d), ty=%x(%d), val=%d, q=%d, i=%d" event event ty ty val q i)))
-                 (let [[desc val pos :as whole] (f s p)]
-                    (recur pos (conj acc whole))))))))
+  (loop [i 0, acc []]
+    (if (>= i (count s))
+      acc
+      (let [[val q] (read-varint s i)
+            p       (+ i q 1)
+            event   (bnum (vector (nth s p)))
+            p       (inc p)
+            ty      (bnum (vector (nth s p)))
+            p       (inc p)
+            f       (get-in semantic [event ty])]
+        (if (nil? f)
+          (do
+            (pp/pprint acc)
+            (println (map #(format "%x" %) (slice s (+ i q 1) (count s))))
+            (stop (format " unsupported: event=%x(%d), ty=%x(%d), val=%d, q=%d, i=%d" event event ty ty val q i)))
+          (let [[_ _ pos :as whole] (f s p)]
+            (recur pos (conj acc whole))))))))
 
+; (parsetrack events2)
 
 (def chunks (getchunks s 0))
 (def header (chunk->header (first chunks)))
@@ -134,8 +137,5 @@
 
 (every? identity
         (map (fn [{:keys [sig len events]}]
-                (and (= sig "MTrk") (= len (count events))))
+               (and (= sig "MTrk") (= len (count events))))
              tracks))
-
-
-

@@ -1,7 +1,7 @@
-(ns midi.core
+(ns midi.midifile
    (:require [clojure.string :as str]
              [midi.timlib :as tla]
-             [midi.dbload :as db])) 
+             [midi.dbload :as db]))
 
 ; Length of quarter note
 (def ^:dynamic *qn*            96)
@@ -18,15 +18,15 @@
           acc
           (let [[[tc cmd val] & others] xs]
               (cond (= :set-tempo cmd)
-                           (recur tc   ppq  val acc others)
+                    (recur tc   ppq  val acc others)
                     (= :time-signature cmd)
-                        (let [x (* (first val) (nth val 2) tempo-correction)] 
-                          (recur tc  x tempo acc others))
+                    (let [x (* (first val) (nth val 2) tempo-correction)]
+                      (recur tc  x tempo acc others))
                     :else
-                        (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
-                           (recur tc ppq tempo (conj acc [x val]) others))))))))
+                    (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
+                      (recur tc ppq tempo (conj acc [x val]) others))))))))
 
-(defn expand-chord 
+(defn expand-chord
   "Expands chord into notes for a given bar, beat, and bass fn"
   [[bar beat chord-nm] bassf]
    (let [chord-vel 50
@@ -38,37 +38,37 @@
                       [[tc *bass-channel* (- bass 12) bass-vel]])
          rc        (concat (map #(vector tc *chord-channel* % chord-vel) (rest chord))
                            bass)
-         rc        (concat rc 
+         rc        (concat rc
                            (map (fn [[t c n _]] [(+ t (* 1 *qn*) -1) c n 0]) rc))]
      rc))
 
 ; 1. Place the roots of the indicated chords on beats 1 and 3 to create the skeleton
-; of the bass line. As far as possible, select the root notes so that the interval 
-; between them is minimized (e.g., choose a fourth up rather than a fifth down, 
-; a third down rather than a sixth up, etc.). 
+; of the bass line. As far as possible, select the root notes so that the interval
+; between them is minimized (e.g., choose a fourth up rather than a fifth down,
+; a third down rather than a sixth up, etc.).
 ;
 ; 2. Fill in beats 2 and 4 according to the interval between the notes on beats 1 and 3:
-; a. If  the  roots  are  separated  by  a  third,  put  a  diatonic  passing  tone  between  them. 
+; a. If  the  roots  are  separated  by  a  third,  put  a  diatonic  passing  tone  between  them.
 ;    In measure 1 we insert E between F and D, and from measure 2 to measure 3,
 ;    we insert Bb between C and A.
 ; b. If  the  roots  are  separated  by  a  fourth  or  fifth,  fill  out  the  interval
 ;    with  a  tone drawn from the first chord. In measure 1 we insert F between D and the G
 ;    in the following measure, and in measure 2 we insert D between G and C.
 ; c. If the roots are separated by a major or minor second, repeat the bass note as shown in measures 3 and 4.
-;    As can be seen in measure 4, an octave leap can  be  used  instead  of  a  repetition.  
-;    This  move  is  sometimes  used  reposition  a  bass  line  that  is  approaching  either  
-;    the  lower  or  the  upper  extreme of the range of the instrument. 
-; d. If a chord is held for the entire duration of a measure, the bass line can be filled out 
-;    with a scalewise line from the root of the chord down to the fifth. This is done under the FÎ chord in measure 5. 
+;    As can be seen in measure 4, an octave leap can  be  used  instead  of  a  repetition.
+;    This  move  is  sometimes  used  reposition  a  bass  line  that  is  approaching  either
+;    the  lower  or  the  upper  extreme of the range of the instrument.
+; d. If a chord is held for the entire duration of a measure, the bass line can be filled out
+;    with a scalewise line from the root of the chord down to the fifth. This is done under the FÎ chord in measure 5.
 
 (defn fill24 [x y]
   (let [[a n3] x
         [b]    y
         sep (Math/abs (- a b))]
-     (cond (<= 1 sep 2) a
-           (<= 3 sep 4) (+ a 2) 
-           (<= 5 sep 7) n3
-           :else        n3)))
+    (cond (<= 1 sep 2) a
+          (<= 3 sep 4) (+ a 2)
+          (<= 5 sep 7) n3
+          :else        n3)))
 
 (defn tcbass [tick bass]
    (let [bass-vel  120
@@ -76,7 +76,7 @@
          x (- bass 12)]
       [[tc             *bass-channel* x bass-vel]
        [(+ tc *qn* -1) *bass-channel* x 0]]))
-    
+
 (defn raw-chords
   ([beats]
       (raw-chords beats (db/embedded-bass-db "bass-15")))
@@ -93,7 +93,7 @@
 ;  3: data        varies    For :set-tempo is a single integer representing number of microseconds per quarter note
 ;                           For :time-signature array of four matching to MIDI's time signature event
 ;                           For :data - array of notes played during this MIDI tick
-;                              each note is [timecode, channel, note, velocity]. 
+;                              each note is [timecode, channel, note, velocity].
 ; Example:
 ;  [0	:set-tempo	434464
 ;  [0	:time-signature	[4 2 24 8]
@@ -163,7 +163,7 @@
                order by bar_id, beat_id"
         beats  (tla/cursor conn query [(str/upper-case song-name)])]
      (map (fn [[bar beat chord]] [bar beat (keyword chord)]) (rest beats))))
-      
+
 (defn expand-bass-line [bar bassline transp vel]
   (let [notes (tla/cursor db/conn
                       "select n.midi_num, b.note_dur_num
@@ -250,18 +250,18 @@
 
 (defn embedded-bass [bass-ty-cd]
    (db/embedded-bass-db (if (contains? db/embedded-bass-db bass-ty-cd) bass-ty-cd "bass-none" )))
-        
+
 (defn compose-drums [drum-ptrn-cd beats]
    (let [maxbar (inc (reduce max (map first beats)))
          drums (raw-drums (db/drum-ptrn-db drum-ptrn-cd) (range 1 maxbar))
          intro (raw-drums (db/drum-ptrn-db "drums-intro") [0])]
       (concat intro drums)))
-      
+
 (defn play-song [song-nm]
-   (let [[song-id bpm drum-ptrn-cd bass-ty-cd] 
+   (let [[song-id bpm drum-ptrn-cd bass-ty-cd]
             (-> (tla/cursor db/conn "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd from song where upper(song_nm) = ?" [song-nm]) second)
          beats       (get-beats db/conn song-nm)
-         chords      (raw-chords beats (embedded-bass bass-ty-cd))                                        
+         chords      (raw-chords beats (embedded-bass bass-ty-cd))
          drums       (compose-drums drum-ptrn-cd beats)
          bass        (compose-bass bass-ty-cd song-id beats)
          m           (meta bass)
@@ -284,7 +284,6 @@
        (play-song song)))
 
 
-(pla)
 ;(def synth    (javax.sound.midi.MidiSystem/getSynthesizer))
 ;#'midi.core/synth
 ;midi.core=> (.getMaxPolyphony synth)
@@ -293,7 +292,7 @@
 ;#'midi.core/sb
 ;midi.core=> sb
 ;#object[com.sun.media.sound.SF2Soundbank 0x53bb91e9 "com.sun.media.sound.SF2Soundbank@53bb91e9"]
-;midi.core=> (.getResources sb)                                                                                                             
+;midi.core=> (.getResources sb)
 ;#object["[Ljavax.sound.midi.SoundbankResource;" 0x78c350f "[Ljavax.sound.midi.SoundbankResource;@78c350f"]
 ;midi.core=> (.getVendor sb)
 ;"Generated"
@@ -310,8 +309,8 @@
 ;(use 'clojure.reflect)
 ;(map println (:members (reflect javax.sound.midi.MidiSystem)))
 ;
-;(->> (reflect javax.sound.midi.MidiSystem) 
-;     :members 
+;(->> (reflect javax.sound.midi.MidiSystem)
+;     :members
 ;     (filter #(= (:name %) "getSoundbank")))
 ;
 ;
@@ -325,4 +324,3 @@
 ;
 ;(def gsb (javax.sound.midi.MidiSystem/getSoundbank g))
 ;(.loadAllInstruments synth gsb)
-

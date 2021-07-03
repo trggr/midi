@@ -1,89 +1,88 @@
-(ns midi.core)
+(ns midi.core
+  (:require [clojure.string :as str]))
 
 (defn ascii [n]
-   (if (<= 0 n 255) (char n) \?))
+  (if (<= 0 n 255) (char n) \?))
 
-(def meta-message-type {
-       0x03 [:track-name       #(apply str (map ascii %))]
-       0x04 [:instrument-name  #(apply str (map ascii %))]
-       0x05 [:lyrics           #(apply str (map ascii %))]
-       0x06 [:marker           #(apply str (map ascii %))]
-       0x20 [:channel-prefix   #(apply str (map ascii %))]
-       0x2F [:end-of-track     #(apply str (map ascii %))]
-       0x51 [:set-tempo        (fn [[a b c]] (+ (* a 65536) (* b 256) c))] ; microseconds per quarter note
-       0x54 [:smpte-offset     #(apply str (map ascii %))]
-       0x58 [:time-signature   (fn [[nn dd ppq bb]] [nn dd ppq bb])]
-       0x59 [:key-signature    #(apply str (map ascii %))]})
+(def meta-message-type {0x03 [:track-name       #(apply str (map ascii %))]
+                        0x04 [:instrument-name  #(apply str (map ascii %))]
+                        0x05 [:lyrics           #(apply str (map ascii %))]
+                        0x06 [:marker           #(apply str (map ascii %))]
+                        0x20 [:channel-prefix   #(apply str (map ascii %))]
+                        0x2F [:end-of-track     #(apply str (map ascii %))]
+                        ; microseconds per quarter note
+                        0x51 [:set-tempo        (fn [[a b c]] (+ (* a 65536) (* b 256) c))]
+                        0x54 [:smpte-offset     #(apply str (map ascii %))]
+                        0x58 [:time-signature   (fn [[nn dd ppq bb]] [nn dd ppq bb])]
+                        0x59 [:key-signature    #(apply str (map ascii %))]})
 
-(def short-message-status {
-       0xF1 :midi-time-code
-       0xF2 :song-position-pointer
-       0xF3 :song-select
-       0xF6 :tune-request
-       0xF7 :end-of-exclusive
-       0xF8 :timing-clock
-       0xFA :start
-       0xFB :continue
-       0xFC :stop
-       0xFE :active-sensing
-       0xFF :system-reset
-       0x80 :note-off
-       0x90 :note-on
-       0xA0 :poly-pressure
-       0xB0 :control-change
-       0xC0 :program-change
-       0xD0 :channel-pressure
-       0xE0 :pitch-bend})
+(def short-message-status {0xF1 :midi-time-code
+                           0xF2 :song-position-pointer
+                           0xF3 :song-select
+                           0xF6 :tune-request
+                           0xF7 :end-of-exclusive
+                           0xF8 :timing-clock
+                           0xFA :start
+                           0xFB :continue
+                           0xFC :stop
+                           0xFE :active-sensing
+                           0xFF :system-reset
+                           0x80 :note-off
+                           0x90 :note-on
+                           0xA0 :poly-pressure
+                           0xB0 :control-change
+                           0xC0 :program-change
+                           0xD0 :channel-pressure
+                           0xE0 :pitch-bend})
 
-(def division-type {
-       javax.sound.midi.Sequence/PPQ          "PPQ"
-       javax.sound.midi.Sequence/SMPTE_24     "SMPTE_24"
-       javax.sound.midi.Sequence/SMPTE_25     "SMPTE_25"
-       javax.sound.midi.Sequence/SMPTE_30DROP "SMPTE_30DROP"
-       javax.sound.midi.Sequence/SMPTE_30     "SMPTE_30"})
+
+(def division-type {javax.sound.midi.Sequence/PPQ          "PPQ"
+                    javax.sound.midi.Sequence/SMPTE_24     "SMPTE_24"
+                    javax.sound.midi.Sequence/SMPTE_25     "SMPTE_25"
+                    javax.sound.midi.Sequence/SMPTE_30DROP "SMPTE_30DROP"
+                    javax.sound.midi.Sequence/SMPTE_30     "SMPTE_30"})
 
 (defn slice [b start end]
-   (for [i (range start end)]
-      (nth b i)))
+  (for [i (range start end)]
+    (nth b i)))
 
 (defn message-data [m]
-   (cond (instance? javax.sound.midi.MetaMessage m)
-             (let [d       (.getData m)
-                   ty      (.getType m)
-                   [msg f] (meta-message-type ty)
-                   data    (slice d 0 (count d))]
-                {:event :meta,
-                 :ty    ty,
-                 :msg   msg,
-                 :data  (map #(keyword (format "%02X" %)) data)
-                 :val   (when-not (nil? f) (f data))})
-         (instance? javax.sound.midi.ShortMessage m)
-                {:event :short,
-                 :ch  (.getChannel m),
-                 :cmd (short-message-status (.getCommand m))
-                 :d1  (.getData1 m)
-                 :d2  (.getData2 m)
-                }
-         (instance? javax.sound.midi.ShortMessage m)
-                {:event :sysex}
-         :else
-                {:event :unknown}))
-              
+  (cond (instance? javax.sound.midi.MetaMessage m)
+        (let [d       (.getData m)
+              ty      (.getType m)
+              [msg f] (meta-message-type ty)
+              data    (slice d 0 (count d))]
+          {:event :meta
+           :ty    ty
+           :msg   msg
+           :data  (map #(keyword (format "%02X" %)) data)
+           :val   (when-not (nil? f) (f data))})
+        (instance? javax.sound.midi.ShortMessage m)
+        {:event :short
+         :ch  (.getChannel m)
+         :cmd (short-message-status (.getCommand m))
+         :d1  (.getData1 m)
+         :d2  (.getData2 m)}
+        (instance? javax.sound.midi.ShortMessage m)
+        {:event :sysex}
+        :else
+        {:event :unknown}))
+
 (defn event-info [e]
-   (let [tick   (.getTick e)
-         msg    (.getMessage e)
-         status (keyword (format "%02X" (.getStatus msg)))
-         len    (.getLength msg)]
-     (merge {:tick tick, :status status :len len}
-            (message-data msg))))
+  (let [tick   (.getTick e)
+        msg    (.getMessage e)
+        status (keyword (format "%02X" (.getStatus msg)))
+        len    (.getLength msg)]
+    (merge {:tick tick, :status status :len len}
+           (message-data msg))))
 
 (defn get-events [track]
-     (map #(.get track %) (range (.size track))))
+  (map #(.get track %) (range (.size track))))
 
-(defn deu [xs]  
-   (println (clojure.string/join \newline
-                (for [row xs]
-                    (clojure.string/join \tab row)))))
+(defn deu [xs]
+  (println (str/join \newline
+                     (for [row xs]
+                       (str/join \tab row)))))
 
 (defn view
   ([coll t d] (deu (take t (drop d coll))))
@@ -91,30 +90,30 @@
   ([coll]     (view coll 40 0)))
 
 (defn track-info [track]
-   (mapv event-info (get-events track)))
+  (mapv event-info (get-events track)))
 
 (defn note-player [instr]
-   (let [synth    (javax.sound.midi.MidiSystem/getSynthesizer)
-         _        (.open synth)
-         channels (-> synth .getChannels)
-         i        (-> synth .getDefaultSoundbank .getInstruments (nth instr))]
+  (let [synth    (javax.sound.midi.MidiSystem/getSynthesizer)
+        _        (.open synth)
+        channels (-> synth .getChannels)
+        i        (-> synth .getDefaultSoundbank .getInstruments (nth instr))]
 ;      (println "Playing" (.getName i))
-      (.loadInstrument synth i)
+    (.loadInstrument synth i)
 ;      (.programChange c instr)
-      (fn [c note vol]
-         (let [ch (nth channels c)]
-            (.noteOn ch note vol)))))
+    (fn [c note vol]
+      (let [ch (nth channels c)]
+        (.noteOn ch note vol)))))
 
 (defn play [tape]
-   (let [play-note (note-player 1)]
-      (doseq [[tc notes] tape]
-         (Thread/sleep tc)
+  (let [play-note (note-player 1)]
+    (doseq [[tc notes] tape]
+      (Thread/sleep tc)
 ;         (print tc)
-         (doseq [[tick ch note vel] notes]
+      (doseq [[_ ch note vel] notes]
 ;            (print " " tick ch note vel)
-            (play-note ch note vel))
+        (play-note ch note vel))
 ;         (println)
-       )))
+      )))
 
 ; Tick Tape format:
 ;     Field       Type      Description
@@ -124,7 +123,7 @@
 ;  3: data        varies    For :set-tempo is a single integer representing number of microseconds per quarter note
 ;                           For :time-signature array of four matching to MIDI's time signature event
 ;                           For :data - array of notes played during this MIDI tick
-;                              each note is [timecode, channel, note, velocity]. 
+;                              each note is [timecode, channel, note, velocity].
 ; Example:
 ;  [0	:set-tempo	434464
 ;  [0	:time-signature	[4 2 24 8]
@@ -135,40 +134,39 @@
 ;  [489	:data	        [[489 8 86 0] [489 8 89 0]]
 ;  [492	:data	        [[492 8 89 60] [492 8 86 63]]
 (defn make-ticktape [midi]
-   (let [ts     (->> (midi :tracks) flatten)
-         t1     (concat (->> (filter #(= :note-on (:cmd %))  ts) (map (juxt :tick :ch :d1 :d2)))
-                        (->> (filter #(= :note-off (:cmd %)) ts) (map (juxt :tick :ch :d1 (constantly 0)))))
-         notes  (->> t1 (group-by first) (map (fn [[t n]] [t :data n])))
-         tempos (->> (filter #(contains? #{:set-tempo :time-signature} (:msg %)) (first (midi :tracks))) (map (juxt :tick :msg :val)))
-         rc     (sort-by (juxt first second) (concat tempos notes))]
-           rc))
+  (let [ts     (->> (midi :tracks) flatten)
+        t1     (concat (->> (filter #(= :note-on (:cmd %))  ts) (map (juxt :tick :ch :d1 :d2)))
+                       (->> (filter #(= :note-off (:cmd %)) ts) (map (juxt :tick :ch :d1 (constantly 0)))))
+        notes  (->> t1 (group-by first) (map (fn [[t n]] [t :data n])))
+        tempos (->> (filter #(contains? #{:set-tempo :time-signature} (:msg %)) (first (midi :tracks))) (map (juxt :tick :msg :val)))
+        rc     (sort-by (juxt first second) (concat tempos notes))]
+    rc))
 
 (defn make-tape [ticktape tempo-correction]
-   (loop [prior 0, ppq 0, tempo 0, acc [], xs ticktape]
-       (if-not (seq xs)
-          acc
-          (let [[[tc cmd val] & others] xs]
-              (cond (= :set-tempo cmd)
-                        (do
-                           (println "set-tempo" val)
-                           (recur tc   ppq  val acc others))
-                    (= :time-signature cmd)
-                        (let [x (* (first val) (nth val 2))
-                              x (* x tempo-correction)
-                              _ (println "time-signature" x val)
-                              ]
-                           (recur tc  x tempo acc others))
-                    :else
-                        (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
-                           (recur tc ppq tempo (conj acc [x val]) others)))))))
+  (loop [prior 0, ppq 0, tempo 0, acc [], xs ticktape]
+    (if-not (seq xs)
+      acc
+      (let [[[tc cmd val] & others] xs]
+        (cond (= :set-tempo cmd)
+              (do
+                (println "set-tempo" val)
+                (recur tc   ppq  val acc others))
+              (= :time-signature cmd)
+              (let [x (* (first val) (nth val 2))
+                    x (* x tempo-correction)
+                    _ (println "time-signature" x val)]
+                (recur tc  x tempo acc others))
+              :else
+              (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
+                (recur tc ppq tempo (conj acc [x val]) others)))))))
 
 (defn parse-midi [sq]
   (let [nticks         (.getTickLength sq)                  ; duration of sequence in MIDI ticks
         nmcseconds     (.getMicrosecondLength sq)           ; duration of sequence in microseconds
         tick-duration  (/ (double nmcseconds) nticks 1000)  ; each tick in milliseconds
-        tracks         (.getTracks sq)] 
-    {:dur-in-ticks             nticks,
-     :dur-in-microseconds      nmcseconds,
+        tracks         (.getTracks sq)]
+    {:dur-in-ticks             nticks
+     :dur-in-microseconds      nmcseconds
      :tick-dur-in-milliseconds tick-duration
      :division-cd              (.getDivisionType sq)
      :division-nm              (division-type (.getDivisionType sq))
@@ -176,16 +174,13 @@
      :tracks                   (map track-info tracks)}))
 
 
-(doseq [p [
-           ; ["alliwant"  4]["nocturne"   4]["days12" 1] 
-           ; ["chesnuts"  1]["bohemian"   2]["santa"  4] 
+(doseq [p [; ["alliwant"  4]["nocturne"   4]["days12" 1]
+           ; ["chesnuts"  1]["bohemian"   2]["santa"  4]
            ; ["sothisisx" 1]["wonderland" 1]
 
-           ["alliwant"  4]["nocturne"   2]["days12" 1] 
-           ["chesnuts"  1]["bohemian"   4]["santa"  4] 
-           ["sothisisx" 2]["wonderland" 1]
-
-          ]]
+           ["alliwant"  4] ["nocturne"   2] ["days12" 1]
+           ["chesnuts"  1] ["bohemian"   4] ["santa"  4]
+           ["sothisisx" 2] ["wonderland" 1]]]
   (let [[file correction] p
         mfile    (java.io.File. (str file ".mid"))
         _        (println "Playing file" file)
@@ -193,12 +188,12 @@
         midi     (parse-midi sq)
         ticktape (make-ticktape midi)
         tape     (make-tape ticktape correction)]
-     (def debug-mfile    mfile)
-     (def debug-sq       sq)
-     (def debug-midi     midi)
-     (def debug-ticktape ticktape)
-     (def debug-tape     tape)
-     (play (take 60 tape))))
+    (def debug-mfile    mfile)
+    (def debug-sq       sq)
+    (def debug-midi     midi)
+    (def debug-ticktape ticktape)
+    (def debug-tape     tape)
+    (play (take 60 tape))))
 
 ; (T - PRIOR) - duration of a current note
 ; TEMPO       - microseconds per quarter note
@@ -207,4 +202,3 @@
 ; (T - PRIOR)     TEMPO
 ; ------------ *  -----   - milliseconds since last event
 ; 1000            PPQ
-
