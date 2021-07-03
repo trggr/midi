@@ -143,6 +143,8 @@
                     notedb2
                     notedb2))
 
+;; in MIDI each drum is is a certain note, which is added here into notedb
+;; for convenience
 (def notedb4 (merge notedb3 
                   {:metronome-click 33 :metronome-bell  34 :acoustic-bass-drum  35
                    :bass-drum-1     36 :side-stick      37 :acoustic-snare      38
@@ -165,41 +167,40 @@
 (def notedb (assoc notedb4 :_ 0))  ; silence
 
 (defn save-notes [conn notes]
-   (tla/batch-update conn (str "insert into note (note_cd, midi_num) values (?, ?)")
-      (for [[k v] notes] [(name k) v])))
+  (tla/batch-update conn (str "insert into note (note_cd, midi_num) values (?, ?)")
+                    (for [[k v] notes] [(name k) v])))
 
-(def chord-form {
-    :major [[1 5 8]      :Y]    
-    :+     [[1 4 9]      :Y]
-    :sus4  [[1 6 8]      :Y]
-    :6     [[1 5 8 11]   :Y]
-    :m6    [[1 4 8 11]   :N]
-    :7     [[1 5 8 11]   :Y]
-    :m     [[1 4 8]      :N]
-    :m7    [[1 4 8 11]   :N]
-    :maj7  [[1 5 8 12]   :Y]
-    :7sus4 [[1 6 8 11]   :Y]
-    :7+5   [[1 5 9 11]   :Y]
-    :7-5   [[1 5 7 11]   :Y]
-    :dim   [[1 4 7]       :N]
-    :dim7  [[1 4 7 11]    :N]
-    :m7-5  [[1 4 7 11]    :N]
-    :mmaj7 [[1 4 8 12]    :Y]
-    :mmaj9 [[1 5 8 12 15] :Y]
-    :m9    [[1 4 8 11 15] :N]
-    :9     [[1 5 8 11 15] :Y]
-    :9+5   [[1 5 9 11 15] :Y]
-    :9-5   [[1 5 7 11 15]    :Y]
-    :96    [[1 5 8 10 11 15] :Y]
-    :maj11 [[1 5 8 12 15 18] :Y]
-    :m11   [[1 4 8 11 15 18] :N]
-    :11    [[1 5 8 11 15 18] :Y]
-    :11-9  [[1 5 8 11 14 18] :Y]
-    :7-9   [[1 5 8 11 13]    :Y]
-    :maj13 [[-1 3 6 10]      :Y]
-    :m13   [[-2 3 6 10]      :N]
-    :13    [[-2 3 6 10]      :Y] ; same as m13?
-    :13-9  [[-2 2 6 10]      :Y]})
+(def chord-form {:major [[1 5 8]      :Y]
+                 :+     [[1 4 9]      :Y]
+                 :sus4  [[1 6 8]      :Y]
+                 :6     [[1 5 8 11]   :Y]
+                 :m6    [[1 4 8 11]   :N]
+                 :7     [[1 5 8 11]   :Y]
+                 :m     [[1 4 8]      :N]
+                 :m7    [[1 4 8 11]   :N]
+                 :maj7  [[1 5 8 12]   :Y]
+                 :7sus4 [[1 6 8 11]   :Y]
+                 :7+5   [[1 5 9 11]   :Y]
+                 :7-5   [[1 5 7 11]   :Y]
+                 :dim   [[1 4 7]       :N]
+                 :dim7  [[1 4 7 11]    :N]
+                 :m7-5  [[1 4 7 11]    :N]
+                 :mmaj7 [[1 4 8 12]    :Y]
+                 :mmaj9 [[1 5 8 12 15] :Y]
+                 :m9    [[1 4 8 11 15] :N]
+                 :9     [[1 5 8 11 15] :Y]
+                 :9+5   [[1 5 9 11 15] :Y]
+                 :9-5   [[1 5 7 11 15]    :Y]
+                 :96    [[1 5 8 10 11 15] :Y]
+                 :maj11 [[1 5 8 12 15 18] :Y]
+                 :m11   [[1 4 8 11 15 18] :N]
+                 :11    [[1 5 8 11 15 18] :Y]
+                 :11-9  [[1 5 8 11 14 18] :Y]
+                 :7-9   [[1 5 8 11 13]    :Y]
+                 :maj13 [[-1 3 6 10]      :Y]
+                 :m13   [[-2 3 6 10]      :N]
+                 :13    [[-2 3 6 10]      :Y] ; same as m13?
+                 :13-9  [[-2 2 6 10]      :Y]})
 
 (defn chord-notes [root form]
    (map #(+ -12 (notedb root) % -1) (first (chord-form form))))
@@ -339,19 +340,15 @@
 ;---------------------------------------------------
 ; Bass patterns available from the chords
 ;---------------------------------------------------
-(def embedded-bass-db1 {
-    "bass-none" (fn [_ _ _] nil)
-    "bass-1"    (fn [_ beat [r _ _]]  (case beat 1 r nil))
-
+(def embedded-bass-db1 {"bass-none" (fn [_ _ _] nil)
+                        "bass-1"    (fn [_ beat [r _ _]]  (case beat 1 r nil))
     ; ascending
-    "bass-15"   (fn [_ beat [r _ n5]]  (case beat 1 r 3 n5 nil))
-    "bass-1234" (fn [_ beat [r n3 _]] (case beat 1 r 2 (+ 2 r) 3 n3 4 (inc n3)))
-    "bass-1235" (fn [_ beat [r n3 n5]] (case beat 1 r 2 (+ 2 r) 3 n3 4 n5))
-
+                        "bass-15"   (fn [_ beat [r _ n5]]  (case beat 1 r 3 n5 nil))
+                        "bass-1234" (fn [_ beat [r n3 _]] (case beat 1 r 2 (+ 2 r) 3 n3 4 (inc n3)))
+                        "bass-1235" (fn [_ beat [r n3 n5]] (case beat 1 r 2 (+ 2 r) 3 n3 4 n5))
     ; descending
-    "bass-4321" (fn [_ beat [r n3 _]] (case beat 1 (inc n3) 2 n3  3 (+ 2 r) 4 r))
-    "bass-5321" (fn [_ beat [r n3 n5]] (case beat 1 n5       2 n3  3 (+ 2 r) 4 r))
-})
+                        "bass-4321" (fn [_ beat [r n3 _]] (case beat 1 (inc n3) 2 n3  3 (+ 2 r) 4 r))
+                        "bass-5321" (fn [_ beat [r n3 n5]] (case beat 1 n5       2 n3  3 (+ 2 r) 4 r))})
 
 (defn bass-8bar [ptrn bar beat chord]
     (let [k (nth ptrn (mod (dec bar) 8))
@@ -359,18 +356,28 @@
        (f bar beat chord)))
     
 (def embedded-bass-db
-    (assoc embedded-bass-db1
-          "bass-15-8"  (partial bass-8bar ["bass-15" "bass-15" "bass-15" "bass-15" "bass-15"   "bass-15" "bass-15" "bass-5321"])
-          "bass-15-68" (partial bass-8bar ["bass-15" "bass-15" "bass-15" "bass-15" "bass-5321" "bass-15" "bass-15" "bass-5321"])
-          "bass-ud2"   (partial bass-8bar ["bass-1234" "bass-1235" "bass-5321" "bass-4321" "bass-1234" "bass-1235" "bass-5321" "bass-4321"])
-          "bass-ud3"   (partial bass-8bar ["bass-1234" "bass-5321" "bass-1235" "bass-5321" "bass-1234" "bass-5321" "bass-1235" "bass-5321"])))
+  (assoc embedded-bass-db1
+         "bass-15-8"  (partial bass-8bar ["bass-15" "bass-15" "bass-15" "bass-15" "bass-15"   "bass-15" "bass-15" "bass-5321"])
+         "bass-15-68" (partial bass-8bar ["bass-15" "bass-15" "bass-15" "bass-15" "bass-5321" "bass-15" "bass-15" "bass-5321"])
+         "bass-ud2"   (partial bass-8bar ["bass-1234" "bass-1235" "bass-5321" "bass-4321" "bass-1234" "bass-1235" "bass-5321" "bass-4321"])
+         "bass-ud3"   (partial bass-8bar ["bass-1234" "bass-5321" "bass-1235" "bass-5321" "bass-1234" "bass-5321" "bass-1235" "bass-5321"])))
 
-;---------------------------------------------------
-; Drum patterns
-;---------------------------------------------------
-(def  drum-ptrn-db {
-       "drums-swing" {:ride-cymbal-1      [[70]  [70 12][0 12][40 12]  [70]  [70 12][0 12][40 12]]
-                      :closed-hi-hat      [[0]   [70]                  [0]   [70]]
-                      :acoustic-bass-drum [[90]  [70]                  [90]  [70]]}
-       "drums-intro" {:acoustic-snare     [[120] [120]                 [120]  [120]]}})
-
+;; Drum patterns. Each drum pattern covers one standard bar (4/4). The pattern
+;; can have one or more drums. Each item is [velocity duration], duration can be omitted.
+;; Velocity is measured in percents, duration is measured in standard note durations:
+;; 1 - whole note, 2 - half, 4 - quarter (default), 8 - eighth, 12 - tripplets
+;; basically answer the question: How many of these notes do you need
+;; to cover the whole bar?
+(def  drum-pattern-db
+  {"drums-swing"
+   {:ride-cymbal-1      [[70]
+                         [70 12] [0 12] [40 12]
+                         [70]
+                         [70 12] [0 12] [40 12]]
+    :closed-hi-hat      [[0] [70] [0]  [70]]
+    :acoustic-bass-drum [[90][70] [90] [70]]}
+   "drums-intro"
+   {:low-wood-block     [[60]
+                         [60]
+                         [60 8] [60 8]
+                         [60 8] [60 8]]}})

@@ -14,33 +14,34 @@
   ([ttape] (mtape ttape 1))
   ([ttape tempo-correction]
    (loop [prior 0, ppq 0, tempo 0, acc [], xs ttape]
-       (if-not (seq xs)
-          acc
-          (let [[[tc cmd val] & others] xs]
-              (cond (= :set-tempo cmd)
-                    (recur tc   ppq  val acc others)
-                    (= :time-signature cmd)
-                    (let [x (* (first val) (nth val 2) tempo-correction)]
-                      (recur tc  x tempo acc others))
-                    :else
-                    (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
-                      (recur tc ppq tempo (conj acc [x val]) others))))))))
+     (if-not (seq xs)
+       acc
+       (let [[[tc cmd val] & others] xs]
+         (cond (= :set-tempo cmd)
+               (recur tc   ppq  val acc others)
+               (= :time-signature cmd)
+               (let [x (* (first val) (nth val 2) tempo-correction)]
+                 (recur tc  x tempo acc others))
+               :else
+               (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
+                 (recur tc ppq tempo (conj acc [x val]) others))))))))
 
 (defn expand-chord
   "Expands chord into notes for a given bar, beat, and bass fn"
   [[bar beat chord-nm] bassf]
-   (let [chord-vel 50
-         bass-vel  80
-         tc        (* *qn* (+ (* bar 4) (dec beat)))
-         chord     (db/chorddb chord-nm)
-         bass      (bassf bar beat chord)
-         bass      (when (not (nil? bass))
-                      [[tc *bass-channel* (- bass 12) bass-vel]])
-         rc        (concat (map #(vector tc *chord-channel* % chord-vel) (rest chord))
-                           bass)
-         rc        (concat rc
-                           (map (fn [[t c n _]] [(+ t (* 1 *qn*) -1) c n 0]) rc))]
-     rc))
+  (let [chord-vel 50
+        bass-vel  80
+        tc        (* *qn* (+ (* bar 4) (dec beat)))
+        chord     (db/chorddb chord-nm)
+        bass      (bassf bar beat chord)
+        bass      (when (not (nil? bass))
+                    [[tc *bass-channel* (- bass 12) bass-vel]])
+        rc        (concat (map #(vector tc *chord-channel* % chord-vel)
+                               (rest chord))
+                          bass)
+        rc        (concat rc
+                          (map (fn [[t c n _]] [(+ t (* 1 *qn*) -1) c n 0]) rc))]
+    rc))
 
 ; 1. Place the roots of the indicated chords on beats 1 and 3 to create the skeleton
 ; of the bass line. As far as possible, select the root notes so that the interval
@@ -61,7 +62,8 @@
 ; d. If a chord is held for the entire duration of a measure, the bass line can be filled out
 ;    with a scalewise line from the root of the chord down to the fifth. This is done under the FÎ chord in measure 5.
 
-(defn fill24 [x y]
+(defn fill24
+  [x y]
   (let [[a n3] x
         [b]    y
         sep (Math/abs (- a b))]
@@ -71,17 +73,17 @@
           :else        n3)))
 
 (defn tcbass [tick bass]
-   (let [bass-vel  120
-         tc        (+ (* *qn* 4) (* *qn* tick))
-         x (- bass 12)]
-      [[tc             *bass-channel* x bass-vel]
-       [(+ tc *qn* -1) *bass-channel* x 0]]))
+  (let [bass-vel  120
+        tc        (+ (* *qn* 4) (* *qn* tick))
+        x (- bass 12)]
+    [[tc             *bass-channel* x bass-vel]
+     [(+ tc *qn* -1) *bass-channel* x 0]]))
 
 (defn raw-chords
   ([beats]
-      (raw-chords beats (db/embedded-bass-db "bass-15")))
+   (raw-chords beats (db/embedded-bass-db "bass-15")))
   ([beats bassf]
-      (mapcat #(expand-chord % bassf) beats)))
+   (mapcat #(expand-chord % bassf) beats)))
 
 ; Makes a tick tape from an array of raw notes each of which has a stucture:
 ;  [timecode channel note velocity]
@@ -106,16 +108,16 @@
 
 (defn ttape
    ([raw]     (ttape raw 120))
-;---------------------------------------------------
    ([raw bpm] (ttape raw bpm [4 2 24 8]))
    ([raw bpm signature]
      (let [xs (sort-by key (group-by first raw))
            ys (for [[tc data] xs] [tc :data data])]
-          (concat [[0 :set-tempo (/ 60000000 bpm)][0 :time-signature signature]] ys))))
+          (concat [[0 :set-tempo (/ 60000000 bpm)]
+                   [0 :time-signature signature]] ys))))
 
 (defn note-player [instruments]
-   (let [synth    (javax.sound.midi.MidiSystem/getSynthesizer)
-         _        (.open synth)
+   (let [synth (javax.sound.midi.MidiSystem/getSynthesizer)
+         _     (.open synth)
 ;        g (java.io.File. "/home/tim/Downloads/GeneralUser_GS_SoftSynth.sf2")
 ;        gsb (javax.sound.midi.MidiSystem/getSoundbank g)
 ;        _ (.loadAllInstruments synth gsb)
@@ -220,25 +222,40 @@
                           (rest ptrns))]
        (with-meta rc {:bass info})))
 
-(defn expand-drum [pattern note bar]
-   (loop [acc [],
-          tc  (+ (* *qn* bar 4)),
-          xs pattern]
-      (if (empty? xs)
-         acc
-         (let [[velpct dur] (first xs)
-               dur (or dur 4)
-               nexttc (+ tc (/ (* 4 *qn*) dur))]
-             (recur (conj (conj acc [tc *drums-channel* note (/ (* 100 velpct) 100)])
-                          [(dec nexttc) *drums-channel* note 0])
-                    nexttc
-                    (rest xs))))))
+(defn cover-single-bar-with-single-drum
+  "Takes drum-pattern, drum-note, and cover with them a given bar-num.
+   Drum pattern is a collection of [velocity duration] elements"
+  [drum-pattern drum-note bar-num]
+  (loop [rc []
+         tc (+ (* *qn* bar-num 4))
+         xs drum-pattern]
+    (if (empty? xs)
+      rc
+      (let [[vel dur] (first xs)
+            dur (or dur 4)
+            nxt (+ tc (/ (* 4 *qn*) dur))]
+        (recur (conj (conj rc
+                           [tc *drums-channel* drum-note (/ (* 100 vel) 100)])
+                     [(dec nxt) *drums-channel* drum-note 0])
+               nxt
+               (rest xs))))))
 
-(defn single-drum [pattern note bars]
-   (mapcat #(expand-drum pattern note %) bars))
+(defn cover-bars-with-drum
+  "Takes a single drum pattern, a drum-note, and applies it to given bars"
+  [drum-pattern drum-note bars]
+  (mapcat #(cover-single-bar-with-single-drum drum-pattern drum-note %)
+          bars))
 
-(defn raw-drums [pattern bars]
-   (mapcat #(single-drum (pattern %) (db/notedb %) bars) (keys pattern)))
+(defn cover-bars-with-drum-pattern
+  "Takes drums pattern and applies it to collection of bars. Each drum pattern
+   can have one or more drums"
+  [pattern bars]
+  (let [drums (keys pattern)]
+    (mapcat (fn [drum]
+              (cover-bars-with-drum (pattern drum)
+                                    (db/notedb drum)
+                                    bars))
+            drums)))
 
 (defn compose-bass [bass-ty song-id beats]
   (case bass-ty
@@ -249,31 +266,51 @@
         nil))
 
 (defn embedded-bass [bass-ty-cd]
-   (db/embedded-bass-db (if (contains? db/embedded-bass-db bass-ty-cd) bass-ty-cd "bass-none" )))
+   (db/embedded-bass-db (if (contains? db/embedded-bass-db bass-ty-cd)
+                          bass-ty-cd
+                          "bass-none")))
 
-(defn compose-drums [drum-ptrn-cd beats]
-   (let [maxbar (inc (reduce max (map first beats)))
-         drums (raw-drums (db/drum-ptrn-db drum-ptrn-cd) (range 1 maxbar))
-         intro (raw-drums (db/drum-ptrn-db "drums-intro") [0])]
-      (concat intro drums)))
+(defn compose-drums
+  "Covers all availble beats with a drum-pattern-nm. Covers zero beat with
+   metronom clicks"
+  [pattern-nm beats]
+   (let [maxbar (inc (reduce max (map first beats)))]
+     (concat (cover-bars-with-drum-pattern
+              (db/drum-pattern-db "drums-intro")
+              [0])
+             (cover-bars-with-drum-pattern
+              (db/drum-pattern-db pattern-nm)
+              (range 1 maxbar)))))
 
-(defn play-song [song-nm]
-   (let [[song-id bpm drum-ptrn-cd bass-ty-cd]
-            (-> (tla/cursor db/conn "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd from song where upper(song_nm) = ?" [song-nm]) second)
-         beats       (get-beats db/conn song-nm)
-         chords      (raw-chords beats (embedded-bass bass-ty-cd))
-         drums       (compose-drums drum-ptrn-cd beats)
-         bass        (compose-bass bass-ty-cd song-id beats)
-         m           (meta bass)
-         _           (println m)
-         info        (if (identity m) (m :bass) (apply sorted-map (interleave (range 1 100) (repeat bass-ty-cd))))]
-     (println (format "song=%s, bpm=%d, drum-pattern-cd=%s, bass-ty-cd=%s" song-nm bpm drum-ptrn-cd bass-ty-cd))
-     (tla/view (map (fn [[bar v] c] [bar v (pr-str c)])
-                info
-                (partition 4 (map (fn [[_ _ c]] c) beats))))
-     (-> (concat chords bass drums) (ttape bpm) mtape play-mtape)))
+(defn play-song
+  "Plays a song"
+  [song-nm]
+  (let [[song-id bpm drum-ptrn-cd bass-ty-cd]
+        (-> (tla/cursor db/conn "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd
+                                 from song
+                                 where upper(song_nm) = ?" [song-nm])
+            second)
+        beats       (get-beats db/conn song-nm)
+        chords      (raw-chords beats (embedded-bass bass-ty-cd))
+        drums       (compose-drums drum-ptrn-cd beats)
+        bass        (compose-bass bass-ty-cd song-id beats)
+        m           (meta bass)
+        _           (println m)
+        info        (if (identity m)
+                      (m :bass)
+                      (apply sorted-map (interleave (range 1 100) (repeat bass-ty-cd))))]
+    (println (format "song=%s, bpm=%d, drum-pattern-cd=%s, bass-ty-cd=%s"
+                     song-nm bpm drum-ptrn-cd bass-ty-cd))
+    (tla/view (map (fn [[bar v] c]
+                     [bar v (pr-str c)])
+                   info
+                   (partition 4 (map (fn [[_ _ c]] c) beats))))
+    (-> (concat chords bass drums)
+        (ttape bpm)
+        mtape
+        play-mtape)))
 
-(defn -main [& _]
+(defn main [& _]
    (doseq [song ["MISTY" "ALL THE THINGS YOU ARE" "AUTUMN LEAVES" "MEDIUM BLUES"
                  "ALONE TOGETHER"
                  "IN A SENTIMENTAL MOOD"
@@ -283,6 +320,7 @@
                  "LET IT BE"]]
        (play-song song)))
 
+(main)
 
 ;(def synth    (javax.sound.midi.MidiSystem/getSynthesizer))
 ;#'midi.core/synth
