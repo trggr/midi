@@ -84,7 +84,7 @@
              (bbc-ttc bbc bassfn))
            bbcs)))
 
-(defn ttape
+(defn combine-tracks-to-ttape
   "Makes a tick tape from an array of raw notes each of which has a stucture:
    [timecode channel note velocity]
    Tick Tape format:
@@ -105,8 +105,8 @@
    [480	:data	        [[480 8 89 61] [480 8 86 55]]
    [489	:data	        [[489 8 86 0] [489 8 89 0]]
    [492	:data	        [[492 8 89 60] [492 8 86 63]]"
-  ([tracks]     (ttape tracks 120))
-  ([tracks bpm] (ttape tracks bpm [4 2 24 8]))
+  ([tracks]     (combine-tracks-to-ttape tracks 120))
+  ([tracks bpm] (combine-tracks-to-ttape tracks bpm [4 2 24 8]))
   ([tracks bpm signature]
    (let [xs (sort-by key (group-by first tracks))
          ys (for [[tc data] xs] [tc :data data])]
@@ -197,16 +197,16 @@
       [(reduce (fn [a k] (assoc a k bassline)) timeline bars)
        (concat tape (expand-bass-line begin bassline transp vel))])))
 
-(defn bass-patterns [songid]
+(defn bass-patterns [id]
   (let [ptrns  (tla/cursor db/conn
                            (str "select bass_line_id, beg_bar_id, end_bar_id, (transp_num - 24) transp_num "
                                 "from bass_line_bar_v "
                                 "where song_id = ? "
                                 "order by beg_bar_id")
-                           [(str songid)])
+                           [(str id)])
         maxbar (-> (tla/cursor db/conn "select max(bar_id) bar
                                         from bar
-                                        where song_id = ?" [(str songid)]) second first)
+                                        where song_id = ?" [(str id)]) second first)
         [info rc] (reduce alloc-bass
                           [(into (sorted-map) (zipmap (range 1 (inc maxbar)) (repeat nil)))
                            []]
@@ -248,12 +248,12 @@
                                     bars))
             drums)))
 
-(defn tcbass [tick bass]
-  (let [bass-vel  120
-        on        (+ (* *qn* 4) (* *qn* tick))
+(defn beat-notes-to-timecode [beat note]
+  (let [vel 120
+        on  (+ (* *qn* 4) (* *qn* beat))
         off (+ on *qn* -1)
-        x (- bass 12)]
-    [[on *bass-channel* x bass-vel]
+        x (- note 12)]
+    [[on *bass-channel* x vel]
      [off *bass-channel* x 0]]))
 
 (defn count-chord-beats
@@ -273,13 +273,15 @@
 (defn walk-between-2-chords [[chord nbeats] [next-chord _]]
   (let [a (db/chorddb chord)
         b (db/chorddb (or next-chord chord))
-        [a1 a3 a5 _]    a]
-    (case nbeats
-      1 [a1]
-      2 [a1 (fill-in-beats-2-and-4 a b)]
-      4 [a1 (dec a1) (- a1 3) (- a1 5)]
-      8 [a1 (+ a1 2) a3 (- a5 2) a5 a3 (+ a1 2) a1]
-      [])))
+        [a1 a3 a5 _]    a
+        rc     (case nbeats
+                 1 [a1]
+                 2 [a1 (fill-in-beats-2-and-4 a b)]
+                 4 [a1 (dec a1) (- a1 3) (- a1 5)]
+                 8 [a1 (+ a1 2) a3 (- a5 2) a5 a3 (+ a1 2) a1]
+                 [])]
+    (println "walking between" chord next-chord "result" rc)
+    rc))
 
 (defn synthesize-bass-track
   "Takes BBCs, returns a synthesized bass track"
@@ -287,10 +289,10 @@
   (->> bbcs
        (reduce count-chord-beats [[] nil])
        first
-       (map (fn [x] (println "before-walk:" x) x))
+       ; (map (fn [x] (println "before-walk:" x) x))
        (tla/mapcat2 walk-between-2-chords)
-       (map (fn [x] (println "after-walk:" x) x))
-       (map-indexed tcbass)
+       ; (map (fn [x] (println "after-walk:" x) x))
+       (map-indexed beat-notes-to-timecode)
        (apply concat)))
 
 (defn make-drum-track
@@ -335,7 +337,7 @@
                    info
                    (partition 4 (map (fn [[_ _ c]] c) bbcs))))
     (-> (concat chord-track bass-track drum-track)
-        (ttape bpm)
+        (combine-tracks-to-ttape bpm)
         mtape
         play-mtape)))
 
