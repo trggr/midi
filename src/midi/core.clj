@@ -26,22 +26,24 @@
                (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
                  (recur tc ppq tempo (conj acc [x val]) others))))))))
 
-(defn expand-chord
-  "Expands chord into notes for a given bar, beat, and bass fn"
-  [[bar beat chord-nm] bassf]
-  (let [chord-vel 50
+(defn bbc->notes
+  "Takes bbc and bass function and returns corresponding notes"
+  [bbc bassf]
+  (let [[bar beat chord] bbc
+        chord-vel 50
         bass-vel  80
         tc        (* *qn* (+ (* bar 4) (dec beat)))
-        chord     (db/chorddb chord-nm)
+        chord     (db/chorddb chord)
         bass      (bassf bar beat chord)
         bass      (when (not (nil? bass))
                     [[tc *bass-channel* (- bass 12) bass-vel]])
-        rc        (concat (map #(vector tc *chord-channel* % chord-vel)
+        on        (concat (map #(vector tc *chord-channel* % chord-vel)
                                (rest chord))
                           bass)
-        rc        (concat rc
-                          (map (fn [[t c n _]] [(+ t (* 1 *qn*) -1) c n 0]) rc))]
-    rc))
+        off       (map (fn [[t c n _]]
+                         [(+ t (* 1 *qn*) -1) c n 0])
+                       on)]
+    (concat on off)))
 
 ; 1. Place the roots of the indicated chords on beats 1 and 3 to create the skeleton
 ; of the bass line. As far as possible, select the root notes so that the interval
@@ -80,41 +82,40 @@
      [(+ tc *qn* -1) *bass-channel* x 0]]))
 
 (defn make-chord-track
-  "Takes bbc and bass function f and returns a chord track"
-  ([bbc]
-   (make-chord-track bbc (db/chord-based-bass-db "bass-15")))
-  ([bbc f]
-   (mapcat #(expand-chord % f) bbc)))
-
-; Makes a tick tape from an array of raw notes each of which has a stucture:
-;  [timecode channel note velocity]
-; Tick Tape format:
-;     Field       Type      Description
-;     --------------------------------------------------------------------------------------
-;  1: MIDI tick   integer   Gradually increasing throughout the tape. Treat it as a timecode
-;  2: event-type  keyword   One of :set-tempo, :time-signature, or :data
-;  3: data        varies    For :set-tempo is a single integer representing number of microseconds per quarter note
-;                           For :time-signature array of four matching to MIDI's time signature event
-;                           For :data - array of notes played during this MIDI tick
-;                              each note is [timecode, channel, note, velocity].
-; Example:
-;  [0	:set-tempo	434464
-;  [0	:time-signature	[4 2 24 8]
-;  [384	:data	        [[384 2 70 50]]
-;  [477	:data	        [[477 2 98 74]]
-;  [479	:data	        [[479 2 101 78]]
-;  [480	:data	        [[480 8 89 61] [480 8 86 55]]
-;  [489	:data	        [[489 8 86 0] [489 8 89 0]]
-;  [492	:data	        [[492 8 89 60] [492 8 86 63]]
+  "Takes bbc and bassfn and returns a chord track"
+  ([bbcs]
+   (make-chord-track bbcs (db/chord-based-bass-db "bass-15")))
+  ([bbcs bassfn]
+   (mapcat #(bbc->notes % bassfn) bbcs)))
 
 (defn ttape
-   ([raw]     (ttape raw 120))
-   ([raw bpm] (ttape raw bpm [4 2 24 8]))
-   ([raw bpm signature]
-     (let [xs (sort-by key (group-by first raw))
-           ys (for [[tc data] xs] [tc :data data])]
-          (concat [[0 :set-tempo (/ 60000000 bpm)]
-                   [0 :time-signature signature]] ys))))
+  "Makes a tick tape from an array of raw notes each of which has a stucture:
+   [timecode channel note velocity]
+   Tick Tape format:
+   Field       Type      Description
+   --------------------------------------------------------------------------------------
+   1: MIDI tick   integer   Gradually increasing throughout the tape. Treat it as a timecode
+   2: event-type  keyword   One of :set-tempo, :time-signature, or :data
+   3: data        varies    For :set-tempo is a single integer representing number of microseconds per quarter note
+                            For :time-signature array of four matching to MIDI's time signature event
+                            For :data - array of notes played during this MIDI tick
+                            each note is [timecode, channel, note, velocity].
+   Example:
+   [0	:set-tempo	434464
+   [0	:time-signature	[4 2 24 8]
+   [384	:data	        [[384 2 70 50]]
+   [477	:data	        [[477 2 98 74]]
+   [479	:data	        [[479 2 101 78]]
+   [480	:data	        [[480 8 89 61] [480 8 86 55]]
+   [489	:data	        [[489 8 86 0] [489 8 89 0]]
+   [492	:data	        [[492 8 89 60] [492 8 86 63]]"
+  ([raw]     (ttape raw 120))
+  ([raw bpm] (ttape raw bpm [4 2 24 8]))
+  ([raw bpm signature]
+   (let [xs (sort-by key (group-by first raw))
+         ys (for [[tc data] xs] [tc :data data])]
+     (concat [[0 :set-tempo (/ 60000000 bpm)]
+              [0 :time-signature signature]] ys))))
 
 (defn note-player [instruments]
    (let [synth (javax.sound.midi.MidiSystem/getSynthesizer)
@@ -268,10 +269,10 @@
             drums)))
 
 (defn make-bass-track
-  "Takes bass-ty, song-id, and beats and makes a bass track"
-  [bass-ty song-id beats]
+  "Takes bass-ty (synthetic or patterns), song-id, and beats and makes a bass track"
+  [bass-ty song-id bbc]
   (case bass-ty
-    "synthetic" (let [xs (second (reduce compress-beats [nil []] beats))
+    "synthetic" (let [xs (second (reduce compress-beats [nil []] bbc))
                       ys (tla/mapcat2 synthetic-bass xs)]
                   (apply concat (map-indexed tcbass ys)))
     "patterns"  (bass-patterns song-id)
@@ -291,27 +292,26 @@
 
 (defn play-song
   "Plays a song"
-  [song-nm]
-  (let [[song-id bpm drum-ptrn-cd bass-ty-cd]
+  [song]
+  (let [[id bpm drum-pattern bass-type]
         (-> (tla/cursor db/conn "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd
                                  from song
-                                 where upper(song_nm) = ?" [song-nm])
+                                 where upper(song_nm) = ?" [song])
             second)
-        bbc         (get-bbc db/conn song-nm)
-        _           (println "beats" (count bbc) bbc)
+        bbc         (get-bbc db/conn song)
         chord-track (make-chord-track bbc
                                       (get db/chord-based-bass-db
-                                           bass-ty-cd
+                                           bass-type
                                            "bass-none"))
-        drum-track  (make-drum-track drum-ptrn-cd bbc)
-        bass-track  (make-bass-track bass-ty-cd song-id bbc)
+        drum-track  (make-drum-track drum-pattern bbc)
+        bass-track  (make-bass-track bass-type id bbc)
         m           (meta bass-track)
         _           (println m)
-        info        (if (identity m)
+        info        (if m
                       (m :bass)
-                      (apply sorted-map (interleave (range 1 100) (repeat bass-ty-cd))))]
+                      (apply sorted-map (interleave (range 1 100) (repeat bass-type))))]
     (println (format "song=%s, bpm=%d, drum-pattern-cd=%s, bass-ty-cd=%s"
-                     song-nm bpm drum-ptrn-cd bass-ty-cd))
+                     song bpm drum-pattern bass-type))
     (tla/view (map (fn [[bar v] c]
                      [bar v (pr-str c)])
                    info
