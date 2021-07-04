@@ -260,14 +260,15 @@
   "Takes BBCs, and returns a collection where each element is
    [chord number-of-beats]"
   [acc bbc]
+  (println "count-chord-beats:" acc bbc)
   (let [[rc x] acc
         [_ _ chord] bbc]
     (if (nil? x)
       [rc [chord 1]]
       (let [[prior nbeats] x]
         (if (= chord prior)
-          [acc [prior (inc nbeats)]]
-          [(conj acc x) [chord 1]])))))
+          [rc [prior (inc nbeats)]]
+          [(conj rc x) [chord 1]])))))
 
 (defn walk-between-2-chords [[chord nbeats] [next-chord _]]
   (let [a (db/chorddb chord)
@@ -286,6 +287,7 @@
   (->> bbcs
        (reduce count-chord-beats [[] nil])
        first
+       (map (fn [x] (println "before-walk:" x) x))
        (tla/mapcat2 walk-between-2-chords)
        (map (fn [x] (println "after-walk:" x) x))
        (map-indexed tcbass)
