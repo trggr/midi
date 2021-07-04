@@ -1,7 +1,7 @@
 (ns midi.midifile
-   (:require [clojure.string :as str]
-             [midi.timlib :as tla]
-             [midi.dbload :as db]))
+  (:require [clojure.string :as str]
+            [midi.timlib :as tla]
+            [midi.dbload :as db]))
 
 ; Length of quarter note
 (def ^:dynamic *qn*            96)
@@ -26,8 +26,8 @@
                (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
                  (recur tc ppq tempo (conj acc [x val]) others))))))))
 
-(defn bbc-notes
-  "Takes bbc and bass function and returns corresponding notes"
+(defn bbc-ttc
+  "Converts BBC into TC"
   [bbc bassf]
   (let [[bar beat chord] bbc
         chord-vel 50
@@ -45,26 +45,27 @@
                        on)]
     (concat on off)))
 
-; 1. Place the roots of the indicated chords on beats 1 and 3 to create the skeleton
-; of the bass line. As far as possible, select the root notes so that the interval
-; between them is minimized (e.g., choose a fourth up rather than a fifth down,
-; a third down rather than a sixth up, etc.).
-;
-; 2. Fill in beats 2 and 4 according to the interval between the notes on beats 1 and 3:
-; a. If  the  roots  are  separated  by  a  third,  put  a  diatonic  passing  tone  between  them.
-;    In measure 1 we insert E between F and D, and from measure 2 to measure 3,
-;    we insert Bb between C and A.
-; b. If  the  roots  are  separated  by  a  fourth  or  fifth,  fill  out  the  interval
-;    with  a  tone drawn from the first chord. In measure 1 we insert F between D and the G
-;    in the following measure, and in measure 2 we insert D between G and C.
-; c. If the roots are separated by a major or minor second, repeat the bass note as shown in measures 3 and 4.
-;    As can be seen in measure 4, an octave leap can  be  used  instead  of  a  repetition.
-;    This  move  is  sometimes  used  reposition  a  bass  line  that  is  approaching  either
-;    the  lower  or  the  upper  extreme of the range of the instrument.
-; d. If a chord is held for the entire duration of a measure, the bass line can be filled out
-;    with a scalewise line from the root of the chord down to the fifth. This is done under the FÎ chord in measure 5.
 
-(defn fill24
+(defn fill-in-beats-2-and-4
+  "1. Place the roots of the indicated chords on beats 1 and 3 to create the skeleton
+      of the bass line. As far as possible, select the root notes so that the interval
+      between them is minimized (e.g., choose a fourth up rather than a fifth down,
+      a third down rather than a sixth up, etc.).
+
+   2. Fill in beats 2 and 4 according to the interval between the notes on beats 1 and 3:
+      a. If  the  roots  are  separated  by  a  third,  put  a  diatonic  passing  tone  between  them.
+         In measure 1 we insert E between F and D, and from measure 2 to measure 3,
+         we insert Bb between C and A.
+      b. If  the  roots  are  separated  by  a  fourth  or  fifth,  fill  out  the  interval
+         with  a  tone drawn from the first chord. In measure 1 we insert F between D and the G
+         in the following measure, and in measure 2 we insert D between G and C.
+      c. If the roots are separated by a major or minor second, repeat the bass note as shown in measures 3 and 4.
+         As can be seen in measure 4, an octave leap can  be  used  instead  of  a  repetition.
+         This  move  is  sometimes  used  reposition  a  bass  line  that  is  approaching  either
+         the  lower  or  the  upper  extreme of the range of the instrument.
+      d. If a chord is held for the entire duration of a measure, the bass line can be filled out
+         with a scalewise line from the root of the chord down to the fifth.
+         This is done under the FÎ chord in measure 5."
   [x y]
   (let [[a n3] x
         [b]    y
@@ -74,20 +75,13 @@
           (<= 5 sep 7) n3
           :else        n3)))
 
-(defn tcbass [tick bass]
-  (let [bass-vel  120
-        tc        (+ (* *qn* 4) (* *qn* tick))
-        x (- bass 12)]
-    [[tc             *bass-channel* x bass-vel]
-     [(+ tc *qn* -1) *bass-channel* x 0]]))
-
 (defn make-chord-track
   "Takes bbc and bassfn and returns a chord track"
   ([bbcs]
    (make-chord-track bbcs (db/chord-based-bass-db "bass-15")))
   ([bbcs bassfn]
    (mapcat (fn [bbc]
-             (bbc-notes bbc bassfn))
+             (bbc-ttc bbc bassfn))
            bbcs)))
 
 (defn ttape
@@ -120,20 +114,20 @@
               [0 :time-signature signature]] ys))))
 
 (defn note-player [instruments]
-   (let [synth (javax.sound.midi.MidiSystem/getSynthesizer)
-         _     (.open synth)
+  (let [synth (javax.sound.midi.MidiSystem/getSynthesizer)
+        _     (.open synth)
 ;        g (java.io.File. "/home/tim/Downloads/GeneralUser_GS_SoftSynth.sf2")
 ;        gsb (javax.sound.midi.MidiSystem/getSoundbank g)
 ;        _ (.loadAllInstruments synth gsb)
-         channels (-> synth .getChannels)]
-     (doseq [[ch prog] instruments]
-         (let [p (-> synth .getDefaultSoundbank .getInstruments (nth prog))]
+        channels (-> synth .getChannels)]
+    (doseq [[ch prog] instruments]
+      (let [p (-> synth .getDefaultSoundbank .getInstruments (nth prog))]
 ;         (let [p (-> gsb .getInstruments (nth prog))]
-            (println "Playing" (.getName p) "on channel" ch)
-            (.loadInstrument synth p)
-            (.programChange (nth channels ch) prog)))
-      (fn [c note vol]
-          (.noteOn (nth channels c) note vol))))
+        (println "Playing" (.getName p) "on channel" ch)
+        (.loadInstrument synth p)
+        (.programChange (nth channels ch) prog)))
+    (fn [c note vol]
+      (.noteOn (nth channels c) note vol))))
 
 (defn play-mtape
   "Takes MIDI tape and plays it"
@@ -145,11 +139,10 @@
       (doseq [[_ ch note vel] notes]
         (f ch note vel)))))
 
-(defn get-bbcs
-  "Returns a collection of bbc (bar-beat-chord)
-   each element of which is [bar beat chord] which covers the
-   whole song. For a typical 4/4, 32-bar song this collection is 128 elements
-   long and shows what chord is played on each beat of a song"
+(defn get-song-bbcs
+  "Returns a collection of BBC (bar-beat-chord) elements for a given song.
+   For a typical 4/4, 32-bar song this collection is 128 elements
+   long and shows what chord is played on each bar and beat"
   [conn song-name]
   (let [query "with
                bars  as (select * from bar_flat where upper(song_nm) = :1),
@@ -184,49 +177,33 @@
                            from bass_line_note b join note n on (n.note_cd = b.note_cd)
                            where b.bass_line_id = :1 order by order_num"
                           [bassline])]
-     (loop [acc [], tc (+ (* *qn* bar 4)), xs (rest notes)]
-        (if (empty? xs)
-           acc
-           (let [[midi dur] (first xs)
-                  n      (+ midi transp)
-                  nxt (+ tc (/ (* 4 *qn*) dur))]
-               (recur (conj (conj acc [tc *bass-channel* n vel])
-                            [(dec nxt) *bass-channel* n 0])
-                      nxt
-                      (rest xs)))))))
+    (loop [acc [], tc (+ (* *qn* bar 4)), xs (rest notes)]
+      (if (empty? xs)
+        acc
+        (let [[midi dur] (first xs)
+              n      (+ midi transp)
+              nxt (+ tc (/ (* 4 *qn*) dur))]
+          (recur (conj (conj acc [tc *bass-channel* n vel])
+                       [(dec nxt) *bass-channel* n 0])
+                 nxt
+                 (rest xs)))))))
 
 (defn alloc-bass [[timeline tape :as rc]
                   [bassline begin end transp]]
   (let [bars (range begin (inc end))
         vel  90]
-     (if (some identity (vals (select-keys timeline bars)))
-        rc
-        [(reduce (fn [a k] (assoc a k bassline)) timeline bars)
-         (concat tape (expand-bass-line begin bassline transp vel))])))
-
-(defn compress-beats [[[p n :as x] acc] [_ _ c]]
-  (cond (nil? x)  [[c 1]       acc]
-        (= c p)   [[p (inc n)] acc]
-        :else     [[c 1]       (conj acc x)]))
-
-(defn synthetic-bass [[a n] [b _]]
-  (let [cha     (db/chorddb a)
-        chb     (if (nil? b) cha (db/chorddb b))
-        [a1 a3 a5 _]    cha
-        rc      (cond (= n 1) [a1]
-                      (= n 2) [a1 (fill24 cha chb)]
-                      (= n 4) [a1 (dec a1) (- a1 3) (- a1 5)]
-                      (= n 8) [a1 (+ a1 2) a3 (- a5 2) a5 a3 (+ a1 2) a1]
-                      :else   [])]
-      rc))
+    (if (some identity (vals (select-keys timeline bars)))
+      rc
+      [(reduce (fn [a k] (assoc a k bassline)) timeline bars)
+       (concat tape (expand-bass-line begin bassline transp vel))])))
 
 (defn bass-patterns [songid]
   (let [ptrns  (tla/cursor db/conn
-                       (str "select bass_line_id, beg_bar_id, end_bar_id, (transp_num - 24) transp_num "
-                            "from bass_line_bar_v "
-                            "where song_id = ? "
-                            "order by beg_bar_id")
-                        [(str songid)])
+                           (str "select bass_line_id, beg_bar_id, end_bar_id, (transp_num - 24) transp_num "
+                                "from bass_line_bar_v "
+                                "where song_id = ? "
+                                "order by beg_bar_id")
+                           [(str songid)])
         maxbar (-> (tla/cursor db/conn "select max(bar_id) bar
                                         from bar
                                         where song_id = ?" [(str songid)]) second first)
@@ -234,7 +211,7 @@
                           [(into (sorted-map) (zipmap (range 1 (inc maxbar)) (repeat nil)))
                            []]
                           (rest ptrns))]
-       (with-meta rc {:bass info})))
+    (with-meta rc {:bass info})))
 
 (defn cover-single-bar-with-single-drum
   "Takes drum-pattern, drum-note, and cover with them a given bar-num.
@@ -271,26 +248,60 @@
                                     bars))
             drums)))
 
+(defn tcbass [tick bass]
+  (let [bass-vel  120
+        on        (+ (* *qn* 4) (* *qn* tick))
+        off (+ on *qn* -1)
+        x (- bass 12)]
+    [[on *bass-channel* x bass-vel]
+     [off *bass-channel* x 0]]))
+
+(defn count-chord-beats
+  "Takes BBCs, and returns a collection where each element is
+   [chord number-of-beats]"
+  [acc bbc]
+  (let [[rc x] acc
+        [_ _ chord] bbc]
+    (if (nil? x)
+      [rc [chord 1]]
+      (let [[prior nbeats] x]
+        (if (= chord prior)
+          [acc [prior (inc nbeats)]]
+          [(conj acc x) [chord 1]])))))
+
+(defn walk-between-2-chords [[chord nbeats] [next-chord _]]
+  (let [a (db/chorddb chord)
+        b (db/chorddb (or next-chord chord))
+        [a1 a3 a5 _]    a]
+    (case nbeats
+      1 [a1]
+      2 [a1 (fill-in-beats-2-and-4 a b)]
+      4 [a1 (dec a1) (- a1 3) (- a1 5)]
+      8 [a1 (+ a1 2) a3 (- a5 2) a5 a3 (+ a1 2) a1]
+      [])))
+
 (defn synthesize-bass-track
-  "Takes bbcs returns a synthesized bass track"
+  "Takes BBCs, returns a synthesized bass track"
   [bbcs]
-  (let [xs (second (reduce compress-beats
-                           [nil []]
-                           bbcs))
-        ys (tla/mapcat2 synthetic-bass xs)]
-    (apply concat (map-indexed tcbass ys))))
+  (->> bbcs
+       (reduce count-chord-beats [[] nil])
+       first
+       (tla/mapcat2 walk-between-2-chords)
+       (map (fn [x] (println "after-walk:" x) x))
+       (map-indexed tcbass)
+       (apply concat)))
 
 (defn make-drum-track
   "Covers all availble beats with a drum-pattern-nm. Covers zero beat with
    metronom clicks"
   [pattern-nm beats]
-   (let [maxbar (inc (reduce max (map first beats)))]
-     (concat (cover-bars-with-drum-pattern
-              (db/drum-pattern-db "drums-intro")
-              [0])
-             (cover-bars-with-drum-pattern
-              (db/drum-pattern-db pattern-nm)
-              (range 1 maxbar)))))
+  (let [maxbar (inc (reduce max (map first beats)))]
+    (concat (cover-bars-with-drum-pattern
+             (db/drum-pattern-db "drums-intro")
+             [0])
+            (cover-bars-with-drum-pattern
+             (db/drum-pattern-db pattern-nm)
+             (range 1 maxbar)))))
 
 (defn play-song
   "Plays a song"
@@ -300,7 +311,7 @@
                                  from song
                                  where upper(song_nm) = ?" [song])
             second)
-        bbcs        (get-bbcs db/conn song)
+        bbcs        (get-song-bbcs db/conn song)
         chord-track (make-chord-track bbcs
                                       (if-let [f (get db/chord-based-bass-db bass-type)]
                                         f
@@ -327,14 +338,14 @@
         play-mtape)))
 
 (defn main [& _]
-   (doseq [song ["MISTY" "ALL THE THINGS YOU ARE" "AUTUMN LEAVES" "MEDIUM BLUES"
-                 "ALONE TOGETHER"
-                 "IN A SENTIMENTAL MOOD"
-                 "ALL OF ME"
-                 "AUTUMN LEAVES"
-                 "ALL BY MYSELF"
-                 "LET IT BE"]]
-       (play-song song)))
+  (doseq [song ["MISTY" "ALL THE THINGS YOU ARE" "AUTUMN LEAVES" "MEDIUM BLUES"
+                "ALONE TOGETHER"
+                "IN A SENTIMENTAL MOOD"
+                "ALL OF ME"
+                "AUTUMN LEAVES"
+                "ALL BY MYSELF"
+                "LET IT BE"]]
+    (play-song song)))
 
 (main)
 

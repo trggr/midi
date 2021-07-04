@@ -64,7 +64,7 @@
   (loop [acc [] xs coll]
      (if (empty? xs)
         acc
-        (let [[a b & others] xs]
+        (let [[a b & _] xs]
             (recur (concat acc (f a b))
                    (rest xs))))))
 
