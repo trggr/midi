@@ -26,7 +26,7 @@
                (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
                  (recur tc ppq tempo (conj acc [x val]) others))))))))
 
-(defn bbc->notes
+(defn bbc-notes
   "Takes bbc and bass function and returns corresponding notes"
   [bbc bassf]
   (let [[bar beat chord] bbc
@@ -86,7 +86,9 @@
   ([bbcs]
    (make-chord-track bbcs (db/chord-based-bass-db "bass-15")))
   ([bbcs bassfn]
-   (mapcat #(bbc->notes % bassfn) bbcs)))
+   (mapcat (fn [bbc]
+             (bbc-notes bbc bassfn))
+           bbcs)))
 
 (defn ttape
   "Makes a tick tape from an array of raw notes each of which has a stucture:
@@ -109,10 +111,10 @@
    [480	:data	        [[480 8 89 61] [480 8 86 55]]
    [489	:data	        [[489 8 86 0] [489 8 89 0]]
    [492	:data	        [[492 8 89 60] [492 8 86 63]]"
-  ([raw]     (ttape raw 120))
-  ([raw bpm] (ttape raw bpm [4 2 24 8]))
-  ([raw bpm signature]
-   (let [xs (sort-by key (group-by first raw))
+  ([tracks]     (ttape tracks 120))
+  ([tracks bpm] (ttape tracks bpm [4 2 24 8]))
+  ([tracks bpm signature]
+   (let [xs (sort-by key (group-by first tracks))
          ys (for [[tc data] xs] [tc :data data])]
      (concat [[0 :set-tempo (/ 60000000 bpm)]
               [0 :time-signature signature]] ys))))
@@ -133,16 +135,17 @@
       (fn [c note vol]
           (.noteOn (nth channels c) note vol))))
 
-; Plays MIDI tape
-(defn play-mtape [tape]
-   (let [f (note-player [[*chord-channel* 26]
-                         [*bass-channel*  32]])]
-      (doseq [[tc notes] tape]
-         (Thread/sleep tc)
-         (doseq [[_ ch note vel] notes]
-            (f ch note vel)))))
+(defn play-mtape
+  "Takes MIDI tape and plays it"
+  [tape]
+  (let [f (note-player [[*chord-channel* 26]
+                        [*bass-channel*  32]])]
+    (doseq [[tc notes] tape]
+      (Thread/sleep tc)
+      (doseq [[_ ch note vel] notes]
+        (f ch note vel)))))
 
-(defn get-bbc
+(defn get-bbcs
   "Returns a collection of bbc (bar-beat-chord)
    each element of which is [bar beat chord] which covers the
    whole song. For a typical 4/4, 32-bar song this collection is 128 elements
@@ -170,10 +173,10 @@
                from rc
                where chord_id is not null
                order by bar_id, beat_id"
-        bbc  (tla/cursor conn query [(str/upper-case song-name)])]
+        bbcs  (tla/cursor conn query [(str/upper-case song-name)])]
     (map (fn [[bar beat chord]]
            [bar beat (keyword chord)])
-         (rest bbc))))
+         (rest bbcs))))
 
 (defn expand-bass-line [bar bassline transp vel]
   (let [notes (tla/cursor db/conn
@@ -298,7 +301,7 @@
                                  from song
                                  where upper(song_nm) = ?" [song])
             second)
-        bbc         (get-bbc db/conn song)
+        bbc         (get-bbcs db/conn song)
         chord-track (make-chord-track bbc
                                       (get db/chord-based-bass-db
                                            bass-type
