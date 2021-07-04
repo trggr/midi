@@ -337,30 +337,35 @@
 ; (map (partial save-bass-line conn) (drop 4 basslinedb))
 ; (save-bass-line conn (last basslinedb))
 
-;---------------------------------------------------
-; Bass patterns available from the chords
-;---------------------------------------------------
-(def embedded-bass-db1 {"bass-none" (fn [_ _ _] nil)
-                        "bass-1"    (fn [_ beat [r _ _]]  (case beat 1 r nil))
-    ; ascending
-                        "bass-15"   (fn [_ beat [r _ n5]]  (case beat 1 r 3 n5 nil))
-                        "bass-1234" (fn [_ beat [r n3 _]] (case beat 1 r 2 (+ 2 r) 3 n3 4 (inc n3)))
-                        "bass-1235" (fn [_ beat [r n3 n5]] (case beat 1 r 2 (+ 2 r) 3 n3 4 n5))
-    ; descending
-                        "bass-4321" (fn [_ beat [r n3 _]] (case beat 1 (inc n3) 2 n3  3 (+ 2 r) 4 r))
-                        "bass-5321" (fn [_ beat [r n3 n5]] (case beat 1 n5       2 n3  3 (+ 2 r) 4 r))})
-
-(defn bass-8bar [ptrn bar beat chord]
-    (let [k (nth ptrn (mod (dec bar) 8))
-          f (embedded-bass-db1 k)]
-       (f bar beat chord)))
+(defn init-chord-based-bass-db
+  "Returns a map of functions which can build bass line solely from the chords.
+   Each function has three args:
+   bar - bar number in a song (starting from 1);
+   beat - a beat in a bar;
+   chord - a chord that is played on this beat"
+ []
+  (let [m  {"bass-none" (fn [_ _ _] nil)
+            "bass-1"    (fn [_ beat [r _ _]]   (case beat 1 r nil))
+            "bass-15"   (fn [_ beat [r _ n5]]  (case beat 1 r 3 n5 nil))
+            "bass-1234" (fn [_ beat [r n3 _]]  (case beat 1 r 2 (+ 2 r) 3 n3 4 (inc n3)))
+            "bass-1235" (fn [_ beat [r n3 n5]] (case beat 1 r 2 (+ 2 r) 3 n3 4 n5))
+            "bass-4321" (fn [_ beat [r n3 _]]  (case beat 1 (inc n3) 2 n3  3 (+ 2 r) 4 r))
+            "bass-5321" (fn [_ beat [r n3 n5]] (case beat 1 n5       2 n3  3 (+ 2 r) 4 r))}
+        f (fn [pattern bar beat chord]
+            (let [k (nth pattern (mod (dec bar) 8))
+                  f (m k)]
+              (f bar beat chord)))]
+    (assoc m
+           "bass-15-8"  (partial f ["bass-15" "bass-15" "bass-15" "bass-15"
+                                    "bass-15"   "bass-15" "bass-15" "bass-5321"])
+           "bass-15-68" (partial f ["bass-15" "bass-15" "bass-15" "bass-15"
+                                    "bass-5321" "bass-15" "bass-15" "bass-5321"])
+           "bass-ud2"   (partial f ["bass-1234" "bass-1235" "bass-5321" "bass-4321"
+                                    "bass-1234" "bass-1235" "bass-5321" "bass-4321"])
+           "bass-ud3"   (partial f ["bass-1234" "bass-5321" "bass-1235" "bass-5321"
+                                    "bass-1234" "bass-5321" "bass-1235" "bass-5321"]))))
     
-(def embedded-bass-db
-  (assoc embedded-bass-db1
-         "bass-15-8"  (partial bass-8bar ["bass-15" "bass-15" "bass-15" "bass-15" "bass-15"   "bass-15" "bass-15" "bass-5321"])
-         "bass-15-68" (partial bass-8bar ["bass-15" "bass-15" "bass-15" "bass-15" "bass-5321" "bass-15" "bass-15" "bass-5321"])
-         "bass-ud2"   (partial bass-8bar ["bass-1234" "bass-1235" "bass-5321" "bass-4321" "bass-1234" "bass-1235" "bass-5321" "bass-4321"])
-         "bass-ud3"   (partial bass-8bar ["bass-1234" "bass-5321" "bass-1235" "bass-5321" "bass-1234" "bass-5321" "bass-1235" "bass-5321"])))
+(def chord-based-bass-db (init-chord-based-bass-db))
 
 ;; Drum patterns. Each drum pattern covers one standard bar (4/4). The pattern
 ;; can have one or more drums. Each item is [velocity duration], duration can be omitted.

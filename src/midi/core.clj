@@ -79,11 +79,12 @@
     [[tc             *bass-channel* x bass-vel]
      [(+ tc *qn* -1) *bass-channel* x 0]]))
 
-(defn raw-chords
-  ([beats]
-   (raw-chords beats (db/embedded-bass-db "bass-15")))
-  ([beats bassf]
-   (mapcat #(expand-chord % bassf) beats)))
+(defn make-chord-track
+  "Takes bbc and bass function f and returns a chord track"
+  ([bbc]
+   (make-chord-track bbc (db/chord-based-bass-db "bass-15")))
+  ([bbc f]
+   (mapcat #(expand-chord % f) bbc)))
 
 ; Makes a tick tape from an array of raw notes each of which has a stucture:
 ;  [timecode channel note velocity]
@@ -140,7 +141,12 @@
          (doseq [[_ ch note vel] notes]
             (f ch note vel)))))
 
-(defn get-beats [conn song-name]
+(defn get-bbc
+  "Returns a collection of bbc (bar-beat-chord)
+   each element of which is [bar beat chord] which covers the
+   whole song. For a typical 4/4, 32-bar song this collection is 128 elements
+   long and shows what chord is played on each beat of a song"
+  [conn song-name]
   (let [query "with
                bars  as (select * from bar_flat where upper(song_nm) = :1),
                beats as (select * from all_beat where bar_id <= (select max(bar_id) from bars)),
@@ -163,24 +169,26 @@
                from rc
                where chord_id is not null
                order by bar_id, beat_id"
-        beats  (tla/cursor conn query [(str/upper-case song-name)])]
-     (map (fn [[bar beat chord]] [bar beat (keyword chord)]) (rest beats))))
+        bbc  (tla/cursor conn query [(str/upper-case song-name)])]
+    (map (fn [[bar beat chord]]
+           [bar beat (keyword chord)])
+         (rest bbc))))
 
 (defn expand-bass-line [bar bassline transp vel]
   (let [notes (tla/cursor db/conn
-                      "select n.midi_num, b.note_dur_num
-                       from bass_line_note b join note n on (n.note_cd = b.note_cd)
-                       where b.bass_line_id = :1 order by order_num"
-                      [bassline])]
+                          "select n.midi_num, b.note_dur_num
+                           from bass_line_note b join note n on (n.note_cd = b.note_cd)
+                           where b.bass_line_id = :1 order by order_num"
+                          [bassline])]
      (loop [acc [], tc (+ (* *qn* bar 4)), xs (rest notes)]
         (if (empty? xs)
            acc
            (let [[midi dur] (first xs)
                   n      (+ midi transp)
-                  nexttc (+ tc (/ (* 4 *qn*) dur))]
+                  nxt (+ tc (/ (* 4 *qn*) dur))]
                (recur (conj (conj acc [tc *bass-channel* n vel])
-                            [(dec nexttc) *bass-channel* n 0])
-                      nexttc
+                            [(dec nxt) *bass-channel* n 0])
+                      nxt
                       (rest xs)))))))
 
 (defn alloc-bass [[timeline tape :as rc]
@@ -215,7 +223,9 @@
                             "where song_id = ? "
                             "order by beg_bar_id")
                         [(str songid)])
-        maxbar (-> (tla/cursor db/conn "select max(bar_id) bar from bar where song_id = ?" [(str songid)]) second first)
+        maxbar (-> (tla/cursor db/conn "select max(bar_id) bar
+                                        from bar
+                                        where song_id = ?" [(str songid)]) second first)
         [info rc] (reduce alloc-bass
                           [(into (sorted-map) (zipmap (range 1 (inc maxbar)) (repeat nil)))
                            []]
@@ -257,20 +267,17 @@
                                     bars))
             drums)))
 
-(defn compose-bass [bass-ty song-id beats]
+(defn make-bass-track
+  "Takes bass-ty, song-id, and beats and makes a bass track"
+  [bass-ty song-id beats]
   (case bass-ty
-        "synthetic" (let [xs (second (reduce compress-beats [nil []] beats))
-                          ys (tla/mapcat2 synthetic-bass xs)]
-                        (apply concat (map-indexed tcbass ys)))
-        "patterns"  (bass-patterns song-id)
-        nil))
+    "synthetic" (let [xs (second (reduce compress-beats [nil []] beats))
+                      ys (tla/mapcat2 synthetic-bass xs)]
+                  (apply concat (map-indexed tcbass ys)))
+    "patterns"  (bass-patterns song-id)
+    nil))
 
-(defn embedded-bass [bass-ty-cd]
-   (db/embedded-bass-db (if (contains? db/embedded-bass-db bass-ty-cd)
-                          bass-ty-cd
-                          "bass-none")))
-
-(defn compose-drums
+(defn make-drum-track
   "Covers all availble beats with a drum-pattern-nm. Covers zero beat with
    metronom clicks"
   [pattern-nm beats]
@@ -290,11 +297,15 @@
                                  from song
                                  where upper(song_nm) = ?" [song-nm])
             second)
-        beats       (get-beats db/conn song-nm)
-        chords      (raw-chords beats (embedded-bass bass-ty-cd))
-        drums       (compose-drums drum-ptrn-cd beats)
-        bass        (compose-bass bass-ty-cd song-id beats)
-        m           (meta bass)
+        bbc         (get-bbc db/conn song-nm)
+        _           (println "beats" (count bbc) bbc)
+        chord-track (make-chord-track bbc
+                                      (get db/chord-based-bass-db
+                                           bass-ty-cd
+                                           "bass-none"))
+        drum-track  (make-drum-track drum-ptrn-cd bbc)
+        bass-track  (make-bass-track bass-ty-cd song-id bbc)
+        m           (meta bass-track)
         _           (println m)
         info        (if (identity m)
                       (m :bass)
@@ -304,8 +315,8 @@
     (tla/view (map (fn [[bar v] c]
                      [bar v (pr-str c)])
                    info
-                   (partition 4 (map (fn [[_ _ c]] c) beats))))
-    (-> (concat chords bass drums)
+                   (partition 4 (map (fn [[_ _ c]] c) bbc))))
+    (-> (concat chord-track bass-track drum-track)
         (ttape bpm)
         mtape
         play-mtape)))
