@@ -271,15 +271,14 @@
                                     bars))
             drums)))
 
-(defn make-bass-track
-  "Takes bass-ty (synthetic or patterns), song-id, and beats and makes a bass track"
-  [bass-ty song-id bbc]
-  (case bass-ty
-    "synthetic" (let [xs (second (reduce compress-beats [nil []] bbc))
-                      ys (tla/mapcat2 synthetic-bass xs)]
-                  (apply concat (map-indexed tcbass ys)))
-    "patterns"  (bass-patterns song-id)
-    nil))
+(defn synthesize-bass-track
+  "Takes bbcs returns a synthesized bass track"
+  [bbcs]
+  (let [xs (second (reduce compress-beats
+                           [nil []]
+                           bbcs))
+        ys (tla/mapcat2 synthetic-bass xs)]
+    (apply concat (map-indexed tcbass ys))))
 
 (defn make-drum-track
   "Covers all availble beats with a drum-pattern-nm. Covers zero beat with
@@ -301,13 +300,16 @@
                                  from song
                                  where upper(song_nm) = ?" [song])
             second)
-        bbc         (get-bbcs db/conn song)
-        chord-track (make-chord-track bbc
-                                      (get db/chord-based-bass-db
-                                           bass-type
-                                           "bass-none"))
-        drum-track  (make-drum-track drum-pattern bbc)
-        bass-track  (make-bass-track bass-type id bbc)
+        bbcs        (get-bbcs db/conn song)
+        chord-track (make-chord-track bbcs
+                                      (if-let [f (get db/chord-based-bass-db bass-type)]
+                                        f
+                                        (db/chord-based-bass-db "bass-none")))
+        drum-track  (make-drum-track drum-pattern bbcs)
+        _           (println bass-type)
+        bass-track  (if (= bass-type "patterns")
+                      (bass-patterns id)
+                      (synthesize-bass-track bbcs))
         m           (meta bass-track)
         _           (println m)
         info        (if m
@@ -318,7 +320,7 @@
     (tla/view (map (fn [[bar v] c]
                      [bar v (pr-str c)])
                    info
-                   (partition 4 (map (fn [[_ _ c]] c) bbc))))
+                   (partition 4 (map (fn [[_ _ c]] c) bbcs))))
     (-> (concat chord-track bass-track drum-track)
         (ttape bpm)
         mtape
