@@ -9,9 +9,9 @@
 (def ^:dynamic *bass-channel*  4)
 (def ^:dynamic *drums-channel* 9)
 
-(defn mtape
+(defn convert-ttape-to-mtape
   "Converts ttape to MIDI tape format"
-  ([ttape] (mtape ttape 1))
+  ([ttape] (convert-ttape-to-mtape ttape 1))
   ([ttape tempo-correction]
    (loop [prior 0, ppq 0, tempo 0, acc [], xs ttape]
      (if-not (seq xs)
@@ -113,23 +113,29 @@
      (concat [[0 :set-tempo (/ 60000000 bpm)]
               [0 :time-signature signature]] ys))))
 
-(defn note-player [instruments]
+(defn map-instruments
+  "Takes a collection of [channel instrument] pairs and
+   returns a function which can accept three parameters:
+   channel note and velocity to play them via
+   MIDI synthesizer"
+  [m]
   (let [synth (javax.sound.midi.MidiSystem/getSynthesizer)
         _     (.open synth)
         channels (-> synth .getChannels)]
-    (doseq [[ch prog] instruments]
-      (let [p (-> synth .getDefaultSoundbank .getInstruments (nth prog))]
+    (doseq [[ch instr] m]
+      (let [p (-> synth .getDefaultSoundbank .getInstruments (nth instr))]
         (println "Playing" (.getName p) "on channel" ch)
         (.loadInstrument synth p)
-        (.programChange (nth channels ch) prog)))
+        (.programChange (nth channels ch) instr)))
     (fn [c note vol]
       (.noteOn (nth channels c) note vol))))
 
 (defn play-mtape
-  "Takes MIDI tape and plays it"
+  "Takes a collection of vectors: [timecode, channel, note, velocity]
+   and plays it"
   [tape]
-  (let [f (note-player [[*chord-channel* 26]
-                        [*bass-channel*  32]])]
+  (let [f (map-instruments [[*chord-channel* 26]
+                            [*bass-channel*  32]])]
     (doseq [[tc notes] tape]
       (Thread/sleep tc)
       (doseq [[_ ch note vel] notes]
@@ -227,7 +233,7 @@
                nxt
                (rest xs))))))
 
-(defn cover-bars-with-drum
+(defn cover-bars-with-single-drum
   "Takes a single drum pattern, a drum-note, and applies it to given bars"
   [drum-pattern drum-note bars]
   (mapcat #(cover-single-bar-with-single-drum drum-pattern drum-note %)
@@ -239,9 +245,9 @@
   [pattern bars]
   (let [drums (keys pattern)]
     (mapcat (fn [drum]
-              (cover-bars-with-drum (pattern drum)
-                                    (db/notedb drum)
-                                    bars))
+              (cover-bars-with-single-drum (pattern drum)
+                                           (db/notedb drum)
+                                           bars))
             drums)))
 
 (defn beat-notes-to-timecode [beat note]
@@ -330,7 +336,7 @@
                    (partition 4 (map (fn [[_ _ c]] c) bbcs))))
     (-> (concat chord-track bass-track drum-track)
         (combine-tracks-to-ttape bpm)
-        mtape
+        convert-ttape-to-mtape
         play-mtape)))
 
 (defn main [& _]
