@@ -380,7 +380,32 @@
                          [70]
                          [70 12] [0 12] [40 12]]
     :closed-hi-hat      [[0] [70] [0]  [70]]
-    :acoustic-bass-drum [[90][70] [90] [70]]}
+    :acoustic-bass-drum [[90] [70] [90] [70]]}
+   "drums-fill2"
+   {:ride-cymbal-1      [[70]]
+    :acoustic-snare     [[0 12] [50 12] [50 12]
+                         [50 12] [0 12] [50 12]
+                         [0  12] [0 12] [50 12]
+                         [50 12] [50 12] [50 12]]
+    :low-mid-tom        [[0]
+                         [0]
+                         [50 12] [0 12] [0 12]
+                         [0]]
+    :acoustic-bass-drum [[90]]}
+   "drums-fill3"
+   {:ride-cymbal-1      [[70] [0] [70]]
+    :acoustic-snare     [[0 12] [0 12] [50 12]
+                         [0 12] [0 12] [50 12]
+                         [0]
+                         [0 12] [50 12] [50 12]]
+    :high-floor-tom     [[0]
+                         [0]
+                         [50 12] [50 12] [0 12]]
+    :low-mid-tom        [[0]
+                         [0]
+                         [0 12] [0 12] [50 12]
+                         [50 12]]
+    :acoustic-bass-drum [[90] [0] [90]]},
    "drums-intro"
    {:low-wood-block     [[60]
                          [60]

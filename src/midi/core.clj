@@ -298,12 +298,18 @@
    metronom clicks"
   [pattern-nm beats]
   (let [maxbar (inc (reduce max (map first beats)))]
-    (concat (cover-bars-with-drum-pattern
-             (db/drum-pattern-db "drums-intro")
+    (concat (cover-bars-with-drum-pattern (db/drum-pattern-db "drums-intro")
              [0])
-            (cover-bars-with-drum-pattern
-             (db/drum-pattern-db pattern-nm)
-             (range 1 maxbar)))))
+            (cover-bars-with-drum-pattern (db/drum-pattern-db pattern-nm)
+             [1 2 3 4 5 6 7
+              9 10 11 12 13 14 15
+              17 18 19 20 21 22 23
+              25 26 27 28 29 30 31])
+            (cover-bars-with-drum-pattern (db/drum-pattern-db "drums-fill2")
+             [8 24])
+            (cover-bars-with-drum-pattern (db/drum-pattern-db "drums-fill3")
+             [16 32])
+            )))
 
 (defn play-song
   "Plays a song"
