@@ -1,4 +1,4 @@
-(ns midi.midifile
+(ns midi.core
   (:require [clojure.string :as str]
             [midi.timlib :as tla]
             [midi.dbload :as db]))
@@ -116,13 +116,9 @@
 (defn note-player [instruments]
   (let [synth (javax.sound.midi.MidiSystem/getSynthesizer)
         _     (.open synth)
-;        g (java.io.File. "/home/tim/Downloads/GeneralUser_GS_SoftSynth.sf2")
-;        gsb (javax.sound.midi.MidiSystem/getSoundbank g)
-;        _ (.loadAllInstruments synth gsb)
         channels (-> synth .getChannels)]
     (doseq [[ch prog] instruments]
       (let [p (-> synth .getDefaultSoundbank .getInstruments (nth prog))]
-;         (let [p (-> gsb .getInstruments (nth prog))]
         (println "Playing" (.getName p) "on channel" ch)
         (.loadInstrument synth p)
         (.programChange (nth channels ch) prog)))
@@ -256,11 +252,10 @@
     [[on *bass-channel* x vel]
      [off *bass-channel* x 0]]))
 
-(defn count-chord-beats
-  "Takes BBCs, and returns a collection where each element is
-   [chord number-of-beats]"
+(defn chord-beats-pairs
+  "Takes BBCs, and returns an ordered collection where each element is a pair
+   [chord nbeats] shows how many beats the chord is played"
   [acc bbc]
-  (println "count-chord-beats:" acc bbc)
   (let [[rc x] acc
         [_ _ chord] bbc]
     (if (nil? x)
@@ -280,18 +275,15 @@
                  4 [a1 (dec a1) (- a1 3) (- a1 5)]
                  8 [a1 (+ a1 2) a3 (- a5 2) a5 a3 (+ a1 2) a1]
                  [])]
-    (println "walking between" chord next-chord "result" rc)
     rc))
 
 (defn synthesize-bass-track
   "Takes BBCs, returns a synthesized bass track"
   [bbcs]
   (->> bbcs
-       (reduce count-chord-beats [[] nil])
+       (reduce chord-beats-pairs [[] nil])
        first
-       ; (map (fn [x] (println "before-walk:" x) x))
        (tla/mapcat2 walk-between-2-chords)
-       ; (map (fn [x] (println "after-walk:" x) x))
        (map-indexed beat-notes-to-timecode)
        (apply concat)))
 
@@ -393,3 +385,7 @@
 ;
 ;(def gsb (javax.sound.midi.MidiSystem/getSoundbank g))
 ;(.loadAllInstruments synth gsb)
+;        g (java.io.File. "/home/tim/Downloads/GeneralUser_GS_SoftSynth.sf2")
+;        gsb (javax.sound.midi.MidiSystem/getSoundbank g)
+;        _ (.loadAllInstruments synth gsb)
+;         (let [p (-> gsb .getInstruments (nth prog))]
