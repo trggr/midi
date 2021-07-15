@@ -216,39 +216,32 @@
     (with-meta rc {:bass info})))
 
 (defn cover-single-bar-with-single-drum
-  "Takes drum-pattern, drum-note, and cover with them a given bar-num.
+  "Takes pattern, note, and covers a bar with this pattern.
    Drum pattern is a collection of [velocity duration] elements"
-  [drum-pattern drum-note bar-num]
+  [pattern note bar]
   (loop [rc []
-         tc (+ (* *qn* bar-num 4))
-         xs drum-pattern]
+         tc (+ (* *qn* bar 4))
+         xs pattern]
     (if (empty? xs)
       rc
       (let [[vel dur] (first xs)
             dur (or dur 4)
             nxt (+ tc (/ (* 4 *qn*) dur))]
         (recur (conj (conj rc
-                           [tc *drums-channel* drum-note (/ (* 100 vel) 100)])
-                     [(dec nxt) *drums-channel* drum-note 0])
+                           [tc *drums-channel* note (/ (* 100 vel) 100)])
+                     [(dec nxt) *drums-channel* note 0])
                nxt
                (rest xs))))))
 
-(defn cover-bars-with-single-drum
-  "Takes a single drum pattern, a drum-note, and applies it to given bars"
-  [drum-pattern drum-note bars]
-  (mapcat #(cover-single-bar-with-single-drum drum-pattern drum-note %)
-          bars))
-
-(defn cover-bars-with-drum-pattern
-  "Takes drums pattern and applies it to collection of bars. Each drum pattern
+(defn apply-drum-pattern
+  "Takes drums pattern and applies it to a bar. Each drum pattern
    can have one or more drums"
-  [pattern bars]
-  (let [drums (keys pattern)]
-    (mapcat (fn [drum]
-              (cover-bars-with-single-drum (pattern drum)
-                                           (db/notedb drum)
-                                           bars))
-            drums)))
+  [pattern bar]
+  (mapcat #(cover-single-bar-with-single-drum
+            (pattern %)
+            (db/notedb %)
+            bar)
+          (keys pattern)))
 
 (defn beat-notes-to-timecode [beat note]
   (let [vel 120
@@ -297,19 +290,16 @@
   "Covers all availble beats with a drum-pattern-nm. Covers zero beat with
    metronom clicks"
   [pattern-nm beats]
-  (let [maxbar (inc (reduce max (map first beats)))]
-    (concat (cover-bars-with-drum-pattern (db/drum-pattern-db "drums-intro")
-             [0])
-            (cover-bars-with-drum-pattern (db/drum-pattern-db pattern-nm)
-             [1 2 3 4 5 6 7
-              9 10 11 12 13 14 15
-              17 18 19 20 21 22 23
-              25 26 27 28 29 30 31])
-            (cover-bars-with-drum-pattern (db/drum-pattern-db "drums-fill2")
-             [8 24])
-            (cover-bars-with-drum-pattern (db/drum-pattern-db "drums-fill3")
-             [16 32])
-            )))
+  (let [maxbar (inc (reduce max (map first beats)))
+        m {0 "drums-intro"
+           8 "drums-fill2"
+           16 "drums-fill3"
+           24 "drums-fill2"
+           32 "drums-fill3"}]
+    (mapcat #(apply-drum-pattern
+              (db/drum-pattern-db (get m % pattern-nm))
+              %)
+            (range maxbar))))
 
 (defn play-song
   "Plays a song"
@@ -336,10 +326,11 @@
                       (apply sorted-map (interleave (range 1 100) (repeat bass-type))))]
     (println (format "song=%s, bpm=%d, drum-pattern-cd=%s, bass-ty-cd=%s"
                      song bpm drum-pattern bass-type))
-    (tla/view (map (fn [[bar v] c]
-                     [bar v (pr-str c)])
-                   info
-                   (partition 4 (map (fn [[_ _ c]] c) bbcs))))
+    (println)
+    (println (tla/view (map (fn [[bar v] c]
+                              [bar v (pr-str c)])
+                            info
+                            (partition 4 (map (fn [[_ _ c]] c) bbcs)))))
     (-> (concat chord-track bass-track drum-track)
         (combine-tracks-to-ttape bpm)
         convert-ttape-to-mtape
