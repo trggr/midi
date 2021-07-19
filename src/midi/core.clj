@@ -26,7 +26,7 @@
                (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
                  (recur tc ppq tempo (conj acc [x val]) others))))))))
 
-(defn bbc-ttc
+(defn convert-chord-to-ttc
   "Converts BBC into TC"
   [bbc bassfn]
   (let [[bar beat chord] bbc
@@ -45,6 +45,15 @@
                        on)]
     (concat on off)))
 
+
+(defn make-chord-track
+  "Takes bbc and bassfn and returns a chord track"
+  ([bbcs bassfn]
+   (mapcat (fn [bbc]
+             (convert-chord-to-ttc bbc bassfn))
+           bbcs))
+  ([bbcs]
+   (make-chord-track bbcs (db/chord-based-bass-db "bass-15"))))
 
 (defn fill-in-beats-2-and-4
   "1. Place the roots of the indicated chords on beats 1 and 3 to create the skeleton
@@ -75,14 +84,6 @@
           (<= 5 sep 7) n3
           :else        n3)))
 
-(defn make-chord-track
-  "Takes bbc and bassfn and returns a chord track"
-  ([bbcs bassfn]
-   (mapcat (fn [bbc]
-             (bbc-ttc bbc bassfn))
-           bbcs))
-  ([bbcs]
-   (make-chord-track bbcs (db/chord-based-bass-db "bass-15"))))
 
 (defn combine-tracks-to-ttape
   "Makes a tick tape from an array of raw notes each of which has a stucture:
@@ -301,6 +302,51 @@
               %)
             (range maxbar))))
 
+; Test
+; (def bbcs (get-song-bbcs db/conn "MISTY"))
+
+;chord-track (make-chord-track2 bbcs "things-we-said-today")
+; (make-chord-track2 "things-we-said-today" bbcs)
+
+;drum-track  (make-drum-track drum-pattern bbcs)
+; (->> bbcs (map (fn [x] (nth x 2))) (partition 4))
+
+(defn cover-single-bar-chord-pattern
+  "Covers a single bar with chord pattern"
+  [pattern bar chords-in-bar]
+  (let [bar-begin (* *qn* bar 4)
+        [a b c d] chords-in-bar]
+  (loop [rc []
+         tc bar-begin
+         xs pattern]
+    (if (empty? xs)
+      rc
+      (let [[vel dur] (first xs)
+            dur (or dur 4)
+            nxt (+ tc (/ (* 4 *qn*) dur))
+            note (first (db/chorddb (cond
+                                      (< tc (+ bar-begin (* 1 *qn*))) a
+                                      (< tc (+ bar-begin (* 2 *qn*))) b
+                                      (< tc (+ bar-begin (* 3 *qn*))) c
+                                      :else d)))]
+        (recur (conj (conj rc
+                           [tc *chord-channel* note (/ (* 100 vel) 100)])
+                     [(dec nxt) *chord-channel* note 0])
+               nxt
+               (rest xs)))))))
+
+(defn make-chord-track2
+  "Covers all availble beats with a chord-pattern."
+  [pattern bbcs]
+  (let [chords (->> bbcs (map (fn [x] (nth x 2))) (partition 4))]
+    (apply concat
+           (map-indexed (fn [bar chords-in-bar]
+                          (cover-single-bar-chord-pattern
+                           (db/chord-pattern-db pattern)
+                           (inc bar)
+                           chords-in-bar))
+                        chords))))
+
 (defn play-song
   "Plays a song"
   [song]
@@ -310,10 +356,11 @@
                                  where upper(song_nm) = ?" [song])
             second)
         bbcs        (get-song-bbcs db/conn song)
-        chord-track (make-chord-track bbcs
-                                      (if-let [f (get db/chord-based-bass-db bass-type)]
-                                        f
-                                        (db/chord-based-bass-db "bass-none")))
+        ;; chord-track (make-chord-track bbcs
+        ;;                               (if-let [f (get db/chord-based-bass-db bass-type)]
+        ;;                                 f
+        ;;                                 (db/chord-based-bass-db "bass-none")))
+        chord-track (make-chord-track2 "things-we-said-today" bbcs)
         drum-track  (make-drum-track drum-pattern bbcs)
         _           (println bass-type)
         bass-track  (if (= bass-type "patterns")
@@ -331,7 +378,9 @@
                               [bar v (pr-str c)])
                             info
                             (partition 4 (map (fn [[_ _ c]] c) bbcs)))))
-    (-> (concat chord-track bass-track drum-track)
+    (-> (concat chord-track 
+                bass-track
+                drum-track)
         (combine-tracks-to-ttape bpm)
         convert-ttape-to-mtape
         play-mtape)))
@@ -345,5 +394,8 @@
                 "ALL BY MYSELF"
                 "LET IT BE"]]
     (play-song song)))
+
+(defn main2 [& _]
+  (println "It must be REPL"))
 
 (main)
