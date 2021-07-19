@@ -412,7 +412,13 @@
                          [60 8] [60 8]
                          [60 8] [60 8]]}})
 
-(def chord-pattern-db  {"things-we-said-today"   [[70 12] [70 12] [70 12]
-                                                  [70]
-                                                  [70]
-                                                  [70]]})
+(def chord-pattern-db  {"things-we-said-today"
+                        [[70 12] [70 12] [70 12]
+                         [70]
+                         [70 8] [70 8]
+                         [70]]
+                        "swing"
+                        [[0]
+                         [50]
+                         [0]
+                         [0]]})

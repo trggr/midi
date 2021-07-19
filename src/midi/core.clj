@@ -363,7 +363,7 @@
         ;;                               (if-let [f (get db/chord-based-bass-db bass-type)]
         ;;                                 f
         ;;                                 (db/chord-based-bass-db "bass-none")))
-        chord-track (make-chord-track2 "things-we-said-today" bbcs)
+        chord-track (make-chord-track2 "swing" bbcs)
         drum-track  (make-drum-track drum-pattern bbcs)
         _           (println bass-type)
         bass-track  (if (= bass-type "patterns")
