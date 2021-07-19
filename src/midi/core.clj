@@ -28,13 +28,13 @@
 
 (defn bbc-ttc
   "Converts BBC into TC"
-  [bbc bassf]
+  [bbc bassfn]
   (let [[bar beat chord] bbc
         chord-vel 50
         bass-vel  80
         tc        (* *qn* (+ (* bar 4) (dec beat)))
         chord     (db/chorddb chord)
-        bass      (bassf bar beat chord)
+        bass      (bassfn bar beat chord)
         bass      (when (not (nil? bass))
                     [[tc *bass-channel* (- bass 12) bass-vel]])
         on        (concat (map #(vector tc *chord-channel* % chord-vel)
@@ -77,12 +77,12 @@
 
 (defn make-chord-track
   "Takes bbc and bassfn and returns a chord track"
-  ([bbcs]
-   (make-chord-track bbcs (db/chord-based-bass-db "bass-15")))
   ([bbcs bassfn]
    (mapcat (fn [bbc]
              (bbc-ttc bbc bassfn))
-           bbcs)))
+           bbcs))
+  ([bbcs]
+   (make-chord-track bbcs (db/chord-based-bass-db "bass-15"))))
 
 (defn combine-tracks-to-ttape
   "Makes a tick tape from an array of raw notes each of which has a stucture:
@@ -347,48 +347,3 @@
     (play-song song)))
 
 (main)
-
-;(def synth    (javax.sound.midi.MidiSystem/getSynthesizer))
-;#'midi.core/synth
-;midi.core=> (.getMaxPolyphony synth)
-;64
-;midi.core=> (def sb (.getDefaultSoundbank synth))
-;#'midi.core/sb
-;midi.core=> sb
-;#object[com.sun.media.sound.SF2Soundbank 0x53bb91e9 "com.sun.media.sound.SF2Soundbank@53bb91e9"]
-;midi.core=> (.getResources sb)
-;#object["[Ljavax.sound.midi.SoundbankResource;" 0x78c350f "[Ljavax.sound.midi.SoundbankResource;@78c350f"]
-;midi.core=> (.getVendor sb)
-;"Generated"
-;midi.core=> (.getDescription sb)
-;"Emergency generated soundbank"
-;
-;tim@allocator:/usr/share/sounds$ find . -name *.sf* -exec ls -l {} \;
-;lrwxrwxrwx 1 root root 32 Oct 23 17:40 ./sf3/default-GM.sf3 -> /etc/alternatives/default-GM.sf3
-;-rw-r--r-- 1 root root 5969788 Jun 17  2015 ./sf2/TimGM6mb.sf2
-;lrwxrwxrwx 1 root root 32 Oct 23 17:40 ./sf2/default-GM.sf2 -> /etc/alternatives/default-GM.sf2
-;
-;(vec (.getMethods (.getClass javax.sound.midi.MidiSystem)))
-;
-;(use 'clojure.reflect)
-;(map println (:members (reflect javax.sound.midi.MidiSystem)))
-;
-;(->> (reflect javax.sound.midi.MidiSystem)
-;     :members
-;     (filter #(= (:name %) "getSoundbank")))
-;
-;
-;(def g (java.io.File. "/home/tim/Downloads/GeneralUser_GS_SoftSynth.sf2"))
-;#'midi.core/g
-;midi.core=> g
-;#object[java.io.File 0x6f1a3c9d "/home/tim/Downloads/GeneralUser_GS_SoftSynth.sf2"]
-;midi.core=> (javax.sound.midi.MidiSystem/getSoundbank g)
-;
-; http://www.ronimusic.com/smp_ios_dls_files.htm
-;
-;(def gsb (javax.sound.midi.MidiSystem/getSoundbank g))
-;(.loadAllInstruments synth gsb)
-;        g (java.io.File. "/home/tim/Downloads/GeneralUser_GS_SoftSynth.sf2")
-;        gsb (javax.sound.midi.MidiSystem/getSoundbank g)
-;        _ (.loadAllInstruments synth gsb)
-;         (let [p (-> gsb .getInstruments (nth prog))]
