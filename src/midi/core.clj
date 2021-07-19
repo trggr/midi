@@ -322,16 +322,19 @@
     (if (empty? xs)
       rc
       (let [[vel dur] (first xs)
+            rvel (/ (* 100 vel) 100)
             dur (or dur 4)
             nxt (+ tc (/ (* 4 *qn*) dur))
-            note (first (db/chorddb (cond
-                                      (< tc (+ bar-begin (* 1 *qn*))) a
-                                      (< tc (+ bar-begin (* 2 *qn*))) b
-                                      (< tc (+ bar-begin (* 3 *qn*))) c
-                                      :else d)))]
-        (recur (conj (conj rc
-                           [tc *chord-channel* note (/ (* 100 vel) 100)])
-                     [(dec nxt) *chord-channel* note 0])
+            notes (db/chorddb (cond
+                                (< tc (+ bar-begin (* 1 *qn*))) a
+                                (< tc (+ bar-begin (* 2 *qn*))) b
+                                (< tc (+ bar-begin (* 3 *qn*))) c
+                                :else d))
+            on        (map #(vector tc *chord-channel* % rvel) notes)
+            off       (map (fn [[_ c n _]]
+                             [(dec nxt) c n 0])
+                           on)]
+        (recur (concat rc on off)
                nxt
                (rest xs)))))))
 
