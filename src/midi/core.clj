@@ -26,34 +26,34 @@
                (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
                  (recur tc ppq tempo (conj acc [x val]) others))))))))
 
-(defn convert-chord-to-ttc
-  "Converts BBC into TC"
-  [bbc bassfn]
-  (let [[bar beat chord] bbc
-        chord-vel 50
-        bass-vel  80
-        tc        (* *qn* (+ (* bar 4) (dec beat)))
-        chord     (db/chorddb chord)
-        bass      (bassfn bar beat chord)
-        bass      (when (not (nil? bass))
-                    [[tc *bass-channel* (- bass 12) bass-vel]])
-        on        (concat (map #(vector tc *chord-channel* % chord-vel)
-                               (rest chord))
-                          bass)
-        off       (map (fn [[t c n _]]
-                         [(+ t (* 1 *qn*) -1) c n 0])
-                       on)]
-    (concat on off)))
+;; (defn convert-chord-to-ttc
+;;   "Converts BBC into TC"
+;;   [bbc bassfn]
+;;   (let [[bar beat chord] bbc
+;;         chord-vel 50
+;;         bass-vel  80
+;;         tc        (* *qn* (+ (* bar 4) (dec beat)))
+;;         chord     (db/chorddb chord)
+;;         bass      (bassfn bar beat chord)
+;;         bass      (when (not (nil? bass))
+;;                     [[tc *bass-channel* (- bass 12) bass-vel]])
+;;         on        (concat (map #(vector tc *chord-channel* % chord-vel)
+;;                                (rest chord))
+;;                           bass)
+;;         off       (map (fn [[t c n _]]
+;;                          [(+ t (* 1 *qn*) -1) c n 0])
+;;                        on)]
+;;     (concat on off)))
 
 
-(defn make-chord-track
-  "Takes bbc and bassfn and returns a chord track"
-  ([bbcs bassfn]
-   (mapcat (fn [bbc]
-             (convert-chord-to-ttc bbc bassfn))
-           bbcs))
-  ([bbcs]
-   (make-chord-track bbcs (db/chord-based-bass-db "bass-15"))))
+;; (defn make-chord-track
+;;   "Takes bbc and bassfn and returns a chord track"
+;;   ([bbcs bassfn]
+;;    (mapcat (fn [bbc]
+;;              (convert-chord-to-ttc bbc bassfn))
+;;            bbcs))
+;;   ([bbcs]
+;;    (make-chord-track bbcs (db/chord-based-bass-db "bass-15"))))
 
 (defn fill-in-beats-2-and-4
   "1. Place the roots of the indicated chords on beats 1 and 3 to create the skeleton
@@ -359,22 +359,16 @@
                                  where upper(song_nm) = ?" [song])
             second)
         bbcs        (get-song-bbcs db/conn song)
-        ;; chord-track (make-chord-track bbcs
-        ;;                               (if-let [f (get db/chord-based-bass-db bass-type)]
-        ;;                                 f
-        ;;                                 (db/chord-based-bass-db "bass-none")))
         chord-track (make-chord-track2 "rhythm-3-3-2" bbcs)
         drum-track  (make-drum-track drum-pattern bbcs)
-        _           (println bass-type)
         bass-track  (if (= bass-type "patterns")
                       (bass-patterns id)
                       (synthesize-bass-track bbcs))
         m           (meta bass-track)
-        _           (println m)
         info        (if m
                       (m :bass)
                       (apply sorted-map (interleave (range 1 100) (repeat bass-type))))]
-    (println (format "song=%s, bpm=%d, drum-pattern-cd=%s, bass-ty-cd=%s"
+    (println (format "song=%s, bpm=%d, drums=%s, bass=%s"
                      song bpm drum-pattern bass-type))
     (println (tla/view (map (fn [[bar v] c]
                               [bar v (pr-str c)])
