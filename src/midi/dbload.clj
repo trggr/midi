@@ -375,11 +375,11 @@
 ;; to cover the whole bar?
 (def  drum-pattern-db
   {"drums-swing"
-   {:ride-cymbal-1      [[70]
-                         [70 12] [0 12] [40 12]
-                         [70]
-                         [70 12] [0 12] [40 12]]
-    :closed-hi-hat      [[0] [70] [0]  [70]]
+   {:ride-cymbal-1      [[60]
+                         [60 12] [0 12] [40 12]
+                         [60]
+                         [60 12] [0 12] [40 12]]
+    :closed-hi-hat      [[0] [60] [0]  [60]]
     :acoustic-bass-drum [[90] [70] [90] [70]]}
    "drums-fill2"
    {:ride-cymbal-1      [[70]]
@@ -412,13 +412,11 @@
                          [60 8] [60 8]
                          [60 8] [60 8]]}})
 
-(def chord-pattern-db  {"things-we-said-today"
-                        [[70 12] [70 12] [70 12]
-                         [70]
-                         [70 8] [70 8]
-                         [70]]
-                        "swing"
-                        [[0]
-                         [50]
-                         [0]
-                         [0]]})
+(def chord-pattern-db  {"things-we-said"   [[70 12] [70 12] [70 12]   [70]  [70 8] [70 8]  [70]]
+                        "swing"            [[0] [50] [0] [0]]
+                        "freddie-green"    [[30] [50] [30] [50]]
+                        "charleston"       [[50 8/3] [50 8] [0 2]]
+                        "charleston-combo" [[0 8] [50 8/3] [50 8] [0 8/3]]
+                        "rhythm-2-4"       [[0 8/3] [50 8] [0 8/3] [50 8]]
+                        "rhythm-3-3-2"     [[50 8/3] [50 8/3] [50]]
+                        })

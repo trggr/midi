@@ -363,7 +363,7 @@
         ;;                               (if-let [f (get db/chord-based-bass-db bass-type)]
         ;;                                 f
         ;;                                 (db/chord-based-bass-db "bass-none")))
-        chord-track (make-chord-track2 "swing" bbcs)
+        chord-track (make-chord-track2 "rhythm-3-3-2" bbcs)
         drum-track  (make-drum-track drum-pattern bbcs)
         _           (println bass-type)
         bass-track  (if (= bass-type "patterns")
@@ -376,7 +376,6 @@
                       (apply sorted-map (interleave (range 1 100) (repeat bass-type))))]
     (println (format "song=%s, bpm=%d, drum-pattern-cd=%s, bass-ty-cd=%s"
                      song bpm drum-pattern bass-type))
-    (println)
     (println (tla/view (map (fn [[bar v] c]
                               [bar v (pr-str c)])
                             info
@@ -389,8 +388,10 @@
         play-mtape)))
 
 (defn main [& _]
-  (doseq [song ["MISTY" "ALL THE THINGS YOU ARE" "AUTUMN LEAVES" "MEDIUM BLUES"
+  (doseq [song ["ALL THE THINGS YOU ARE"
                 "ALONE TOGETHER"
+                "MISTY"
+                "AUTUMN LEAVES" "MEDIUM BLUES"
                 "IN A SENTIMENTAL MOOD"
                 "ALL OF ME"
                 "AUTUMN LEAVES"
