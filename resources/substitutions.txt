@@ -1,0 +1,12 @@
+     I  VI    II   V     I
+---------------------------
+1.  C7  Am7   Dm7  G7    C7
+2.  C7  A7    Dm7  G7    C7
+3.  C7  A7    D7   G7    C7
+4.  C7  Eb7   Dm7  Db7   C7
+5.  C7  A7    Ab7  G7    C7
+6.  Em7 A7    Dm7  G7    C7
+7.  Em7 Eb7   Dm7  Db7   C7
+8.  C7  C#dim Dm7  D#dim Em7
+9.  C7  C#dim Dm7  Ddim  C7
+10. C7  Eb7   Ab7  Db7   C7
