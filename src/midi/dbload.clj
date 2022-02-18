@@ -2,12 +2,16 @@
    (:require [clojure.string :as str]
              [midi.timlib :as tla]))
 
+
 (def conn (tla/connect-sqlite "resources/synth.db"))
+
+(def query (partial tla/cursor conn))
+
 ; references
 ; (batch-update conn "insert into all_beat(bar_id, beat_id) values (?, ?)" (for [bar (range 1 101) beat (range 1 5)] [bar beat]))
 ; (batch-update conn "update bar set chord_id = null where length(chord_id) = 0" [[]])
 
-(defn bar-to-beats [bar]
+(defn tab->beats [bar]
   (let [[a b c d] bar]
     (case (count bar)
        1 {1 a}
@@ -17,15 +21,16 @@
        :default (throw (Exception. "More than 4 chords per bar!")))))
 
 (defn bars [tabs]
-  (let [x1 (str/replace tabs #"\n" "|")
-        x2 (str/split x1 #"\|")
-        x3 (map str/trim x2)
-        x4 (map #(str/split % #"\s+") x3)
-        x5 (map bar-to-beats x4)
-        x6 (map-indexed #(vector (inc %1) %2) x5)
-        x7 (for [[barno bar] x6, [beat chord] bar] [barno beat chord])]
-     x7))
-
+  (as-> tabs $
+    (str/replace $ #"\n" "|")
+    (str/split $ #"\|")
+    (map str/trim $)
+    (map #(str/split % #"\s+") $)
+    (map tab->beats $)
+    (map-indexed #(vector (inc %1) %2) $)
+    (for [[barno chords] $,
+          [beat chord] chords]
+      [barno beat chord])))
 
 (def songdb [
   {:id 1, :nm "ALL THE THINGS YOU ARE", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 120,
@@ -232,10 +237,10 @@
 
 ; (save-chords conn chord-sqlite)
     
-(def chorddb (reduce (fn [acc [k f]]
-                        (assoc acc
-                               (keyword (str (name k) (if (= f :major) "" (name f))))
-                               (chord-notes k f)))
+(def chords (reduce (fn [acc [k f]]
+                      (assoc acc
+                             (keyword (str (name k) (if (= f :major) "" (name f))))
+                             (chord-notes k f)))
                      {}
                      (for [k [:C :C# :Db :D :D# :Eb :E :F :F# :Gb :G :G# :Ab :A :A# :Bb :B]
                            f (keys chord-form)]
@@ -247,7 +252,7 @@
         chords (->> (str/split chords #"\|")
                     (map str/trim)
                     (map #(str/split % #"\s+"))
-                    (map bar-to-beats)
+                    (map tab->beats)
                     (map-indexed #(vector (inc %1) %2)))
         chords (for [[barno bar] chords, [beat chord] bar] [id barno beat chord])
         cnt    (str (reduce max (map second chords)))
@@ -373,7 +378,7 @@
 ;; 1 - whole note, 2 - half, 4 - quarter (default), 8 - eighth, 12 - tripplets
 ;; basically answer the question: How many of these notes do you need
 ;; to cover the whole bar?
-(def  drum-pattern-db
+(def  drum-patterns
   {"drums-swing"
    {:ride-cymbal-1      [[60]
                          [60 12] [0 12] [40 12]
@@ -412,11 +417,17 @@
                          [60 8] [60 8]
                          [60 8] [60 8]]}})
 
-(def chord-pattern-db  {"things-we-said"   [[70 12] [70 12] [70 12]   [70]  [70 8] [70 8]  [70]]
-                        "swing"            [[0] [50] [0] [0]]
-                        "freddie-green"    [[30] [50] [30] [50]]
-                        "charleston"       [[50 8/3] [50 8] [0 2]]
-                        "charleston-combo" [[0 8] [50 8/3] [50 8] [0 8/3]]
-                        "rhythm-2-4"       [[0 8/3] [50 8] [0 8/3] [50 8]]
-                        "rhythm-3-3-2"     [[50 8/3] [50 8/3] [50]]
-                        })
+;; Chord strumming patterns. Each pattern is a collection of velocities,
+;; optionally paired with duration. Duration is a fraction of a whole note.
+;; 1 - whole note
+;; 2 - half note
+;; 4 - quarter note, etc.
+
+(def chord-strumming-patterns
+  {"things-we-said"   [[70 12] [70 12] [70 12]   [70]  [70 8] [70 8]  [70]]
+   "swing"            [[0] [50] [0] [0]]
+   "freddie-green"    [[30] [50] [30] [50]]
+   "charleston"       [[50 8/3] [50 8] [0 2]]
+   "charleston-combo" [[0 8] [50 8/3] [50 8] [0 8/3]]
+   "rhythm-2-4"       [[0 8/3] [50 8] [0 8/3] [50 8]]
+   "rhythm-3-3-2"     [[50 8/3] [50 8/3] [50]]})

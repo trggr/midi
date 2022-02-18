@@ -9,13 +9,12 @@
 (def ^:dynamic *bass-channel*  4)
 (def ^:dynamic *drums-channel* 9)
 
-(def typical-drum-fills {0 "drums-intro"
-                         8 "drums-fill2"
-                         16 "drums-fill3"
-                         24 "drums-fill2"
-                         32 "drums-fill3"})
+(def bar->drum-fills {0 "drums-intro"
+                      8 "drums-fill2"
+                      16 "drums-fill3"
+                      24 "drums-fill2"
+                      32 "drums-fill3"})
 
-(def run-query (partial tla/cursor db/conn))
 
 (defn bar->timecode
   "Returns beginning on bar in timecode ticks"
@@ -74,7 +73,7 @@
           :else        n3)))
 
 
-(defn combine-tracks-to-ttape
+(defn tracks->ttape
   "Makes a tick tape from an array of raw notes each of which has a stucture:
    [timecode channel note velocity]
    Tick Tape format:
@@ -95,8 +94,8 @@
    [480	:data	        [[480 8 89 61] [480 8 86 55]]
    [489	:data	        [[489 8 86 0] [489 8 89 0]]
    [492	:data	        [[492 8 89 60] [492 8 86 63]]"
-  ([tracks]     (combine-tracks-to-ttape tracks 120))
-  ([tracks bpm] (combine-tracks-to-ttape tracks bpm [4 2 24 8]))
+  ([tracks]     (tracks->ttape tracks 120))
+  ([tracks bpm] (tracks->ttape tracks bpm [4 2 24 8]))
   ([tracks bpm signature]
    (let [xs (sort-by key (group-by first tracks))
          ys (for [[tc data] xs] [tc :data data])]
@@ -156,13 +155,13 @@
                from rc
                where chord_id is not null
                order by bar_id, beat_id"
-        bbcs  (run-query query [(str/upper-case song-name)])]
+        bbcs  (db/query query [(str/upper-case song-name)])]
     (map (fn [[bar beat chord]]
            [bar beat (keyword chord)])
          (rest bbcs))))
 
 (defn expand-bass-line [bar bassline transp vel]
-  (let [notes (run-query "select n.midi_num, b.note_dur_num
+  (let [notes (db/query "select n.midi_num, b.note_dur_num
                           from bass_line_note b join note n on (n.note_cd = b.note_cd)
                           where b.bass_line_id = :1 order by order_num"
                          [bassline])]
@@ -190,12 +189,12 @@
 
 (defn bass-patterns [song-id]
   (let [song-id (str song-id)
-        patterns (run-query (str "select bass_line_id, beg_bar_id, end_bar_id, (transp_num - 24) transp_num "
+        patterns (db/query (str "select bass_line_id, beg_bar_id, end_bar_id, (transp_num - 24) transp_num "
                                  "from bass_line_bar_v "
                                  "where song_id = ? "
                                  "order by beg_bar_id")
                             [song-id])
-        maxbar (-> (run-query "select max(bar_id) bar from bar where song_id = ?" [song-id])
+        maxbar (-> (db/query "select max(bar_id) bar from bar where song_id = ?" [song-id])
                    second
                    first)
         [info rc] (reduce alloc-bass
@@ -248,8 +247,8 @@
           [(conj rc x) [chord 1]])))))
 
 (defn walk-between-chords [[chord nbeats] [next-chord _]]
-  (let [a (db/chorddb chord)
-        b (db/chorddb (or next-chord chord))
+  (let [a (db/chords chord)
+        b (db/chords (or next-chord chord))
         [a1 a3 a5 _]    a
         rc     (case nbeats
                  1 [a1]
@@ -275,7 +274,7 @@
   [pattern-nm beats]
   (let [maxbar (inc (reduce max (map first beats)))]
     (mapcat #(apply-drum-pattern
-              (db/drum-pattern-db (get typical-drum-fills % pattern-nm))
+              (db/drum-patterns (get bar->drum-fills % pattern-nm))
               %)
             (range maxbar))))
 
@@ -291,12 +290,15 @@
   )
 
 (defn strum-chords
-  "Using a strumming pattern covers a bar with chords"
+  "Using a strumming pattern cover a bar with chords.
+   Strumming pattern is a collection of velocities. A velocity can
+   optionally paired with duration, if duration is omitted it
+   is assumed to be 4 beats"
   [strumming-pattern bar bar-chords]
-  (let [bar-begin (bar->timecode bar)
+  (let [begin (bar->timecode bar)
         [a b c d] bar-chords]
   (loop [rc []
-         tc bar-begin
+         tc begin
          pattern strumming-pattern]
     (if (empty? pattern)
       rc
@@ -304,11 +306,11 @@
             rvel (/ (* 100 vel) 100)
             dur (or dur 4)
             next-tc (+ tc (duration->timecode dur))
-            chord-notes (db/chorddb (cond
-                                      (< tc (+ bar-begin (* 1 *qn*))) a
-                                      (< tc (+ bar-begin (* 2 *qn*))) b
-                                      (< tc (+ bar-begin (* 3 *qn*))) c
-                                      :else d))
+            chord-notes (db/chords (cond
+                                     (< tc (+ begin (* 1 *qn*))) a
+                                     (< tc (+ begin (* 2 *qn*))) b
+                                     (< tc (+ begin (* 3 *qn*))) c
+                                     :else d))
             ons   (map #(vector tc *chord-channel* % rvel) chord-notes)
             offs  (map (fn [[_ c n _]] [(dec next-tc) c n 0]) ons)]
         (recur (concat rc ons offs)
@@ -317,8 +319,8 @@
 
 (defn strum-chord-track
   "Produce a chord track by strumming pattern over bbcs"
-  [pattern bbcs]
-  (let [pattern (db/chord-pattern-db pattern)]
+  [pattern-name bbcs]
+  (let [pattern (db/chord-strumming-patterns pattern-name)]
     (->> bbcs
          (map (fn [[_ _ chord]] chord))
          (partition 4)
@@ -330,9 +332,9 @@
   "Plays a song"
   [song-name]
   (let [[song-id bpm drum-pattern bass-method]
-        (-> (run-query "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd
-                        from song
-                        where upper(song_nm) = ?" [song-name])
+        (-> (db/query "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd
+                       from song
+                       where upper(song_nm) = ?" [song-name])
             second)
         bbcs        (get-song-bbcs song-name)
         chord-track (strum-chord-track "rhythm-3-3-2" bbcs)
@@ -350,7 +352,7 @@
                             info
                             (partition 4 (map (fn [[_ _ c]] c) bbcs)))))
     (-> (concat chord-track bass-track drum-track)
-        (combine-tracks-to-ttape bpm)
+        (tracks->ttape bpm)
         ttape->mtape
         play-mtape)))
 
