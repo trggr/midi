@@ -173,7 +173,8 @@
         (let [[midi dur] (first notes)
               note      (+ midi transp)
               next-tc (+ tc (duration->timecode dur))]
-          (recur (conj (conj acc [tc *bass-channel* note vel])
+          (recur (conj acc
+                       [tc *bass-channel* note vel]
                        [(dec next-tc) *bass-channel* note 0])
                  next-tc
                  (rest notes)))))))
@@ -213,9 +214,9 @@
       (let [[vel dur] (first pattern)
             dur (or dur 4)
             next-tc (+ tc (duration->timecode dur))]
-        (recur (-> rc
-                   (conj [tc *drums-channel* drum-note vel])
-                   (conj [(dec next-tc) *drums-channel* drum-note 0]))
+        (recur (conj rc
+                     [tc *drums-channel* drum-note vel]
+                     [(dec next-tc) *drums-channel* drum-note 0])
                next-tc
                (rest pattern))))))
 
@@ -225,47 +226,67 @@
   (mapcat #(cover-bar-with-drum (pattern %) (db/notedb %) bar)
           (keys pattern)))
 
-(defn beat-notes-to-timecode [beat note]
-  (let [vel 120
-        on  (+ *whole-note* (* *qn* beat))
-        off (+ on *qn* -1)
-        x (- note 12)]
-    [[on *bass-channel* x vel]
-     [off *bass-channel* x 0]]))
+(defn wrap-in-timecode
+  "Takes beat, note, velocity, and channel and wraps it into timecode 
+   suitable to play the note on this channel"
+  ([beat note duration velocity channel]
+   (let [on  (* duration beat)
+         off (+ on duration -1)]
+     [[on channel note velocity] [off channel note 0]])))
 
-(defn chord-beats-pairs
-  "Takes BBCs, and returns an ordered collection where each element is a pair
-   [chord nbeats] shows how many beats the chord is played"
-  [acc bbc]
-  (let [[rc x] acc
-        [_ _ chord] bbc]
-    (if (nil? x)
-      [rc [chord 1]]
-      (let [[prior nbeats] x]
-        (if (= chord prior)
-          [rc [prior (inc nbeats)]]
-          [(conj rc x) [chord 1]])))))
+(defn wrap-in-walking-bass-timecode [beat note]
+  (wrap-in-timecode beat note *qn* 140 *bass-channel*))
 
-(defn walk-between-chords [[chord nbeats] [next-chord _]]
-  (let [a (db/chords chord)
-        b (db/chords (or next-chord chord))
-        [a1 a3 a5 _]    a
-        rc     (case nbeats
-                 1 [a1]
-                 2 [a1 (fill-in-beats-2-and-4 a b)]
-                 4 [a1 (dec a1) (- a1 3) (- a1 5)]
-                 8 [a1 (+ a1 2) a3 (- a5 2) a5 a3 (+ a1 2) a1]
-                 [])]
-    rc))
+(defn compress
+  "Takes collection and turns it into element, number of occurrences
+   coll. E.g. [a a a b b] => [a 3 b 2]"
+  [coll]
+  (->> coll
+       (partition 2 1 nil)
+       (reduce (fn [[acc n] [x y]]
+                 (if (= x y)
+                   [acc (inc n)]
+                   [(conj acc x n) 1]))
+               [[] 1])
+       first))
+
+(comment
+  (compress [5 1 1 1 2 2 2 2 4])  ;=> [5 1 1 3 2 4 4 1]
+  (compress [2])  ;=> []
+  (compress [])  ;=> []
+  )
+
+(defn walking-bass
+  "Takes a chord, number of beats of this chord, and the
+   next chord and generate a walking bass line between them"
+  ([chord nbeats]
+   (walking-bass chord nbeats chord))
+  ([chord nbeats next-chord]
+   (let [a (db/chords chord)
+         b (db/chords next-chord)
+         [a1 a3 a5 _]    a
+         rc     (case nbeats
+                  1 [a1]
+                  2 [a1 (fill-in-beats-2-and-4 a b)]
+                  4 [a1 (dec a1) (- a1 3) (- a1 5)]
+                  8 [a1 (+ a1 2) a3 (- a5 2) a5 a3 (+ a1 2) a1]
+                  [])]
+     rc)))
+
+(defn third [coll] (nth coll 2))
 
 (defn synthetic-bass-track
-  "Takes BBCs, returns a synthesized bass track"
+  "Takes BBCs, returns a synthesized walking bass track"
   [bbcs]
   (->> bbcs
-       (reduce chord-beats-pairs [[] nil])
-       first
-       (tla/mapcat2 walk-between-chords)
-       (map-indexed beat-notes-to-timecode)
+       (map third)
+       compress
+       (partition 3 2 nil)
+       (mapcat (partial apply walking-bass))
+       (map (fn [note] (- note 12)))    ; lower one octave to make jazzier
+       (map-indexed (fn [beat note]
+                      (wrap-in-walking-bass-timecode (+ beat 4) ; compensate for zero bar
+                                                     note)))
        (apply concat)))
 
 (defn make-drum-track
