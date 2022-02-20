@@ -26,6 +26,17 @@
   [duration]
   (/ *whole-note* duration))
 
+(defn wrap-in-timecode
+  "Takes beat, note, velocity, and channel and wraps it into timecode 
+   suitable to play the note on this channel"
+  ([beat note duration velocity channel]
+   (let [on  (* duration beat)
+         off (+ on duration -1)]
+     [[on channel note velocity] [off channel note 0]])))
+
+(defn wrap-in-walking-bass-timecode [beat note]
+  (wrap-in-timecode beat note *qn* 140 *bass-channel*))
+
 (defn ttape->mtape
   "Converts ttape to MIDI tape format"
   ([ttape] (ttape->mtape ttape 1))
@@ -165,34 +176,33 @@
            [bar beat (keyword chord)])
          (rest bbcs))))
 
-(defn expand-bass-line [bar bassline-id transposition vel]
-  (let [notes (db/query "select n.midi_num, b.note_dur_num
-                         from bass_line_note b join note n on (n.note_cd = b.note_cd)
-                         where b.bass_line_id = :1
-                         order by order_num"
-                         [bassline-id])]
-    (loop [acc [],
-           tc (bar->timecode bar),
-           notes (rest notes)]
-      (if (empty? notes)
-        acc
-        (let [[note dur] (first notes)
-              note      (+ note transposition)
-              next-tc (+ tc (duration->timecode dur))]
-          (recur (conj acc
-                       [tc *bass-channel* note vel]
-                       [(dec next-tc) *bass-channel* note 0])
-                 next-tc
-                 (rest notes)))))))
+(defn paste-bass-line [from-bar bass-line-id transposition vel]
+  (println "expand-bass-line" bass-line-id)
+  (->> [bass-line-id]
+       (db/query "select n.midi_num, b.note_dur_num
+                  from bass_line_note b join note n on (n.note_cd = b.note_cd)
+                  where b.bass_line_id = :1
+                  order by order_num")
+       rest
+       (reduce (fn [[acc tc] [note dur]]
+                 (let [note (+ note transposition)
+                       next-tc (+ tc (duration->timecode dur))]
+                   [(conj acc
+                          [tc *bass-channel* note vel]
+                          [(dec next-tc) *bass-channel* note 0])
+                    next-tc]))
+               [[]
+                (bar->timecode from-bar)])
+       first))
 
-(defn alloc-bass [[timeline tape :as rc]
-                  [bassline begin end transp]]
-  (let [bars (range begin (inc end))
-        vel  90]
+(defn combine-bass-lines [[timeline tape :as rc]
+                          [bass-line-id from-bar to-bar transposition]]
+  (let [bars (range from-bar (inc to-bar))
+        vel  140]
     (if (some identity (vals (select-keys timeline bars)))
       rc
-      [(reduce (fn [a k] (assoc a k bassline)) timeline bars)
-       (concat tape (expand-bass-line begin bassline transp vel))])))
+      [(reduce (fn [a k] (assoc a k bass-line-id)) timeline bars)
+       (concat tape (paste-bass-line from-bar bass-line-id transposition vel))])))
 
 (defn bass-patterns [song-id]
   (let [song-id (str song-id)
@@ -201,14 +211,16 @@
                                  "where song_id = ? "
                                  "order by beg_bar_id")
                             [song-id])
+        _ (println patterns)
         maxbar (-> (db/query "select max(bar_id) bar from bar where song_id = ?" [song-id])
                    second
                    first)
-        [info rc] (reduce alloc-bass
+        [info rc] (reduce combine-bass-lines
                           [(into (sorted-map) (zipmap (range 1 (inc maxbar)) (repeat nil)))
                            []]
                           (rest patterns))]
     (with-meta rc {:bass info})))
+
 
 (defn cover-bar-with-drum
   "Takes pattern, drum note, and covers a bar with this pattern.
@@ -231,17 +243,6 @@
   [pattern bar]
   (mapcat #(cover-bar-with-drum (pattern %) (db/notedb %) bar)
           (keys pattern)))
-
-(defn wrap-in-timecode
-  "Takes beat, note, velocity, and channel and wraps it into timecode 
-   suitable to play the note on this channel"
-  ([beat note duration velocity channel]
-   (let [on  (* duration beat)
-         off (+ on duration -1)]
-     [[on channel note velocity] [off channel note 0]])))
-
-(defn wrap-in-walking-bass-timecode [beat note]
-  (wrap-in-timecode beat note *qn* 140 *bass-channel*))
 
 (defn compress
   "Takes collection and turns it into element, number of occurrences
@@ -330,7 +331,7 @@
     (if (empty? pattern)
       rc
       (let [[vel dur] (first pattern)
-            rvel (/ (* 100 vel) 100)
+            rvel (/ (* 80 vel) 100)
             dur (or dur 4)
             next-tc (+ tc (duration->timecode dur))
             chord-notes (db/chords (cond
