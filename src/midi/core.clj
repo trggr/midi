@@ -384,7 +384,7 @@
         ttape->mtape
         play-mtape)))
 
-(defn main [& _]
+(defn -main [& _]
   (doseq [song ["ALL THE THINGS YOU ARE"
                 "ALONE TOGETHER"
                 "MISTY"
@@ -395,8 +395,3 @@
                 "ALL BY MYSELF"
                 "LET IT BE"]]
     (play-song song)))
-
-(defn main2 [& _]
-  (println "It must be REPL"))
-
-(main)

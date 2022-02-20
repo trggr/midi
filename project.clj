@@ -1,11 +1,8 @@
-(defproject midi "0.1.0-SNAPSHOT"
-  :description "Play chords via midi interface"
-  :url "http://example.com/FIXME"
-  :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
-            :url "https://www.eclipse.org/legal/epl-2.0/"}
+(defproject midi "1.0"
+  :description "Build MIDI backing tracks from song tabs"
   :dependencies [[org.clojure/clojure "1.10.1"]
                  [org.xerial/sqlite-jdbc "3.32.3.3"]]
-  :resource-paths ["resources/android-midi-lib.jar"]
+  :resource-paths ["resources/android-midi-lib-1.0-SNAPSHOT.jar"]
   :main ^:skip-aot midi.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all
