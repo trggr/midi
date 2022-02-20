@@ -97,36 +97,41 @@
   ([tracks]     (tracks->ttape tracks 120))
   ([tracks bpm] (tracks->ttape tracks bpm [4 2 24 8]))
   ([tracks bpm signature]
-   (let [xs (sort-by key (group-by first tracks))
-         ys (for [[tc data] xs] [tc :data data])]
-     (concat [[0 :set-tempo (/ 60000000 bpm)]
-              [0 :time-signature signature]] ys))))
+   (->> tracks
+        (group-by first)
+        (map (fn [[tc notes]] [tc :data (map rest notes)]))
+        (cons [0 :set-tempo (/ 60000000 bpm)])
+        (cons [0 :time-signature signature])
+        (sort-by first))))
 
-(defn create-player
-  "Takes a collection of [channel instrument] pairs and
+(defn midi-synthesizer
+  "Takes a collection of [channel instrument] assignments and
    returns fn which accepts channel, note and velocity
    to play them via MIDI synthesizer"
-  [instrument-map]
-  (let [synth (javax.sound.midi.MidiSystem/getSynthesizer)
-        _     (.open synth)
-        chans (-> synth .getChannels)]
-    (doseq [[chan instr] instrument-map]
-      (let [instrument (-> synth .getDefaultSoundbank .getInstruments (nth instr))]
-        (println "Playing" (.getName instrument) "on channel" chan)
+  [instrument-assignment]
+  (let [synth (doto (javax.sound.midi.MidiSystem/getSynthesizer)
+                .open)
+        channels (-> synth .getChannels)]
+    (doseq [[channel assignment] instrument-assignment]
+      (let [instrument (-> synth
+                           .getDefaultSoundbank
+                           .getInstruments
+                           (nth assignment))]
+        (println "Playing" (.getName instrument) "on channel" channel)
         (.loadInstrument synth instrument)
-        (.programChange (nth chans chan) instr)))
+        (.programChange (nth channels channel) assignment)))
     (fn [c note vol]
-      (.noteOn (nth chans c) note vol))))
+      (.noteOn (nth channels c) note vol))))
 
 (defn play-mtape
   "Plays collection of vectors: [timecode, channel, note, velocity]"
   [mtape]
-  (let [play (create-player [[*chord-channel* 26]
-                             [*bass-channel*  32]])]
+  (let [player (midi-synthesizer [[*chord-channel* 26]
+                                  [*bass-channel*  32]])]
     (doseq [[tc notes] mtape]
       (Thread/sleep tc)
-      (doseq [[_ chan note vel] notes]
-        (play chan note vel)))))
+      (doseq [[chan note vel] notes]
+        (player chan note vel)))))
 
 (defn get-song-bbcs
   "Returns a collection of BBC (bar-beat-chord) elements for a given song.
@@ -160,18 +165,19 @@
            [bar beat (keyword chord)])
          (rest bbcs))))
 
-(defn expand-bass-line [bar bassline transp vel]
+(defn expand-bass-line [bar bassline-id transposition vel]
   (let [notes (db/query "select n.midi_num, b.note_dur_num
-                          from bass_line_note b join note n on (n.note_cd = b.note_cd)
-                          where b.bass_line_id = :1 order by order_num"
-                         [bassline])]
+                         from bass_line_note b join note n on (n.note_cd = b.note_cd)
+                         where b.bass_line_id = :1
+                         order by order_num"
+                         [bassline-id])]
     (loop [acc [],
            tc (bar->timecode bar),
            notes (rest notes)]
       (if (empty? notes)
         acc
-        (let [[midi dur] (first notes)
-              note      (+ midi transp)
+        (let [[note dur] (first notes)
+              note      (+ note transposition)
               next-tc (+ tc (duration->timecode dur))]
           (recur (conj acc
                        [tc *bass-channel* note vel]
