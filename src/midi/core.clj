@@ -1,13 +1,19 @@
 (ns midi.core
   (:require [clojure.string :as str]
             [midi.timlib :as tla]
-            [midi.dbload :as db]))
+            [midi.dbload :as db]
+            [midi.midifile2 :as midifile]))
 
-(def ^:dynamic *qn*            96)          ; Length of quarter note in time code ticks
+(def ^:dynamic *qn*            384)          ; Length of quarter note in time code ticks
 (def ^:dynamic *whole-note*    (* *qn* 4))
 (def ^:dynamic *chord-channel* 2)
 (def ^:dynamic *bass-channel*  4)
 (def ^:dynamic *drums-channel* 9)
+
+(defn third [coll] (nth coll 2))
+
+(defn fourth [coll] (nth coll 3))
+
 
 (def bar->drum-fills {0 "drums-intro"
                       8 "drums-fill2"
@@ -35,7 +41,7 @@
      [[on channel note velocity] [off channel note 0]])))
 
 (defn wrap-in-walking-bass-timecode [beat note]
-  (wrap-in-timecode beat note *qn* 140 *bass-channel*))
+  (wrap-in-timecode beat note *qn* 65 *bass-channel*))
 
 (defn ttape->mtape
   "Converts ttape to MIDI tape format"
@@ -48,7 +54,7 @@
          (cond (= :set-tempo cmd)
                (recur tc   ppq  val acc others)
                (= :time-signature cmd)
-               (let [x (* (first val) (nth val 2) tempo-correction)]
+               (let [x (* (first val) (third val) tempo-correction)]
                  (recur tc  x tempo acc others))
                :else
                (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
@@ -198,7 +204,7 @@
 (defn combine-bass-lines [[timeline tape :as rc]
                           [bass-line-id from-bar to-bar transposition]]
   (let [bars (range from-bar (inc to-bar))
-        vel  140]
+        vel  65]
     (if (some identity (vals (select-keys timeline bars)))
       rc
       [(reduce (fn [a k] (assoc a k bass-line-id)) timeline bars)
@@ -206,7 +212,7 @@
 
 (defn bass-patterns [song-id]
   (let [song-id (str song-id)
-        patterns (db/query (str "select bass_line_id, beg_bar_id, end_bar_id, (transp_num - 24) transp_num "
+        patterns (db/query (str "select bass_line_id, beg_bar_id, end_bar_id, transp_num - 12 transp_num "
                                  "from bass_line_bar_v "
                                  "where song_id = ? "
                                  "order by beg_bar_id")
@@ -279,8 +285,6 @@
                   8 [a1 (+ a1 2) a3 (- a5 2) a5 a3 (+ a1 2) a1]
                   [])]
      rc)))
-
-(defn third [coll] (nth coll 2))
 
 (defn synthetic-bass-track
   "Takes BBCs, returns a synthesized walking bass track"
@@ -384,6 +388,102 @@
         ttape->mtape
         play-mtape)))
 
+(defn multi-compare-- [preds coll1 coll2]
+  (println coll1 coll2)
+  (cond (every? true? (map (fn [x y] (= x y)) coll1 coll2))
+        0
+        
+        (not-any? false? (map (fn [pred x y] (pred x y)) preds coll1 coll2))
+        -1
+        :else 1))
+
+(= [1 2 3] [1 2])
+
+(defn multi-compare### [preds coll1 coll2]
+  (let [h (fn [ps c1 c2 rc]
+            (if (and (seq ps) (seq c1) (seq c2))
+              (let [f (first ps),
+                    a (first c1),
+                    b (first c2)
+                    rc (if (= a b) 0 (if (f a b) -1 1))]
+                (if (<= rc 0) ; keep going
+                  (recur (rest ps) (rest c1) (rest c2) rc)
+                  1))
+              rc))]
+    (h preds coll1 coll2 0)))
+
+(defn multi-compare [preds coll1 coll2]
+  (let [h (fn [ps c1 c2 rc]
+            (if (and (seq ps) (seq c1) (seq c2))
+              (let [f (first ps),
+                    a (first c1),
+                    b (first c2)
+                    rc (if (= a b) 0 (if (f a b) -1 1))]
+                (if (<= rc 0) ; keep going
+                  (recur (rest ps) (rest c1) (rest c2) rc)
+                  1))
+              rc))]
+    (h preds coll1 coll2 0)))
+
+(comment
+    (multi-compare [<= <= >=] [1 2 3] [2 3 2]) ;= -1
+    (multi-compare [<= <= >=] [2 3 2] [1 2 3]) ; 1
+    (multi-compare [<= <= >=] [1 2 3] [1 2 3])
+    (multi-compare [< < >] [1 2 3] [0 2 3])
+    (multi-compare [< < >] [1 2 3] [1 2 2])
+)
+
+(map (complement compare) [1 2 3] [1 2 4])
+
+(def a (vector [1 1]  [1 2]))
+
+(apply map + a)
+
+(defn track->duration-track [track]
+  (let [sorted (sort-by (juxt third first (comp - fourth)) track)
+        dur1  (map (fn [[tc c note vel] [ntc _ _ _]]
+                     (if (zero? vel)
+                       nil
+                       [tc c note vel (- ntc tc)]))
+                   sorted
+                   (rest sorted))]
+    (remove nil? dur1)))
+
+(defn save-song
+  "Plays a song"
+  [song-name]
+  (let [[song-id bpm drum-pattern bass-method]
+        (-> (db/query "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd
+                       from song
+                       where upper(song_nm) = ?" [song-name])
+            second)
+        bbcs        (get-song-bbcs song-name)
+        chord-track (strum-chord-track "charleston" bbcs)
+        drum-track  (make-drum-track drum-pattern bbcs)
+        bass-track  (if (= bass-method "patterns")
+                      (bass-patterns song-id)
+                      (synthetic-bass-track bbcs))
+        m           (meta bass-track)
+        info        (if m
+                      (m :bass)
+                      (apply sorted-map (interleave (range 1 100) (repeat bass-method))))
+        drum-track-dur  (track->duration-track drum-track)
+        bass-track-dur  (track->duration-track bass-track)
+        chord-track-dur (track->duration-track chord-track)]
+    (println (format "song=%s, bpm=%d, drums=%s, bass=%s"
+                     song-name bpm drum-pattern bass-method))
+    (println (tla/view (map (fn [[bar v] c] [bar v (pr-str c)])
+                            info
+                            (partition 4 (map (fn [[_ _ c]] c) bbcs)))))
+    ; (midifile/save (str song-name ".midi") (concat chord-track bass-track drum-track) bpm)
+    (println "drum track")
+    (doseq [s drum-track-dur] (println s))
+    (println "bass track")
+    (doseq [s bass-track-dur] (println s))
+    (midifile/save (str song-name ".midi")
+                   (concat drum-track-dur bass-track-dur chord-track-dur)
+                   bpm)))
+
 (defn -main [& _]
   (doseq [song ["ALL THE THINGS YOU ARE"
                 "ALONE TOGETHER"
@@ -393,5 +493,6 @@
                 "ALL OF ME"
                 "AUTUMN LEAVES"
                 "ALL BY MYSELF"
-                "LET IT BE"]]
-    (play-song song)))
+                "LET IT BE"
+]]
+    (save-song song)))
