@@ -384,11 +384,11 @@
 ;; to cover the whole bar?
 (def  drum-patterns
   {"drums-swing"
-   {:ride-cymbal-1      [[95]
-                         [95 12] [0 12] [85 12]
-                         [95]
-                         [95 12] [0 12] [85 12]]
-    :closed-hi-hat      [[0] [95] [0]  [95]]
+   {:ride-cymbal-1      [[99]
+                         [99 12] [0 12] [90 12]
+                         [99]
+                         [99 12] [0 12] [90 12]]
+    :closed-hi-hat      [[0] [99] [0]  [99]]
     :acoustic-bass-drum [[85] [65] [85] [65]]}
    "drums-fill2"
    {:ride-cymbal-1      [[70]]
@@ -416,10 +416,10 @@
                          [50 12]]
     :acoustic-bass-drum [[90] [0] [90]]},
    "drums-intro"
-   {:hand-clap     [[100]
-                    [100]
-                    [100 8] [100 8]
-                    [100 8] [100 8]]}})
+   {:bass-drum-1 [[100]
+                  [100]
+                  [100 8] [100 8]
+                  [100 8] [100 8]]}})
 
 ;; Chord strumming patterns. Each pattern is a collection of velocities,
 ;; optionally paired with duration. Duration is a fraction of a whole note.

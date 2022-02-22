@@ -380,7 +380,8 @@
         ttape->mtape
         play-mtape)))
 
-(defn track->duration-track [track]
+(defn track->duration-track
+  [track]
   (let [sorted (sort-by (juxt tla/third first (comp - tla/fourth)) track)
         dur1  (map (fn [[tc c note vel] [ntc _ _ _]]
                      (if (zero? vel)
@@ -391,39 +392,26 @@
     (remove nil? dur1)))
 
 (defn save-song
-  "Plays a song"
-  [song-name]
+  "Save song to a midi file"
+  [song-name file-name]
   (let [[song-id bpm drum-pattern bass-method]
         (-> (db/query "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd
                        from song
                        where upper(song_nm) = ?" [song-name])
             second)
         bbcs        (get-song-bbcs song-name)
-        chord-track (strum-chord-track "charleston" bbcs)
-        drum-track  (make-drum-track drum-pattern bbcs)
         bass-track  (if (= bass-method "patterns")
                       (bass-patterns song-id)
                       (synthetic-bass-track bbcs))
-        m           (meta bass-track)
-        info        (if m
-                      (m :bass)
-                      (apply sorted-map (interleave (range 1 100) (repeat bass-method))))
-        drum-track-dur  (track->duration-track drum-track)
-        bass-track-dur  (track->duration-track bass-track)
-        chord-track-dur (track->duration-track chord-track)]
+        tracks (concat
+                (->> bbcs (make-drum-track drum-pattern) track->duration-track)
+                (track->duration-track bass-track)
+                (->> bbcs (strum-chord-track "charleston") track->duration-track))]
     (println (format "song=%s, bpm=%d, drums=%s, bass=%s"
                      song-name bpm drum-pattern bass-method))
-    (println (tla/view (map (fn [[bar v] c] [bar v (pr-str c)])
-                            info
-                            (partition 4 (map (fn [[_ _ c]] c) bbcs)))))
-    ; (midifile/save (str song-name ".midi") (concat chord-track bass-track drum-track) bpm)
-    (println "drum track")
-    (doseq [s drum-track-dur] (println s))
-    (println "bass track")
-    (doseq [s bass-track-dur] (println s))
-    (midifile/save (str song-name ".midi")
-                   (concat drum-track-dur bass-track-dur chord-track-dur)
-                   bpm)))
+    (println "tracks")
+    (doseq [s tracks] (println s))
+    (midifile/save file-name tracks bpm)))
 
 (defn -main [& _]
   (doseq [song ["ALL THE THINGS YOU ARE"
@@ -435,4 +423,4 @@
                 "AUTUMN LEAVES"
                 "ALL BY MYSELF"
                 "LET IT BE"]]
-    (save-song song)))
+    (save-song song (str song ".midi"))))
