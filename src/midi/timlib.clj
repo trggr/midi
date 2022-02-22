@@ -1,6 +1,11 @@
 (ns midi.timlib
   (:require [clojure.string :as str]))
 
+(defn third [coll] (nth coll 2))
+
+(defn fourth [coll] (nth coll 3))
+
+
  (defn mapcat2
    "Applies f to every two elements in the reduction of coll, concatenating the result
    colls of (f x y)."

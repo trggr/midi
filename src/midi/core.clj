@@ -4,33 +4,21 @@
             [midi.dbload :as db]
             [midi.midifile2 :as midifile]))
 
-(def ^:dynamic *qn*            384)          ; Length of quarter note in time code ticks
-(def ^:dynamic *whole-note*    (* *qn* 4))
-(def ^:dynamic *chord-channel* 2)
-(def ^:dynamic *bass-channel*  4)
-(def ^:dynamic *drums-channel* 9)
-
-(defn third [coll] (nth coll 2))
-
-(defn fourth [coll] (nth coll 3))
-
-
 (def bar->drum-fills {0 "drums-intro"
                       8 "drums-fill2"
                       16 "drums-fill3"
                       24 "drums-fill2"
                       32 "drums-fill3"})
 
-
 (defn bar->timecode
   "Returns beginning on bar in timecode ticks"
   [bar]
-  (* bar *whole-note*))
+  (* bar db/WHOLE-NOTE))
 
 (defn duration->timecode
   "Returns duration of note in time code ticks"
   [duration]
-  (/ *whole-note* duration))
+  (/ db/WHOLE-NOTE duration))
 
 (defn wrap-in-timecode
   "Takes beat, note, velocity, and channel and wraps it into timecode 
@@ -41,7 +29,11 @@
      [[on channel note velocity] [off channel note 0]])))
 
 (defn wrap-in-walking-bass-timecode [beat note]
-  (wrap-in-timecode beat note *qn* 65 *bass-channel*))
+  (wrap-in-timecode beat
+                    note
+                    db/QUARTER-NOTE
+                    db/BASS-VELOCITY
+                    db/BASS-CHANNEL))
 
 (defn ttape->mtape
   "Converts ttape to MIDI tape format"
@@ -54,7 +46,7 @@
          (cond (= :set-tempo cmd)
                (recur tc   ppq  val acc others)
                (= :time-signature cmd)
-               (let [x (* (first val) (third val) tempo-correction)]
+               (let [x (* (first val) (tla/third val) tempo-correction)]
                  (recur tc  x tempo acc others))
                :else
                (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
@@ -88,7 +80,6 @@
           (<= 3 sep 4) (+ a 2)
           (<= 5 sep 7) n3
           :else        n3)))
-
 
 (defn tracks->ttape
   "Makes a tick tape from an array of raw notes each of which has a stucture:
@@ -143,8 +134,8 @@
 (defn play-mtape
   "Plays collection of vectors: [timecode, channel, note, velocity]"
   [mtape]
-  (let [player (midi-synthesizer [[*chord-channel* 26]
-                                  [*bass-channel*  32]])]
+  (let [player (midi-synthesizer [[db/CHORD-CHANNEL 26]
+                                  [db/BASS-CHANNEL  32]])]
     (doseq [[tc notes] mtape]
       (Thread/sleep tc)
       (doseq [[chan note vel] notes]
@@ -194,8 +185,8 @@
                  (let [note (+ note transposition)
                        next-tc (+ tc (duration->timecode dur))]
                    [(conj acc
-                          [tc *bass-channel* note vel]
-                          [(dec next-tc) *bass-channel* note 0])
+                          [tc db/BASS-CHANNEL note vel]
+                          [(dec next-tc) db/BASS-CHANNEL note 0])
                     next-tc]))
                [[]
                 (bar->timecode from-bar)])
@@ -203,12 +194,14 @@
 
 (defn combine-bass-lines [[timeline tape :as rc]
                           [bass-line-id from-bar to-bar transposition]]
-  (let [bars (range from-bar (inc to-bar))
-        vel  65]
+  (let [bars (range from-bar (inc to-bar))]
     (if (some identity (vals (select-keys timeline bars)))
       rc
-      [(reduce (fn [a k] (assoc a k bass-line-id)) timeline bars)
-       (concat tape (paste-bass-line from-bar bass-line-id transposition vel))])))
+      [(reduce (fn [a k] (assoc a k bass-line-id))
+               timeline
+               bars)
+       (concat tape
+               (paste-bass-line from-bar bass-line-id transposition db/BASS-VELOCITY))])))
 
 (defn bass-patterns [song-id]
   (let [song-id (str song-id)
@@ -239,8 +232,8 @@
             dur (or dur 4)
             next-tc (+ tc (duration->timecode dur))]
         (recur (conj rc
-                     [tc *drums-channel* drum-note vel]
-                     [(dec next-tc) *drums-channel* drum-note 0])
+                     [tc db/DRUMS-CHANNEL drum-note vel]
+                     [(dec next-tc) db/DRUMS-CHANNEL drum-note 0])
                next-tc
                (rest pattern))))))
 
@@ -290,7 +283,7 @@
   "Takes BBCs, returns a synthesized walking bass track"
   [bbcs]
   (->> bbcs
-       (map third)
+       (map tla/third)
        compress
        (partition 3 2 nil)
        (mapcat (partial apply walking-bass))
@@ -335,15 +328,14 @@
     (if (empty? pattern)
       rc
       (let [[vel dur] (first pattern)
-            rvel (/ (* 80 vel) 100)
             dur (or dur 4)
             next-tc (+ tc (duration->timecode dur))
             chord-notes (db/chords (cond
-                                     (< tc (+ begin (* 1 *qn*))) a
-                                     (< tc (+ begin (* 2 *qn*))) b
-                                     (< tc (+ begin (* 3 *qn*))) c
+                                     (< tc (+ begin (* 1 db/QUARTER-NOTE))) a
+                                     (< tc (+ begin (* 2 db/QUARTER-NOTE))) b
+                                     (< tc (+ begin (* 3 db/QUARTER-NOTE))) c
                                      :else d))
-            ons   (map #(vector tc *chord-channel* % rvel) chord-notes)
+            ons   (map #(vector tc db/CHORD-CHANNEL % vel) chord-notes)
             offs  (map (fn [[_ c n _]] [(dec next-tc) c n 0]) ons)]
         (recur (concat rc ons offs)
                next-tc
@@ -388,59 +380,8 @@
         ttape->mtape
         play-mtape)))
 
-(defn multi-compare-- [preds coll1 coll2]
-  (println coll1 coll2)
-  (cond (every? true? (map (fn [x y] (= x y)) coll1 coll2))
-        0
-        
-        (not-any? false? (map (fn [pred x y] (pred x y)) preds coll1 coll2))
-        -1
-        :else 1))
-
-(= [1 2 3] [1 2])
-
-(defn multi-compare### [preds coll1 coll2]
-  (let [h (fn [ps c1 c2 rc]
-            (if (and (seq ps) (seq c1) (seq c2))
-              (let [f (first ps),
-                    a (first c1),
-                    b (first c2)
-                    rc (if (= a b) 0 (if (f a b) -1 1))]
-                (if (<= rc 0) ; keep going
-                  (recur (rest ps) (rest c1) (rest c2) rc)
-                  1))
-              rc))]
-    (h preds coll1 coll2 0)))
-
-(defn multi-compare [preds coll1 coll2]
-  (let [h (fn [ps c1 c2 rc]
-            (if (and (seq ps) (seq c1) (seq c2))
-              (let [f (first ps),
-                    a (first c1),
-                    b (first c2)
-                    rc (if (= a b) 0 (if (f a b) -1 1))]
-                (if (<= rc 0) ; keep going
-                  (recur (rest ps) (rest c1) (rest c2) rc)
-                  1))
-              rc))]
-    (h preds coll1 coll2 0)))
-
-(comment
-    (multi-compare [<= <= >=] [1 2 3] [2 3 2]) ;= -1
-    (multi-compare [<= <= >=] [2 3 2] [1 2 3]) ; 1
-    (multi-compare [<= <= >=] [1 2 3] [1 2 3])
-    (multi-compare [< < >] [1 2 3] [0 2 3])
-    (multi-compare [< < >] [1 2 3] [1 2 2])
-)
-
-(map (complement compare) [1 2 3] [1 2 4])
-
-(def a (vector [1 1]  [1 2]))
-
-(apply map + a)
-
 (defn track->duration-track [track]
-  (let [sorted (sort-by (juxt third first (comp - fourth)) track)
+  (let [sorted (sort-by (juxt tla/third first (comp - tla/fourth)) track)
         dur1  (map (fn [[tc c note vel] [ntc _ _ _]]
                      (if (zero? vel)
                        nil
@@ -493,6 +434,5 @@
                 "ALL OF ME"
                 "AUTUMN LEAVES"
                 "ALL BY MYSELF"
-                "LET IT BE"
-]]
+                "LET IT BE"]]
     (save-song song)))

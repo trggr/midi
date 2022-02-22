@@ -2,9 +2,13 @@
    (:require [clojure.string :as str]
              [midi.timlib :as tla]))
 
-
+(def QUARTER-NOTE 384)          ; Length of quarter note in time code ticks
+(def WHOLE-NOTE   (* QUARTER-NOTE 4))
+(def CHORD-CHANNEL 2)
+(def BASS-CHANNEL 4)
+(def DRUMS-CHANNEL 9)
+(def BASS-VELOCITY 65)
 (def conn (tla/connect-sqlite "resources/synth.db"))
-
 (def query (partial tla/cursor conn))
 
 ; references
@@ -412,10 +416,10 @@
                          [50 12]]
     :acoustic-bass-drum [[90] [0] [90]]},
    "drums-intro"
-   {:closed-hi-hat     [[90]
-                        [90]
-                        [90 8] [90 8]
-                        [90 8] [90 8]]}})
+   {:hand-clap     [[100]
+                    [100]
+                    [100 8] [100 8]
+                    [100 8] [100 8]]}})
 
 ;; Chord strumming patterns. Each pattern is a collection of velocities,
 ;; optionally paired with duration. Duration is a fraction of a whole note.
