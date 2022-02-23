@@ -5,6 +5,7 @@ profiles.clj
 pom.xml
 pom.xml.asc
 *.jar
+*.zip
 *.class
 /.lein-*
 /.nrepl-port
@@ -19,4 +20,5 @@ pom.xml.asc
 .calva
 .lsp
 .clj-kondo
+resources/midi/*
 [0-9].txt
