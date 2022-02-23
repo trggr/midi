@@ -391,8 +391,8 @@
                    (rest sorted))]
     (remove nil? dur1)))
 
-(defn save-song
-  "Save song to a midi file"
+(defn produce-midi-file
+  "Save song to a MIDI file"
   [song-name file-name]
   (let [[song-id bpm drum-pattern bass-method]
         (-> (db/query "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd
@@ -413,14 +413,20 @@
     (doseq [s tracks] (println s))
     (midifile/save file-name tracks bpm)))
 
+(comment
+  (db/import-song "resources/tabs/misty2.edn")
+  )
+
 (defn -main [& _]
   (doseq [song ["ALL THE THINGS YOU ARE"
                 "ALONE TOGETHER"
                 "MISTY"
-                "AUTUMN LEAVES" "MEDIUM BLUES"
+                "MEDIUM BLUES"
                 "IN A SENTIMENTAL MOOD"
                 "ALL OF ME"
                 "AUTUMN LEAVES"
                 "ALL BY MYSELF"
-                "LET IT BE"]]
-    (save-song song (str song ".midi"))))
+                "LET IT BE"
+                "MISTY2"]]
+    (produce-midi-file song
+                       (str "resources/midi/" song ".midi"))))

@@ -19,3 +19,4 @@ pom.xml.asc
 .calva
 .lsp
 .clj-kondo
+[0-9].txt

@@ -5,18 +5,6 @@
 
 (defn fourth [coll] (nth coll 3))
 
-
- (defn mapcat2
-   "Applies f to every two elements in the reduction of coll, concatenating the result
-   colls of (f x y)."
-   [f coll]
-   (loop [acc [] xs coll]
-     (if (empty? xs)
-       acc
-       (let [[a b & _] xs]
-         (recur (concat acc (f a b))
-                (rest xs))))))
-
 (defn col
   "Returns n-th column of matrix as vector"
   [n matrix]
@@ -146,7 +134,7 @@
             (if xs
                  (let [row (first xs)]
                    (reduce (fn [acc i]
-                             (.setString acc (inc i) (nth row i))
+                             (.setObject acc (inc i) (nth row i))
                              acc)
                            cur
                            (range (count row)))

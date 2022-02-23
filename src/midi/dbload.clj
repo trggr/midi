@@ -1,136 +1,71 @@
 (ns midi.dbload
    (:require [clojure.string :as str]
+             [clojure.edn :as edn]
              [midi.timlib :as tla]))
 
-(def QUARTER-NOTE 384)          ; Length of quarter note in time code ticks
-(def WHOLE-NOTE   (* QUARTER-NOTE 4))
+(def QUARTER-NOTE  384)      ; Length of quarter note in time code ticks
+(def WHOLE-NOTE    (* QUARTER-NOTE 4))
 (def CHORD-CHANNEL 2)
-(def BASS-CHANNEL 4)
+(def BASS-CHANNEL  4)
 (def DRUMS-CHANNEL 9)
 (def BASS-VELOCITY 65)
-(def conn (tla/connect-sqlite "resources/synth.db"))
-(def query (partial tla/cursor conn))
+(def conn          (tla/connect-sqlite "resources/synth.db"))
+(def query         (partial tla/cursor conn))
+(def exec-dml      (partial tla/batch-update conn))
 
 ; references
 ; (batch-update conn "insert into all_beat(bar_id, beat_id) values (?, ?)" (for [bar (range 1 101) beat (range 1 5)] [bar beat]))
 ; (batch-update conn "update bar set chord_id = null where length(chord_id) = 0" [[]])
 
-(defn tab->beats [bar]
-  (let [[a b c d] bar]
-    (case (count bar)
-       1 {1 a}
-       2 {1 a, 3 b}
-       3 {1 a, 3 b, 4 c}
-       4 {1 a, 2 b, 3 c, 4 d}
-       :default (throw (Exception. "More than 4 chords per bar!")))))
+(defn chords-within-bar
+  "Assign chords within a bar. Currently support 4/4 time signature only
+   | Am        | -> Am///
+   | Am Dm     | -> Am/  Dm/
+   | Am Dm G   | -> Am/  Dm G
+   | Am Dm G C | -> Am Dm G C"
+  [chords]
+  (let [[a b c d] chords]
+    (case (count chords)
+      1 [1 a]
+      2 [1 a     3 b]
+      3 [1 a     3 b 4 c]
+      4 [1 a 2 b 3 c 4 d]
+      :default (throw (Exception. "More than 4 chords per bar!")))))
 
-(defn bars [tabs]
-  (as-> tabs $
+(defn parse-score [score]
+  (as-> score $
+    (str/trim $)
     (str/replace $ #"\n" "|")
     (str/split $ #"\|")
     (map str/trim $)
     (map #(str/split % #"\s+") $)
-    (map tab->beats $)
+    (map chords-within-bar $)
     (map-indexed #(vector (inc %1) %2) $)
-    (for [[barno chords] $,
-          [beat chord] chords]
-      [barno beat chord])))
+    (for [[bar chords] $, [beat chord] chords]
+      [bar beat chord])))
 
-(def songdb [
-  {:id 1, :nm "ALL THE THINGS YOU ARE", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 120,
-   :bars (bars (str "Fm7    | Bbm7     | Eb7    | Abmaj7    |"
-                    "Dbmaj7 | G7       | Cmaj7  | Cmaj7     |"
-                    "Cm7    | Fm7      | Bb7    | Ebmaj7    |"
-                    "Abmaj7 | Am7-5 D7 | Gmaj7  | Gmaj7 E9  |"
-                    "Am7    | D7       | Gmaj7  | Gmaj7     |" 
-                    "F#m7   | B7       | Emaj7  | C7+5      |"
-                    "Fm7    | Bbm7     | Eb7    | Abmaj7    |"
-                    "Dbmaj7 | Gb7      | Cm7    | Bdim7     |"
-                    "Bbm7   | Eb7      | Abmaj7 | Gm7-5  C9 "))}
-  {:id 2, :nm "IN A SENTIMENTAL MOOD", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 120,
-   :bars (bars (str "Dm       Dmmaj7 | Dm7    Dm6 | Gm      Gmmaj7 | Gm7      Gm6 A7   |"
-                    "Dm              | D7         | Gm7     Gb7    | Fmaj7             |"
-                    "Dm       Dmmaj7 | Dm7    Dm6 | Gm      Gmmaj7 | Gm7      Gm6 A7   |"
-                    "Dm              | D7         | Gm7     Gb7    | Fmaj7    Ebm7 Ab7 |"
-                    "Dbmaj7   Bbm7   | Ebm7   Ab7 | Dbmaj7  Bb7    | Eb7      Ab7      |"
-                    "Dbmaj7   Bbm7   | Ebm7   Ab7 | Gm7            | C7                |"
-                    "Dm       Dmmaj7 | Dm7    Dm6 | Gm      Gmmaj7 | Gm7      Gm6 A7   |"
-                    "Dm              | D7         | Gm7     C11-9  | Fmaj7              "))}
-  {:id 3, :nm "ALL OF ME", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 120,
-   :bars (bars (str "C6  | C6  | E7           | E7      |"
-                    "A7  | A7  | Dm7          | Dm7     |"
-                    "E7  | E7  | Am7          | Am7     |"
-                    "D7  | D7  | Dm7          | G7      |"
-                    "C6  | C6  | E7           | E7      |"
-                    "A7  | A7  | Dm7          | Dm7     |"
-                    "F6  | Fm6 | Cmaj7 Em7-5  | A7      |"
-                    "Dm7 | G7  | C6    Ebdim7 | Dm7  G7 |"))}
-  {:id 4, :nm "AUTUMN LEAVES", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 120,
-   :bars (bars (str "Am7    | D7    | Gmaj7    | Cmaj7    |"
-                    "F#m7-5 | B7    | Em       | Em       |"
-                    "Am7    | D7    | Gmaj7    | Cmaj7    |"
-                    "F#m7-5 | B7    | Em       | Em       |"
-                    "F#m7-5 | B7    | Em       | Em       |"
-                    "Am7    | D7    | Gmaj7    | Gmaj7    |"
-                    "F#m7-5 | B11-9 | Em7   A7 | Dm7    G7|"
-                    "F#m7-5 | B11-9 | Em       | Em       |"))}
-  {:id 5, :nm "ALL BY MYSELF", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 120,
-   :bars (bars (str "Cmaj7       | C6        | D7           | Am7    D7 |"
-                    "G7          | Dm7   G7  | Em7    A7    | Dm     G7 |"
-                    "Cmaj7       | C6        | F#m7   B7    | E7        |"
-                    "Am7   Am7-5 | D7        | Dm7    Dm7-5 | G7        |"
-                    "Cmaj7       | C6        | D7           | Am7    D7 |"
-                    "G7          | Dm7    G7 | E7     E7+5  | E7        |"
-                    "Fmaj7       | F#dim7    | Cmaj7  B7+5  | Em7-5  A7 |"
-                    "Am7   D7    | Dm7    G7 | C6     Am7   | Dm7    G7 |"))}
-  {:id 6, :nm "LET IT BE", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 120,
-   :bars (bars (str "C  | G  | Am | F |"
-                    "C  | G  | F  | C |"
-                    "C  | G  | Am | F |"
-                    "C  | G  | F  | C |"
-                    "Am | G  | F  | C |"
-                    "C  | G  | F  | C |"))}
-  {:id 7, :nm "MEDIUM BLUES", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 120,
-    :bars (bars "C | F7 F#dim | C | C7 | F | F#dim | C | Em7-5 A7 | Dm7 | G7 | Em7-5 A7 | Dm G7")}
-  {:id 8, :nm "ALONE TOGETHER", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 120,
-   :bars (bars (str "Dm          | Em7-5 A7  | Dm           | Em7-5  A7 |"
-                    "Dm          | Am7-5 D7  | Gm           | Gm7       |"
-                    "Bm7     E7  | Gm7   C7  | F      F7    | Em7-5  A7 |"
-                    "Dmaj7       | Em7-5 A7  |"
-                    "Dm          | Em7-5 A7  | Dm           | Em7-5  A7 |"
-                    "Dm          | Am7-5 D7  | Gm           | Gm7       |"
-                    "Bm7     E7  | Gm7   C7  | F      F7    | Em7-5  A7 |"
-                    "Dmaj7       | Dmaj7     |"
-                    "Am7-5       | D7        | Gm           | Gm        |"
-                    "Gm7-5       | C7        | F      F7    | Em7-5  A7 |"
-                    "Dm          | Em7-5 A7  | Dm           | Em7-5  A7 |"
-                    "Dm          | Bb7   A7  | Dm           | Em7-5  A7 |"))}
-  {:id 9, :nm "MISTY", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 80, :drum "drums-swing", :bass "patterns",
-   :bars (bars (str "Ebmaj7      | Bbm7  Eb7 | Abmaj7       | Abm7   Db7|"
-                    "Ebmaj7  Cm7 | Fm7   Bb7 | Gm7    C7    | Fm7    Bb7|"
-                    "Ebmaj7      | Bbm7  Eb7 | Abmaj7       | Abm7   Db7|"
-                    "Ebmaj7  Cm7 | Fm7   Bb7 | Eb6    Db9   | Ebmaj7    |"
-                    "Bbm7        | Eb7-9     | Abmaj7       | Abmaj7    |"
-                    "Am7         | D7    F7  | Gm7    C7-9  | Fm7    Bb7|"
-                    "Ebmaj7      | Bbm7  Eb7 | Abmaj7       | Abm7   Db7|"
-                    "Ebmaj7 Cm7  | Fm7   Bb7 | Eb6    Cm7   | Fm7    Bb7|"))}
-])
+(defn save-song-to-db
+  "Takes song-map with keys id, nm, numer, :denom, :ppq, :bb, :bpm, :bars, :drum :bass
+   and saves song to the database"
+  [song-map]
+  (let [{:keys [id nm numer denom ppq bb bpm bars drum bass]} song-map]
+    (exec-dml "delete from bar where song_id = ?" [[id]])
+    (exec-dml "delete from song where song_id = ?" [[id]])
+    (exec-dml (str "insert into song(song_id, song_nm, time_sig_nmrtr_num, time_sig_denom_num,"
+                   "time_sig_ppq_num, time_sig_bb_num, bpm_num, drum_ptrn_cd, bass_ty_cd) "
+                   "values (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+         [[id nm numer denom ppq bb bpm drum bass]])
+    (exec-dml "insert into bar (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)"
+         (map #(cons id %) bars))
+    (exec-dml "update bar set chord_id = null where length(chord_id) = 0" [[]])))
 
-(defn save-song [conn song]
-  (let [{:keys [id nm numer denom ppq bb bpm bars drum bass]} song]
-     (tla/batch-update conn
-       (str "insert into song(song_id, song_nm, time_sig_nmrtr_num, time_sig_denom_num,"
-                             "time_sig_ppq_num, time_sig_bb_num, bpm_num, drum_ptrn_cd, bass_ty_cd) "
-            "values (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-        [[id nm numer denom ppq bb bpm drum bass]])
-   (tla/batch-update conn "insert into bar (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)"
-       (map #(cons id %) bars))
-   (tla/batch-update conn "update bar set chord_id = null where length(chord_id) = 0" [[]])))
-
-; Saving:
-;
-; (for [s songdb] (save-song conn s))
-;
+(defn import-song
+  [edn-file]
+  (-> edn-file
+      slurp
+      edn/read-string
+      (update :bars parse-score)
+      save-song-to-db))
 
 ; Middle octave - C3 (also just C for convenience)
 (def notedb1 {:C 60, :C# 61, :Db 61,
@@ -256,7 +191,7 @@
         chords (->> (str/split chords #"\|")
                     (map str/trim)
                     (map #(str/split % #"\s+"))
-                    (map tab->beats)
+                    (map chords-within-bar)
                     (map-indexed #(vector (inc %1) %2)))
         chords (for [[barno bar] chords, [beat chord] bar] [id barno beat chord])
         cnt    (str (reduce max (map second chords)))
