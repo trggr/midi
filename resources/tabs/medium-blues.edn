@@ -1,0 +1,8 @@
+{:id 7, :nm "MEDIUM BLUES", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 100,
+ :drum "drums-swing",
+ :bass "patterns",
+ :tab-score "
+C   | F7 F#dim | C        | C7
+F   | F#dim    | C        | Em7-5 A7
+Dm7 | G7       | Em7-5 A7 | Dm G7
+"}

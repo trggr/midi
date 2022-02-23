@@ -1,0 +1,15 @@
+{:id 2,
+ :nm "IN A SENTIMENTAL MOOD", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 60,
+ :drum "drums-swing",
+ :bass "patterns",
+ :tab-score "
+Dm       Dmmaj7 | Dm7    Dm6 | Gm      Gmmaj7 | Gm7      Gm6 A7
+Dm              | D7         | Gm7     Gb7    | Fmaj7          
+Dm       Dmmaj7 | Dm7    Dm6 | Gm      Gmmaj7 | Gm7      Gm6 A7
+Dm              | D7         | Gm7     Gb7    | Fmaj7    Ebm7 Ab7
+Dbmaj7   Bbm7   | Ebm7   Ab7 | Dbmaj7  Bb7    | Eb7      Ab7     
+Dbmaj7   Bbm7   | Ebm7   Ab7 | Gm7            | C7               
+Dm       Dmmaj7 | Dm7    Dm6 | Gm      Gmmaj7 | Gm7      Gm6 A7
+Dm              | D7         | Gm7     C11-9  | Fmaj7
+"
+}

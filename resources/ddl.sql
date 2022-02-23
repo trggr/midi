@@ -19,6 +19,14 @@ create table bar (
   primary key (song_id, bar_id, beat_id)
 );
 
+create table song_bar_beat (
+  song_id integer not null,
+  bar_id  integer not null,
+  beat_id integer not null,
+  chord_id varchar(20),
+  primary key (song_id, bar_id, beat_id)
+);
+
 select a.bar_id, a.beat_id, b.chord_id
 from all_beat      a
      left join bar b on (b.bar_id  = a.bar_id and
@@ -43,7 +51,7 @@ fill as (
            lag(b.chord_id, 8) over (order by a.bar_id, a.beat_id range between unbounded preceding and current row) c8
     from all_beat                 a
          left outer join bar_flat b on (a.bar_id = b.bar_id and a.beat_id = b.beat_id)
-    where song_id = 2 
+    where song_id = 2
      ),
 rc as (select bar_id, beat_id, coalesce(chord_id, c1, c2, c3, c4, c5, c6, c7, c8) chord_id,
               orig_bar_id, orig_beat_id, chord_id orig_chord_id
@@ -98,7 +106,7 @@ select bar_id, beat_id, chord_id
 from rc
 where chord_id is not null
 order by bar_id, beat_id;
-               
+
 select * from bar where song_id = 1;
 
 drop table chord;
@@ -223,29 +231,29 @@ delete from bass_line_note;
 
 insert into bass_line_note (bass_line_id, order_num, note_cd, note_dur_num)
 values
-  ('Line-B', 1, 'F2',  4), ('Line-B', 2, 'G2', 4),  ('Line-B', 3, 'Ab2', 4),  ('Line-B', 4, 'A2', 4), 
-  ('Line-B', 5, 'Bb2', 4), ('Line-B', 6, 'C3', 4),  ('Line-B', 7, 'Db3', 4),  ('Line-B', 8, 'F3', 4), 
-  ('Line-B', 9, 'Eb3', 4), ('Line-B', 10, 'G3', 4), ('Line-B', 11, 'Bb3', 4), ('Line-B', 12, 'A3', 4), 
+  ('Line-B', 1, 'F2',  4), ('Line-B', 2, 'G2', 4),  ('Line-B', 3, 'Ab2', 4),  ('Line-B', 4, 'A2', 4),
+  ('Line-B', 5, 'Bb2', 4), ('Line-B', 6, 'C3', 4),  ('Line-B', 7, 'Db3', 4),  ('Line-B', 8, 'F3', 4),
+  ('Line-B', 9, 'Eb3', 4), ('Line-B', 10, 'G3', 4), ('Line-B', 11, 'Bb3', 4), ('Line-B', 12, 'A3', 4),
   ('Line-B', 13, 'Ab3', 1),
-  ('Line-C', 1,  'F2',  4),  ('Line-C', 2,  'G2',  4),  ('Line-C', 3, 'Ab2', 4),  ('Line-C', 4, 'C3', 4), 
-  ('Line-C', 5,  'Db2', 4),  ('Line-C', 6,  'F3',  4),  ('Line-C', 7, 'Bb3', 4),  ('Line-C', 8, 'Ab3', 4), 
-  ('Line-C', 9,  'G3',  4),  ('Line-C', 10, 'F3',  4),  ('Line-C', 11,'Eb3', 4),  ('Line-C', 12, 'Db3', 4), 
-  ('Line-C', 13, 'C3',  4),  ('Line-C', 14, 'Ab2', 4),  ('Line-C', 15,'Bb2', 4),  ('Line-C', 16, 'C3', 4), 
+  ('Line-C', 1,  'F2',  4),  ('Line-C', 2,  'G2',  4),  ('Line-C', 3, 'Ab2', 4),  ('Line-C', 4, 'C3', 4),
+  ('Line-C', 5,  'Db2', 4),  ('Line-C', 6,  'F3',  4),  ('Line-C', 7, 'Bb3', 4),  ('Line-C', 8, 'Ab3', 4),
+  ('Line-C', 9,  'G3',  4),  ('Line-C', 10, 'F3',  4),  ('Line-C', 11,'Eb3', 4),  ('Line-C', 12, 'Db3', 4),
+  ('Line-C', 13, 'C3',  4),  ('Line-C', 14, 'Ab2', 4),  ('Line-C', 15,'Bb2', 4),  ('Line-C', 16, 'C3', 4),
   ('Line-C', 17, 'Db3', 1),
-  ('Line-D', 1,  'C3',  4),  ('Line-D', 2,  'C3',  4),  ('Line-D', 3, 'F3', 4),   ('Line-D', 4, 'C3', 4), 
-  ('Line-D', 5,  'Db3', 4),  ('Line-D', 6,  'Db3', 4),  ('Line-D', 7, 'F3', 4),   ('Line-D', 8, 'Db3', 4), 
-  ('Line-D', 9,  'Eb3', 4),  ('Line-D', 10, 'Eb3', 4),  ('Line-D', 11,'G3', 4),   ('Line-D', 12, 'D3', 4), 
-  ('Line-D', 13, 'Eb3', 4),  ('Line-D', 14, 'Eb3', 4),  ('Line-D', 15,'Ab3', 4),  ('Line-D', 16, 'C3', 4), 
+  ('Line-D', 1,  'C3',  4),  ('Line-D', 2,  'C3',  4),  ('Line-D', 3, 'F3', 4),   ('Line-D', 4, 'C3', 4),
+  ('Line-D', 5,  'Db3', 4),  ('Line-D', 6,  'Db3', 4),  ('Line-D', 7, 'F3', 4),   ('Line-D', 8, 'Db3', 4),
+  ('Line-D', 9,  'Eb3', 4),  ('Line-D', 10, 'Eb3', 4),  ('Line-D', 11,'G3', 4),   ('Line-D', 12, 'D3', 4),
+  ('Line-D', 13, 'Eb3', 4),  ('Line-D', 14, 'Eb3', 4),  ('Line-D', 15,'Ab3', 4),  ('Line-D', 16, 'C3', 4),
   ('Line-D', 17, 'Db3', 1),
-  ('Line-E', 1,  'F3',  4),  ('Line-E', 2,  'G3',  4),  ('Line-E', 3, 'F3', 4),   ('Line-E', 4, 'C3', 4), 
-  ('Line-E', 5,  'Db3', 4),  ('Line-E', 6,  'C3', 4),   ('Line-E', 7, 'Db3', 4),  ('Line-E', 8, 'Bb3', 4), 
-  ('Line-E', 9,  'Eb3', 4),  ('Line-E', 10, 'F3', 4),  ('Line-E', 11,'Eb3', 4),   ('Line-E', 12, 'Db3', 4), 
-  ('Line-E', 13, 'C3', 4),  ('Line-E', 14, 'B2', 4),  ('Line-E', 15,'C3', 4),  ('Line-E', 16, 'Ab2', 4), 
+  ('Line-E', 1,  'F3',  4),  ('Line-E', 2,  'G3',  4),  ('Line-E', 3, 'F3', 4),   ('Line-E', 4, 'C3', 4),
+  ('Line-E', 5,  'Db3', 4),  ('Line-E', 6,  'C3', 4),   ('Line-E', 7, 'Db3', 4),  ('Line-E', 8, 'Bb3', 4),
+  ('Line-E', 9,  'Eb3', 4),  ('Line-E', 10, 'F3', 4),  ('Line-E', 11,'Eb3', 4),   ('Line-E', 12, 'Db3', 4),
+  ('Line-E', 13, 'C3', 4),  ('Line-E', 14, 'B2', 4),  ('Line-E', 15,'C3', 4),  ('Line-E', 16, 'Ab2', 4),
   ('Line-E', 17, 'Db3', 1),
-  ('Line-F', 1,  'F3',  4),  ('Line-F', 2,  'E3',  4),  ('Line-F', 3, 'F3', 4),   ('Line-F', 4, 'C3', 4), 
-  ('Line-F', 5,  'Db3', 4),  ('Line-F', 6,  'C3', 4),   ('Line-F', 7, 'Db3', 4),  ('Line-F', 8, 'Bb3', 4), 
-  ('Line-F', 9,  'Eb3', 4),  ('Line-F', 10, 'Db3', 4),  ('Line-F', 11,'C3', 4),   ('Line-F', 12, 'Bb3', 4), 
-  ('Line-F', 13, 'C3', 4),  ('Line-F', 14, 'B2', 4),  ('Line-F', 15,'C3', 4),  ('Line-F', 16, 'Ab2', 4), 
+  ('Line-F', 1,  'F3',  4),  ('Line-F', 2,  'E3',  4),  ('Line-F', 3, 'F3', 4),   ('Line-F', 4, 'C3', 4),
+  ('Line-F', 5,  'Db3', 4),  ('Line-F', 6,  'C3', 4),   ('Line-F', 7, 'Db3', 4),  ('Line-F', 8, 'Bb3', 4),
+  ('Line-F', 9,  'Eb3', 4),  ('Line-F', 10, 'Db3', 4),  ('Line-F', 11,'C3', 4),   ('Line-F', 12, 'Bb3', 4),
+  ('Line-F', 13, 'C3', 4),  ('Line-F', 14, 'B2', 4),  ('Line-F', 15,'C3', 4),  ('Line-F', 16, 'Ab2', 4),
   ('Line-F', 17, 'Db3', 1)
 --  ('S251', 1,  'C3',  4),   ('S251', 2,  'C-2',  8/3),  ('S251', 3, 'Eb3', 8/3),
 --  ('S251', 4,  'F3',  4),   ('S251', 5,  'C-2',  8/3),  ('S251', 6, 'A3', 8/3),
@@ -258,8 +266,8 @@ values
 --  ('A25', 1,  'A2',  4),   ('A25', 2,  'B2',    4), ('A25', 3, 'C3', 4),   ('A25', 4,  'C#3',  4),
 --  ('A25', 5,  'D3',  4),   ('A25', 6,  'A2',    4), ('A25', 7, 'F#2', 4),  ('A25', 8,  'A2',  4)
   ;
-  
-    
+
+
 select *
 from bass_line_bar_v           a
      left join bass_line_bar_v b on (a.song_id = b.song_id and
@@ -275,7 +283,7 @@ select bass_line_id, beg_bar_id, end_bar_id
 from bass_line_bar_v
 where song_id = 1
 order by beg_bar_id;
-    
+
 select * from bass_line_note where bass_line_id in ('Line-B', '251');
 
 

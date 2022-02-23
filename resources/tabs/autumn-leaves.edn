@@ -1,0 +1,13 @@
+{:id 4, :nm "AUTUMN LEAVES", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 70,
+ :drum "drums-swing",
+ :bass "bass-15-68",
+ :tab-score "
+Am7    | D7    | Gmaj7    | Cmaj7    
+F#m7-5 | B7    | Em       | Em       
+Am7    | D7    | Gmaj7    | Cmaj7    
+F#m7-5 | B7    | Em       | Em       
+F#m7-5 | B7    | Em       | Em       
+Am7    | D7    | Gmaj7    | Gmaj7    
+F#m7-5 | B11-9 | Em7   A7 | Dm7    G7
+F#m7-5 | B11-9 | Em       | Em       
+"}

@@ -409,11 +409,11 @@
                 (->> bbcs (strum-chord-track "charleston") track->duration-track))]
     (println (format "song=%s, bpm=%d, drums=%s, bass=%s"
                      song-name bpm drum-pattern bass-method))
-    (println "tracks")
-    (doseq [s tracks] (println s))
+    ;; (println "tracks")
+    ;; (doseq [s tracks] (println s))
     (midifile/save file-name tracks bpm)))
 
-(defn -main [& _]
+(defn produce-midi-files []
   (doseq [song ["ALL THE THINGS YOU ARE"
                 "ALONE TOGETHER"
                 "MISTY"
@@ -426,3 +426,12 @@
                 "BLACK ORPHEUS"]]
     (produce-midi-file song
                        (str "resources/midi/" song ".midi"))))
+
+(defn -main [& args]
+  (let [[cmd & more] args]
+    (cond (= cmd "--import")
+          (let [song-nm (db/import-song (first more))]
+            (produce-midi-file song-nm (str "resources/midi/" song-nm ".midi")))
+          :else (produce-midi-files))))
+
+  ; (import-song "resources/tabs/black-orpheus.edn")

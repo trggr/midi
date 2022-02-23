@@ -17,8 +17,43 @@
 ; (batch-update conn "insert into all_beat(bar_id, beat_id) values (?, ?)" (for [bar (range 1 101) beat (range 1 5)] [bar beat]))
 ; (batch-update conn "update bar set chord_id = null where length(chord_id) = 0" [[]])
 
-(defn chords-within-bar
-  "Assign chords within a bar. Currently support 4/4 time signature only
+
+(defn tabs->bars
+  "Split tabs into sequence of bars"
+  [tabs]
+  (as-> tabs $
+    (str/trim $)
+    (str/replace $ #"\n" "|")
+    (str/split $ #"\|")
+    (map str/trim $)
+    (map #(str/split % #"\s+") $)))
+
+(defn save-song-to-db
+  "Takes song-map with keys and saves song to the database"
+  [song-meta]
+  (let [{:keys [id nm numer denom ppq bb bpm bars bbcs drum bass]} song-meta]
+    (println "BARS     -------------------------------")
+    (doseq [x bars] (println x))
+    (println "BBCS     -------------------------------")
+    (doseq [x bbcs] (println x))
+
+    (println "delete from song" (exec-dml "delete from song where song_id = ?" [[id]]))
+    
+    (println "delete from bar" (exec-dml "delete from bar where song_id = ?" [[id]]))
+    (println "delete from song_bar_beat" (exec-dml "delete from song_bar_beat where song_id = ?" [[id]]))
+
+    (exec-dml (str "insert into song(song_id, song_nm, time_sig_nmrtr_num, time_sig_denom_num,"
+                   "time_sig_ppq_num, time_sig_bb_num, bpm_num, drum_ptrn_cd, bass_ty_cd) "
+                   "values (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+              [[id nm numer denom ppq bb bpm drum bass]])
+
+    (exec-dml "insert into bar (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)" bars)
+    (exec-dml "insert into song_bar_beat (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)" bbcs)
+    (exec-dml "update bar set chord_id = null where length(chord_id) = 0" [[]]))
+    )
+
+(defn sparse-beats
+  "Assign chords within a bar. Currently only supports 4/4 time signature.
    | Am        | -> Am///
    | Am Dm     | -> Am/  Dm/
    | Am Dm G   | -> Am/  Dm G
@@ -27,49 +62,54 @@
   (let [[a b c d] chords]
     (case (count chords)
       1 [[1 a]]
-      2 [[1 a]       [3 b]]
-      3 [[1 a]       [3 b] [4 c]]
+      2 [[1 a] [3 b]]
+      3 [[1 a] [3 b] [4 c]]
       4 [[1 a] [2 b] [3 c] [4 d]]
       :default (throw (Exception. "More than 4 chords per bar!")))))
 
-(defn parse-score [score]
-  (as-> score $
-    (str/trim $)
-    (str/replace $ #"\n" "|")
-    (str/split $ #"\|")
-    (map str/trim $)
-    (map #(str/split % #"\s+") $)
-    (map chords-within-bar $)
-    (map-indexed #(vector (inc %1) %2) $)
-    (for [[bar chords] $, [beat chord] chords]
-      [bar beat chord])))
-
-(defn save-song-to-db
-  "Takes song-map with keys id, nm, numer, :denom, :ppq, :bb, :bpm, :bars, :drum :bass
-   and saves song to the database"
-  [song-map]
-  (let [{:keys [id nm numer denom ppq bb bpm bars drum bass]} song-map]
-    (exec-dml "delete from bar where song_id = ?" [[id]])
-    (exec-dml "delete from song where song_id = ?" [[id]])
-    (exec-dml (str "insert into song(song_id, song_nm, time_sig_nmrtr_num, time_sig_denom_num,"
-                   "time_sig_ppq_num, time_sig_bb_num, bpm_num, drum_ptrn_cd, bass_ty_cd) "
-                   "values (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-         [[id nm numer denom ppq bb bpm drum bass]])
-    (exec-dml "insert into bar (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)"
-         (map #(cons id %) bars))
-    (exec-dml "update bar set chord_id = null where length(chord_id) = 0" [[]])))
+(defn dense-beats
+  "Assign chords for each beat in a bar. Currently only supports 4/4 time signature.
+   | Am        | -> Am///
+   | Am Dm     | -> Am/  Dm/
+   | Am Dm G   | -> Am/  Dm G
+   | Am Dm G C | -> Am Dm G C"
+  [chords]
+  (let [[a b c d] chords]
+    (case (count chords)
+      1 [[1 a] [2 a] [3 a] [4 a]]
+      2 [[1 a] [2 a] [3 b] [4 b]]
+      3 [[1 a] [2 a] [3 b] [4 c]]
+      4 [[1 a] [2 b] [3 c] [4 d]]
+      :default (throw (Exception. "More than 4 chords per bar!")))))
 
 (defn import-song
   [edn-file]
-  (-> edn-file
-      slurp
-      edn/read-string
-      (update :bars parse-score)
-      save-song-to-db))
+  (let [song (-> edn-file slurp edn/read-string)
+        hlp (fn [assign-beats]
+              (->> song
+                   :tab-score
+                   tabs->bars
+                   (map-indexed (fn [bar tab]
+                                  (for [[beat chord] (assign-beats tab)]
+                                    [(song :id) (inc bar) beat chord])))
+                   (apply concat)))]
+    (println "Before saving to DB")
+    (-> song
+        (assoc :bars (hlp sparse-beats)
+               :bbcs (hlp dense-beats))
+        save-song-to-db)
+    (song :nm)))
 
 (comment
   (import-song "resources/tabs/black-orpheus.edn")
-)
+  (exec-dml "delete from bar where song_id = ?" [[11]])
+
+  (def rs (query "select * from bar where song_id = ?" [11]))
+
+  (def rs (query "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd from song where upper(song_nm) = ?" ["MISTY"]))
+
+  rs
+  )
 
 ; Middle octave - C3 (also just C for convenience)
 (def notedb1 {:C 60, :C# 61, :Db 61,
@@ -195,7 +235,7 @@
         chords (->> (str/split chords #"\|")
                     (map str/trim)
                     (map #(str/split % #"\s+"))
-                    (map chords-within-bar)
+                    (map sparse-beats)
                     (map-indexed #(vector (inc %1) %2)))
         chords (for [[barno bar] chords, [beat chord] bar] [id barno beat chord])
         cnt    (str (reduce max (map second chords)))

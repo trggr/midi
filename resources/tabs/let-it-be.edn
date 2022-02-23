@@ -1,0 +1,12 @@
+{:id 6, :nm "LET IT BE", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 90,
+ :drum "drums-swing",
+ :bass "bass-15-68",
+ :tab-score "
+C  | G  | Am | F
+C  | G  | F  | C
+C  | G  | Am | F
+C  | G  | F  | C
+Am | G  | F  | C
+C  | G  | F  | C
+"}
+

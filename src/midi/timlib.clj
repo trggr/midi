@@ -148,6 +148,10 @@
                      (.close cur)
                      counter))))))
 
+(defn tee [f x]
+  (f x)
+  x)
+
 (defn parse-xlsx
   "Converts XLSX into collection of collections"
   [xlsx]

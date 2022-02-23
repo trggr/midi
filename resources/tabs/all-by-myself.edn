@@ -1,0 +1,13 @@
+{:id 5, :nm "ALL BY MYSELF", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 120,
+ :drum "drums-swing",
+ :bass "bass-15-68",
+ :tab-score "
+Cmaj7       | C6        | D7           | Am7    D7 
+G7          | Dm7   G7  | Em7    A7    | Dm     G7 
+Cmaj7       | C6        | F#m7   B7    | E7        
+Am7   Am7-5 | D7        | Dm7    Dm7-5 | G7        
+Cmaj7       | C6        | D7           | Am7    D7 
+G7          | Dm7    G7 | E7     E7+5  | E7        
+Fmaj7       | F#dim7    | Cmaj7  B7+5  | Em7-5  A7 
+Am7   D7    | Dm7    G7 | C6     Am7   | Dm7    G7
+"}
