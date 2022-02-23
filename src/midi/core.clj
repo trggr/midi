@@ -413,10 +413,6 @@
     (doseq [s tracks] (println s))
     (midifile/save file-name tracks bpm)))
 
-(comment
-  (db/import-song "resources/tabs/misty2.edn")
-  )
-
 (defn -main [& _]
   (doseq [song ["ALL THE THINGS YOU ARE"
                 "ALONE TOGETHER"
@@ -427,6 +423,6 @@
                 "AUTUMN LEAVES"
                 "ALL BY MYSELF"
                 "LET IT BE"
-                "MISTY2"]]
+                "BLACK ORPHEUS"]]
     (produce-midi-file song
                        (str "resources/midi/" song ".midi"))))

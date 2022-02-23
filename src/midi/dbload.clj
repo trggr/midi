@@ -26,10 +26,10 @@
   [chords]
   (let [[a b c d] chords]
     (case (count chords)
-      1 [1 a]
-      2 [1 a     3 b]
-      3 [1 a     3 b 4 c]
-      4 [1 a 2 b 3 c 4 d]
+      1 [[1 a]]
+      2 [[1 a]       [3 b]]
+      3 [[1 a]       [3 b] [4 c]]
+      4 [[1 a] [2 b] [3 c] [4 d]]
       :default (throw (Exception. "More than 4 chords per bar!")))))
 
 (defn parse-score [score]
@@ -66,6 +66,10 @@
       edn/read-string
       (update :bars parse-score)
       save-song-to-db))
+
+(comment
+  (import-song "resources/tabs/black-orpheus.edn")
+)
 
 ; Middle octave - C3 (also just C for convenience)
 (def notedb1 {:C 60, :C# 61, :Db 61,

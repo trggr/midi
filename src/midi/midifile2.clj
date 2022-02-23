@@ -26,8 +26,11 @@
 ;;  [timecode channel note velocity]
 (defn save [file-name track bpm]
   (let [tempo-track  (doto (MidiTrack.)
-                       (.insertEvent (doto (TimeSignature.)
-                                       (.setTimeSignature 4 4 TimeSignature/DEFAULT_METER TimeSignature/DEFAULT_DIVISION)))
+                       (.insertEvent
+                        (doto (TimeSignature.)
+                          (.setTimeSignature 4 4
+                                             TimeSignature/DEFAULT_METER
+                                             TimeSignature/DEFAULT_DIVISION)))
                        (.insertEvent (doto (Tempo.) (.setBpm bpm)))
                        (.insertEvent (ProgramChange. 0 db/CHORD-CHANNEL 26))
                        (.insertEvent (ProgramChange. 0 db/BASS-CHANNEL 32)))
