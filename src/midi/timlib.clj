@@ -1,5 +1,14 @@
 (ns midi.timlib
-  (:require [clojure.string :as str]))
+  (:require [clojure.string :as str]
+             [clojure.test :refer [is]]))
+
+;; from 
+;; https://github.com/fredoverflow/advent/blob/master/2021/aoc21a.clj
+
+(defmacro examples [f & coll-arguments-result]
+  `(fn []
+     ~@(for [[arguments result] (partition 2 coll-arguments-result)]
+         `(is (= ~(f arguments) ~result)))))
 
 (defn third [coll] (nth coll 2))
 

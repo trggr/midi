@@ -1,7 +1,8 @@
 (ns midi.dbload
    (:require [clojure.string :as str]
              [clojure.edn :as edn]
-             [midi.timlib :as tla]))
+             [midi.timlib :as tla :refer [examples]]
+             [clojure.test :refer [is are run-tests]]))
 
 (def QUARTER-NOTE  384)      ; Length of quarter note in time code ticks
 (def WHOLE-NOTE    (* QUARTER-NOTE 4))
@@ -52,12 +53,15 @@
     (exec-dml "update bar set chord_id = null where length(chord_id) = 0" [[]]))
     )
 
+
 (defn sparse-beats
-  "Assign chords within a bar. Currently only supports 4/4 time signature.
-   | Am        | -> Am///
-   | Am Dm     | -> Am/  Dm/
-   | Am Dm G   | -> Am/  Dm G
-   | Am Dm G C | -> Am Dm G C"
+  "Sparsely assume chords within a bar.
+   Currently only supports 4/4 time signature."
+  {:test (fn []
+           (is (= (sparse-beats [:Am])           [[1 :Am]]))
+           (is (= (sparse-beats [:Am :Dm])       [[1 :Am] [3 :Dm]]))
+           (is (= (sparse-beats [:Am :Dm :G])    [[1 :Am] [3 :Dm] [4 :G]]))
+           (is (= (sparse-beats [:Am :Dm :G :C]) [[1 :Am] [2 :Dm] [3 :G] [4 :C]])))}
   [chords]
   (let [[a b c d] chords]
     (case (count chords)
@@ -68,12 +72,14 @@
       :default (throw (Exception. "More than 4 chords per bar!")))))
 
 (defn dense-beats
-  "Assign chords for each beat in a bar. Currently only supports 4/4 time signature.
-   | Am        | -> Am///
-   | Am Dm     | -> Am/  Dm/
-   | Am Dm G   | -> Am/  Dm G
-   | Am Dm G C | -> Am Dm G C"
+  "Assign chords for each beat in a bar.
+   Currently only supports 4/4 time signature"
   [chords]
+  {:test (fn []
+           (is (= (dense-beats [:Am])           [[2 :Am]]))
+           (is (= (dense-beats [:Am :Dm])       [[1 :Am] [3 :Dm]]))
+           (is (= (dense-beats [:Am :Dm :G])    [[1 :Am] [3 :Dm] [4 :G]]))
+           (is (= (dense-beats [:Am :Dm :G :C]) [[1 :Am] [2 :Dm] [3 :G] [4 :C]])))}
   (let [[a b c d] chords]
     (case (count chords)
       1 [[1 a] [2 a] [3 a] [4 a]]
@@ -154,9 +160,9 @@
 
 (def notedb (assoc notedb4 :_ 0))  ; silence
 
-(defn save-notes [conn notes]
-  (tla/batch-update conn (str "insert into note (note_cd, midi_num) values (?, ?)")
-                    (for [[k v] notes] [(name k) v])))
+(defn save-notes [notes]
+  (exec-dml "insert into note (note_cd, midi_num) values (?, ?)"
+            (for [[k v] notes] [(name k) v])))
 
 (def chord-form {:major [[1 5 8]      :Y]
                  :+     [[1 4 9]      :Y]
@@ -211,14 +217,14 @@
          :e    e
          :f    f})))
 
-(defn save-chords [conn chords]
-   (tla/batch-update conn (str "insert into chord(chord_id, root_midi_num, chord_form_cd, root_note_cd,"
-                           "  major_ind, midi1_num, midi2_num, midi3_num, midi4_num,"
-                           "  midi5_num, midi6_num"
-                           ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      (map (juxt :chord_id :root_midi_num :chord_form_cd :root_note_cd :major-ind :a :b :c :d :e :f) chords)))
+(defn save-chords [chords]
+  (exec-dml (str "insert into chord(chord_id, root_midi_num, chord_form_cd, root_note_cd,"
+                 "  major_ind, midi1_num, midi2_num, midi3_num, midi4_num,"
+                 "  midi5_num, midi6_num"
+                 ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+            (map (juxt :chord_id :root_midi_num :chord_form_cd :root_note_cd :major-ind :a :b :c :d :e :f) chords)))
 
-; (save-chords conn chord-sqlite)
+; (save-chords chord-sqlite)
     
 (def chords (reduce (fn [acc [k f]]
                       (assoc acc
@@ -230,7 +236,7 @@
                         [k f])))
 
 
-(defn save-bass-line [conn bass-line]
+(defn save-bass-line [bass-line]
   (let [{:keys [id desc chords notes]} bass-line
         chords (->> (str/split chords #"\|")
                     (map str/trim)
@@ -240,14 +246,14 @@
         chords (for [[barno bar] chords, [beat chord] bar] [id barno beat chord])
         cnt    (str (reduce max (map second chords)))
         notes  (for [i (range (count notes))]
-                   (let [[note dur] (nth notes i)]
-                       [id (inc i) (name note) (or dur 4)]))]
-     (tla/batch-update conn "insert into bass_line(bass_line_id, bar_cnt, bass_line_desc) values (?, ?, ?)"
-          [[id cnt desc]])
-     (tla/batch-update conn "insert into bass_line_chord (bass_line_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)"
-          chords)
-     (tla/batch-update conn "insert into bass_line_note (bass_line_id, order_num, note_cd, note_dur_num) values (?, ?, ?, ?)"
-          notes)))
+                 (let [[note dur] (nth notes i)]
+                   [id (inc i) (name note) (or dur 4)]))]
+    (exec-dml "insert into bass_line(bass_line_id, bar_cnt, bass_line_desc) values (?, ?, ?)"
+              [[id cnt desc]])
+    (exec-dml "insert into bass_line_chord (bass_line_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)"
+              chords)
+    (exec-dml "insert into bass_line_note (bass_line_id, order_num, note_cd, note_dur_num) values (?, ?, ?, ?)"
+              notes)))
 
 (def basslinedb [
    {:id "SMEDBLUES", :desc "Medium blues, Sobolev p. 14",
@@ -414,3 +420,5 @@
    "charleston-combo" [[0 8] [50 8/3] [50 8] [0 8/3]]
    "rhythm-2-4"       [[0 8/3] [50 8] [0 8/3] [50 8]]
    "rhythm-3-3-2"     [[50 8/3] [50 8/3] [50]]})
+
+(run-tests)
