@@ -1,8 +1,9 @@
 (ns midi.dbload
    (:require [clojure.string :as str]
              [clojure.edn :as edn]
-             [midi.timlib :as tla :refer [examples]]
-             [clojure.test :refer [is are run-tests]]))
+             [midi.timlib :as tla
+              :refer [examples connect-sqlite cursor batch-update]]
+             [clojure.test :refer [is are]]))
 
 (def QUARTER-NOTE  384)      ; Length of quarter note in time code ticks
 (def WHOLE-NOTE    (* QUARTER-NOTE 4))
@@ -10,9 +11,9 @@
 (def BASS-CHANNEL  4)
 (def DRUMS-CHANNEL 9)
 (def BASS-VELOCITY 65)
-(def conn          (tla/connect-sqlite "resources/synth.db"))
-(def query         (partial tla/cursor conn))
-(def exec-dml      (partial tla/batch-update conn))
+(def conn          (connect-sqlite "resources/synth.db"))
+(def query         (partial cursor conn))
+(def exec-dml      (partial batch-update conn))
 
 ; references
 ; (batch-update conn "insert into all_beat(bar_id, beat_id) values (?, ?)" (for [bar (range 1 101) beat (range 1 5)] [bar beat]))
@@ -50,18 +51,16 @@
 
     (exec-dml "insert into bar (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)" bars)
     (exec-dml "insert into song_bar_beat (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)" bbcs)
-    (exec-dml "update bar set chord_id = null where length(chord_id) = 0" [[]]))
-    )
-
+    (exec-dml "update bar set chord_id = null where length(chord_id) = 0" [[]])))
 
 (defn sparse-beats
   "Sparsely assume chords within a bar.
    Currently only supports 4/4 time signature."
-  {:test (fn []
-           (is (= (sparse-beats [:Am])           [[1 :Am]]))
-           (is (= (sparse-beats [:Am :Dm])       [[1 :Am] [3 :Dm]]))
-           (is (= (sparse-beats [:Am :Dm :G])    [[1 :Am] [3 :Dm] [4 :G]]))
-           (is (= (sparse-beats [:Am :Dm :G :C]) [[1 :Am] [2 :Dm] [3 :G] [4 :C]])))}
+  {:test (examples sparse-beats
+                   [[:Am]]           [[1 :Am]]
+                   [[:Am :Dm]]       [[1 :Am] [3 :Dm]]
+                   [[:Am :Dm :G]]    [[1 :Am] [3 :Dm] [4 :G]]
+                   [[:Am :Dm :G :C]] [[1 :Am] [2 :Dm] [3 :G] [4 :C]])}
   [chords]
   (let [[a b c d] chords]
     (case (count chords)
@@ -70,16 +69,16 @@
       3 [[1 a] [3 b] [4 c]]
       4 [[1 a] [2 b] [3 c] [4 d]]
       :default (throw (Exception. "More than 4 chords per bar!")))))
-
+ 
 (defn dense-beats
   "Assign chords for each beat in a bar.
    Currently only supports 4/4 time signature"
+  {:test (examples dense-beats
+                   [[:Am]]           [[1 :Am] [2 :Am] [3 :Am] [4 :Am]]
+                   [[:Am :Dm]]       [[1 :Am] [2 :Am] [3 :Dm] [4 :Dm]]
+                   [[:Am :Dm :G]]    [[1 :Am] [2 :Am] [3 :Dm] [4 :G]]
+                   [[:Am :Dm :G :C]] [[1 :Am] [2 :Dm] [3 :G]  [4 :C]])}
   [chords]
-  {:test (fn []
-           (is (= (dense-beats [:Am])           [[2 :Am]]))
-           (is (= (dense-beats [:Am :Dm])       [[1 :Am] [3 :Dm]]))
-           (is (= (dense-beats [:Am :Dm :G])    [[1 :Am] [3 :Dm] [4 :G]]))
-           (is (= (dense-beats [:Am :Dm :G :C]) [[1 :Am] [2 :Dm] [3 :G] [4 :C]])))}
   (let [[a b c d] chords]
     (case (count chords)
       1 [[1 a] [2 a] [3 a] [4 a]]
@@ -109,12 +108,8 @@
 (comment
   (import-song "resources/tabs/black-orpheus.edn")
   (exec-dml "delete from bar where song_id = ?" [[11]])
-
-  (def rs (query "select * from bar where song_id = ?" [11]))
-
-  (def rs (query "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd from song where upper(song_nm) = ?" ["MISTY"]))
-
-  rs
+  (query "select * from bar where song_id = ?" [11])
+  (query "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd from song where upper(song_nm) = ?" ["MISTY"])
   )
 
 ; Middle octave - C3 (also just C for convenience)
@@ -421,4 +416,4 @@
    "rhythm-2-4"       [[0 8/3] [50 8] [0 8/3] [50 8]]
    "rhythm-3-3-2"     [[50 8/3] [50 8/3] [50]]})
 
-(run-tests)
+;; (def x (run-tests))

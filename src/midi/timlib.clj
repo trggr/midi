@@ -2,13 +2,12 @@
   (:require [clojure.string :as str]
              [clojure.test :refer [is]]))
 
-;; from 
-;; https://github.com/fredoverflow/advent/blob/master/2021/aoc21a.clj
+;; From https://github.com/fredoverflow/advent/blob/master/2021/aoc21c.clj
 
 (defmacro examples [f & coll-arguments-result]
   `(fn []
      ~@(for [[arguments result] (partition 2 coll-arguments-result)]
-         `(is (= ~(f arguments) ~result)))))
+         `(is (= ~(cons f arguments) ~result)))))
 
 (defn third [coll] (nth coll 2))
 
