@@ -1,9 +1,9 @@
 (ns midi.dbload
-   (:require [clojure.string :as str]
-             [clojure.edn :as edn]
-             [midi.timlib :as tla
-              :refer [examples connect-sqlite cursor batch-update]]
-             [clojure.test :refer [is are]]))
+  (:require [clojure.string :as str]
+            [clojure.edn :as edn]
+            [midi.timlib :as tla
+             :refer [examples]]
+            [clojure.test :refer [is are]]))
 
 (def QUARTER-NOTE  384)      ; Length of quarter note in time code ticks
 (def WHOLE-NOTE    (* QUARTER-NOTE 4))
@@ -11,14 +11,9 @@
 (def BASS-CHANNEL  4)
 (def DRUMS-CHANNEL 9)
 (def BASS-VELOCITY 65)
-(def conn          (connect-sqlite "resources/synth.db"))
-(def query         (partial cursor conn))
-(def exec-dml      (partial batch-update conn))
-
-; references
-; (batch-update conn "insert into all_beat(bar_id, beat_id) values (?, ?)" (for [bar (range 1 101) beat (range 1 5)] [bar beat]))
-; (batch-update conn "update bar set chord_id = null where length(chord_id) = 0" [[]])
-
+(def conn          (tla/connect-sqlite "resources/synth.db"))
+(def query         (partial tla/cursor conn))
+(def exec-dml      (partial tla/batch-update conn))
 
 (defn tabs->bars
   "Split tabs into sequence of bars"
@@ -34,15 +29,9 @@
   "Takes song-map with keys and saves song to the database"
   [song-meta]
   (let [{:keys [id nm numer denom ppq bb bpm bars bbcs drum bass]} song-meta]
-    (println "BARS     -------------------------------")
-    (doseq [x bars] (println x))
-    (println "BBCS     -------------------------------")
-    (doseq [x bbcs] (println x))
-
-    (println "delete from song" (exec-dml "delete from song where song_id = ?" [[id]]))
-    
-    (println "delete from bar" (exec-dml "delete from bar where song_id = ?" [[id]]))
-    (println "delete from song_bar_beat" (exec-dml "delete from song_bar_beat where song_id = ?" [[id]]))
+    (exec-dml "delete from song where song_id = ?" [[id]])
+    (exec-dml "delete from bar where song_id = ?" [[id]])
+    (exec-dml "delete from song_bar_beat where song_id = ?" [[id]])
 
     (exec-dml (str "insert into song(song_id, song_nm, time_sig_nmrtr_num, time_sig_denom_num,"
                    "time_sig_ppq_num, time_sig_bb_num, bpm_num, drum_ptrn_cd, bass_ty_cd) "
@@ -51,10 +40,11 @@
 
     (exec-dml "insert into bar (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)" bars)
     (exec-dml "insert into song_bar_beat (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)" bbcs)
-    (exec-dml "update bar set chord_id = null where length(chord_id) = 0" [[]])))
+    (exec-dml "update bar set chord_id = null where length(chord_id) = 0" [[]])
+    nm))
 
 (defn sparse-beats
-  "Sparsely assume chords within a bar.
+  "Sparsely assign chords within a bar.
    Currently only supports 4/4 time signature."
   {:test (examples sparse-beats
                    [[:Am]]           [[1 :Am]]
@@ -69,7 +59,7 @@
       3 [[1 a] [3 b] [4 c]]
       4 [[1 a] [2 b] [3 c] [4 d]]
       :default (throw (Exception. "More than 4 chords per bar!")))))
- 
+
 (defn dense-beats
   "Assign chords for each beat in a bar.
    Currently only supports 4/4 time signature"
@@ -87,30 +77,43 @@
       4 [[1 a] [2 b] [3 c] [4 d]]
       :default (throw (Exception. "More than 4 chords per bar!")))))
 
-(defn import-song
-  [edn-file]
-  (let [song (-> edn-file slurp edn/read-string)
-        hlp (fn [assign-beats]
-              (->> song
+(defn read-song-file
+  "Reads song info from a map stored in EDN file"
+  [song-edn-file]
+  (-> song-edn-file
+      slurp
+      edn/read-string))
+
+(defn enhance-song-map
+  "Takes song map and enhanced it by adding to keys
+    :bars - with sparsely assigned chords to beats
+    :bbcs - with densely assigned chords to beats"
+  [song-map]
+  (let [hlp (fn [assign-beats]
+              (->> song-map
                    :tab-score
                    tabs->bars
                    (map-indexed (fn [bar tab]
                                   (for [[beat chord] (assign-beats tab)]
-                                    [(song :id) (inc bar) beat chord])))
+                                    [(song-map :id) (inc bar) beat chord])))
                    (apply concat)))]
-    (println "Before saving to DB")
-    (-> song
+    (-> song-map
         (assoc :bars (hlp sparse-beats)
-               :bbcs (hlp dense-beats))
-        save-song-to-db)
-    (song :nm)))
+               :bbcs (hlp dense-beats)))))
+
+(defn import-song
+  "Imports song from a file into internal SQLite database"
+  [song-edn-file]
+  (-> song-edn-file
+      read-song-file
+      enhance-song-map
+      save-song-to-db))
 
 (comment
   (import-song "resources/tabs/black-orpheus.edn")
   (exec-dml "delete from bar where song_id = ?" [[11]])
   (query "select * from bar where song_id = ?" [11])
-  (query "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd from song where upper(song_nm) = ?" ["MISTY"])
-  )
+  (query "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd from song where upper(song_nm) = ?" ["MISTY"]))
 
 ; Middle octave - C3 (also just C for convenience)
 (def notedb1 {:C 60, :C# 61, :Db 61,
@@ -122,36 +125,36 @@
               :B 71})
 
 (def notedb2 (reduce (fn [acc [k v]] (assoc acc k v))
-                    notedb1
-                    (for [octave   (range -2 9)
-                          [id freq] notedb1]
-                        [(keyword (str (name id) octave))
-                         (+ freq (* 12 (- octave 3)))])))
+                     notedb1
+                     (for [octave   (range -2 9)
+                           [id freq] notedb1]
+                       [(keyword (str (name id) octave))
+                        (+ freq (* 12 (- octave 3)))])))
 
 (def notedb3 (reduce (fn [acc [k v]] (assoc acc (keyword (str/lower-case (name k))) v))
-                    notedb2
-                    notedb2))
+                     notedb2
+                     notedb2))
 
 ;; in MIDI each drum is is a certain note, which is added here into notedb
 ;; for convenience
-(def notedb4 (merge notedb3 
-                  {:metronome-click 33 :metronome-bell  34 :acoustic-bass-drum  35
-                   :bass-drum-1     36 :side-stick      37 :acoustic-snare      38
-                   :hand-clap       39 :electric-snare  40 :low-floor-tom       41
-                   :closed-hi-hat   42 :high-floor-tom  43 :pedal-hi-hat        44
-                   :low-tom         45 :open-hi-hat     46 :low-mid-tom         47
-                   :hi-mid-tom      48 :crash-cymbal-1  49 :high-tom            50
-                   :ride-cymbal-1   51 :chinese-cymbal  52 :ride-bell           53
-                   :tambourine      54 :splash-cymbal   55 :cowbell             56
-                   :crash-cymbal-2  57 :vibraslap       58 :ride-cymbal-2       59
-                   :hi-bongo        60 :low-bongo       61 :mute-hi-conga       62
-                   :open-hi-conga   63 :low-conga       64 :high-timbale        65
-                   :low-timbale     66 :high-agogo      67 :low-agogo           68
-                   :cabasa          69 :maracas         70 :short-whistle       71
-                   :long-whistle    72 :short-guiro     73 :long-guiro          74
-                   :claves          75 :hi-wood-block   76 :low-wood-block      77
-                   :mute-cuica      78 :open-cuica      79 :mute-triangle       80
-                   :open-triangle   81}))
+(def notedb4 (merge notedb3
+                    {:metronome-click 33 :metronome-bell  34 :acoustic-bass-drum  35
+                     :bass-drum-1     36 :side-stick      37 :acoustic-snare      38
+                     :hand-clap       39 :electric-snare  40 :low-floor-tom       41
+                     :closed-hi-hat   42 :high-floor-tom  43 :pedal-hi-hat        44
+                     :low-tom         45 :open-hi-hat     46 :low-mid-tom         47
+                     :hi-mid-tom      48 :crash-cymbal-1  49 :high-tom            50
+                     :ride-cymbal-1   51 :chinese-cymbal  52 :ride-bell           53
+                     :tambourine      54 :splash-cymbal   55 :cowbell             56
+                     :crash-cymbal-2  57 :vibraslap       58 :ride-cymbal-2       59
+                     :hi-bongo        60 :low-bongo       61 :mute-hi-conga       62
+                     :open-hi-conga   63 :low-conga       64 :high-timbale        65
+                     :low-timbale     66 :high-agogo      67 :low-agogo           68
+                     :cabasa          69 :maracas         70 :short-whistle       71
+                     :long-whistle    72 :short-guiro     73 :long-guiro          74
+                     :claves          75 :hi-wood-block   76 :low-wood-block      77
+                     :mute-cuica      78 :open-cuica      79 :mute-triangle       80
+                     :open-triangle   81}))
 
 (def notedb (assoc notedb4 :_ 0))  ; silence
 
@@ -192,25 +195,25 @@
                  :13-9  [[-2 2 6 10]      :Y]})
 
 (defn chord-notes [root form]
-   (map #(+ -12 (notedb root) % -1) (first (chord-form form))))
+  (map #(+ -12 (notedb root) % -1) (first (chord-form form))))
 
 (def chord-sqlite
-   (for [root [:C :C# :Db :D :D# :Eb :E :F :F# :Gb :G :G# :Ab :A :A# :Bb :B]
-         form (keys chord-form)]
-      (let [[pattern maj-ind] (chord-form form)
-            [a b c d e f] (map #(+ (notedb root) % -1) pattern)
-            r             (name root)]
-        {:chord_id      (str (name root) (if (= form :major) "" (name form)))
-         :root_midi_num (get notedb root)
-         :chord_form_cd (name form)
-         :root_note_cd  r
-         :major-ind     (name maj-ind)
-         :a    a
-         :b    b
-         :c    c
-         :d    d
-         :e    e
-         :f    f})))
+  (for [root [:C :C# :Db :D :D# :Eb :E :F :F# :Gb :G :G# :Ab :A :A# :Bb :B]
+        form (keys chord-form)]
+    (let [[pattern maj-ind] (chord-form form)
+          [a b c d e f] (map #(+ (notedb root) % -1) pattern)
+          r             (name root)]
+      {:chord_id      (str (name root) (if (= form :major) "" (name form)))
+       :root_midi_num (get notedb root)
+       :chord_form_cd (name form)
+       :root_note_cd  r
+       :major-ind     (name maj-ind)
+       :a    a
+       :b    b
+       :c    c
+       :d    d
+       :e    e
+       :f    f})))
 
 (defn save-chords [chords]
   (exec-dml (str "insert into chord(chord_id, root_midi_num, chord_form_cd, root_note_cd,"
@@ -220,15 +223,15 @@
             (map (juxt :chord_id :root_midi_num :chord_form_cd :root_note_cd :major-ind :a :b :c :d :e :f) chords)))
 
 ; (save-chords chord-sqlite)
-    
+
 (def chords (reduce (fn [acc [k f]]
                       (assoc acc
                              (keyword (str (name k) (if (= f :major) "" (name f))))
                              (chord-notes k f)))
-                     {}
-                     (for [k [:C :C# :Db :D :D# :Eb :E :F :F# :Gb :G :G# :Ab :A :A# :Bb :B]
-                           f (keys chord-form)]
-                        [k f])))
+                    {}
+                    (for [k [:C :C# :Db :D :D# :Eb :E :F :F# :Gb :G :G# :Ab :A :A# :Bb :B]
+                          f (keys chord-form)]
+                      [k f])))
 
 
 (defn save-bass-line [bass-line]
@@ -250,76 +253,74 @@
     (exec-dml "insert into bass_line_note (bass_line_id, order_num, note_cd, note_dur_num) values (?, ?, ?, ?)"
               notes)))
 
-(def basslinedb [
-   {:id "SMEDBLUES", :desc "Medium blues, Sobolev p. 14",
-    :chords "C | F7 F#dim | C | C7 | F | F#dim | C | Em7-5 A7 | Dm7 | G7 | Em7-5 A7 | Dm G7"
-    :notes  [[:c4] [:g3] [:e3] [:c3]  
-             [:f3] [:e3] [:f3] [:f#3]
-             [:g3] [:b3] [:c4] [:b3] 
-             [:bb3] [:c3] [:d3] [:e3]
+(def basslinedb [{:id "SMEDBLUES", :desc "Medium blues, Sobolev p. 14",
+                  :chords "C | F7 F#dim | C | C7 | F | F#dim | C | Em7-5 A7 | Dm7 | G7 | Em7-5 A7 | Dm G7"
+                  :notes  [[:c4] [:g3] [:e3] [:c3]
+                           [:f3] [:e3] [:f3] [:f#3]
+                           [:g3] [:b3] [:c4] [:b3]
+                           [:bb3] [:c3] [:d3] [:e3]
 
-             [:f3] [:a2] [:bb2] [:b2]
-             [:c3] [:e3] [:f3] [:f#3] 
-             [:g3] [:e3] [:f3] [:d3] 
-             [:e3] [:bb3] [:a3] [:c#2] 
+                           [:f3] [:a2] [:bb2] [:b2]
+                           [:c3] [:e3] [:f3] [:f#3]
+                           [:g3] [:e3] [:f3] [:d3]
+                           [:e3] [:bb3] [:a3] [:c#2]
 
-             [:d3] [:a3] [:f3] [:f#3]
-             [:g3] [:d3] [:g3] [:f3] 
-             [:e3] [:bb2] [:a2] [:c#4] 
-             [:d4] [:a3] [:b3] [:g3]]}
-   {:id "T51", :desc "Walk from dominant to root" :chords "G7 G7 | C C"
-    :notes  [[:g3] [:f3] [:e3] [:d3]  [:c3 2] [:g3 2]]}
-   {:id "Milk min", :desc "Miliking minor chord, Kaye, p.15" :chords "Dm7 | Dm7"
-    :notes  [[:d3] [:e3] [:f3] [:g3]  [:a3] [:f3] [:e3] [:d3]]}
-   {:id "Milk maj", :desc "Miliking major chord" :chords "D7 | D7"
-    :notes  [[:d3] [:e3] [:f#3] [:g3]  [:a3] [:f#3] [:e3] [:d3]]}
-   {:id "S25", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 "
-            :notes  [[:c3]  [:_] [:g3]  [:_]
-                     [:f3]  [:_] [:a2]  [:_]]}
-   {:id "S251", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 | Bb7 "
-            :notes  [[:c3]  [:_] [:g3]  [:_]
-                     [:f3]  [:_] [:a2]  [:_]
-                     [:bb2] [:_] [:f3]  [:e3]]}
-   {:id "S2514", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 | Bb7 | Eb7"
-            :notes  [[:c3]  [:_] [:g3]  [:_]
-                     [:f3]  [:_] [:a2]  [:_]
-                     [:bb2] [:_] [:f3]  [:e3]
-                     [:eb3] [:_] [:bb2] [:_]]}
-   {:id "S25147", :desc "Sobolev p. 14, A1"  :chords "Cm7 | F7 | Bb7 | Eb7 | Am7-5"  
-            :notes  [[:c3]  [:_] [:g3]  [:_]
-                     [:f3]  [:_] [:a2]  [:_]
-                     [:bb2] [:_] [:f3]  [:e3]
-                     [:eb3] [:_] [:bb2] [:_]
-                     [:a2]  [:_] [:eb3] [:_]]}
-   {:id "S251473", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 | Bb7 | Eb7 | Am7-5 | D7"
-            :notes  [[:c3]  [:_] [:g3]  [:_]
-                     [:f3]  [:_] [:a2]  [:_]
-                     [:bb2] [:_] [:f3]  [:e3]
-                     [:eb3] [:_] [:bb2] [:_]
-                     [:a2]  [:_] [:eb3] [:_]
-                     [:d3]  [:_] [:a3]  [:_]]}
-   {:id "S2514736", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 | Bb7 | Eb7 | Am7-5 | D7 | Gm7"
-            :notes  [[:c3]  [:_] [:g3]  [:_]
-                     [:f3]  [:_] [:a2]  [:_]
-                     [:bb2] [:_] [:f3]  [:e3]
-                     [:eb3] [:_] [:bb2] [:_]
-                     [:a2]  [:_] [:eb3] [:_]
-                     [:d3]  [:_] [:a3]  [:d3]
-                     [:g3]  [:_] [:a3]  [:_]]}
-   {:id "S25147366", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 | Bb7 | Eb7 | Am7-5 | D7 | Gm7 | Gm7"
-            :notes  [[:c3]  [:_] [:g3]  [:_]
-                     [:f3]  [:_] [:a2]  [:_]
-                     [:bb2] [:_] [:f3]  [:e3]
-                     [:eb3] [:_] [:bb2] [:_]
-                     [:a2]  [:_] [:eb3] [:_]
-                     [:d3]  [:_] [:a3]  [:d3]
-                     [:g3]  [:_] [:a3]  [:_]
-                     [:bb3] [:_] [:g3]  [:_]]}
-   {:id "Majdown", :desc "Scalewise from root to fifth, Stuart Smith, p. 27", :chords "F7"
-            :notes  [[:f3]  [:e3] [:d3]  [:c3]]}
-   {:id "Mindown", :desc "Scalewise from root to fifth, Stuart Smith, p. 27", :chords "Fm"
-            :notes  [[:f3]  [:eb3] [:db3]  [:c3]]}
-])
+                           [:d3] [:a3] [:f3] [:f#3]
+                           [:g3] [:d3] [:g3] [:f3]
+                           [:e3] [:bb2] [:a2] [:c#4]
+                           [:d4] [:a3] [:b3] [:g3]]}
+                 {:id "T51", :desc "Walk from dominant to root" :chords "G7 G7 | C C"
+                  :notes  [[:g3] [:f3] [:e3] [:d3]  [:c3 2] [:g3 2]]}
+                 {:id "Milk min", :desc "Miliking minor chord, Kaye, p.15" :chords "Dm7 | Dm7"
+                  :notes  [[:d3] [:e3] [:f3] [:g3]  [:a3] [:f3] [:e3] [:d3]]}
+                 {:id "Milk maj", :desc "Miliking major chord" :chords "D7 | D7"
+                  :notes  [[:d3] [:e3] [:f#3] [:g3]  [:a3] [:f#3] [:e3] [:d3]]}
+                 {:id "S25", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 "
+                  :notes  [[:c3]  [:_] [:g3]  [:_]
+                           [:f3]  [:_] [:a2]  [:_]]}
+                 {:id "S251", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 | Bb7 "
+                  :notes  [[:c3]  [:_] [:g3]  [:_]
+                           [:f3]  [:_] [:a2]  [:_]
+                           [:bb2] [:_] [:f3]  [:e3]]}
+                 {:id "S2514", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 | Bb7 | Eb7"
+                  :notes  [[:c3]  [:_] [:g3]  [:_]
+                           [:f3]  [:_] [:a2]  [:_]
+                           [:bb2] [:_] [:f3]  [:e3]
+                           [:eb3] [:_] [:bb2] [:_]]}
+                 {:id "S25147", :desc "Sobolev p. 14, A1"  :chords "Cm7 | F7 | Bb7 | Eb7 | Am7-5"
+                  :notes  [[:c3]  [:_] [:g3]  [:_]
+                           [:f3]  [:_] [:a2]  [:_]
+                           [:bb2] [:_] [:f3]  [:e3]
+                           [:eb3] [:_] [:bb2] [:_]
+                           [:a2]  [:_] [:eb3] [:_]]}
+                 {:id "S251473", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 | Bb7 | Eb7 | Am7-5 | D7"
+                  :notes  [[:c3]  [:_] [:g3]  [:_]
+                           [:f3]  [:_] [:a2]  [:_]
+                           [:bb2] [:_] [:f3]  [:e3]
+                           [:eb3] [:_] [:bb2] [:_]
+                           [:a2]  [:_] [:eb3] [:_]
+                           [:d3]  [:_] [:a3]  [:_]]}
+                 {:id "S2514736", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 | Bb7 | Eb7 | Am7-5 | D7 | Gm7"
+                  :notes  [[:c3]  [:_] [:g3]  [:_]
+                           [:f3]  [:_] [:a2]  [:_]
+                           [:bb2] [:_] [:f3]  [:e3]
+                           [:eb3] [:_] [:bb2] [:_]
+                           [:a2]  [:_] [:eb3] [:_]
+                           [:d3]  [:_] [:a3]  [:d3]
+                           [:g3]  [:_] [:a3]  [:_]]}
+                 {:id "S25147366", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 | Bb7 | Eb7 | Am7-5 | D7 | Gm7 | Gm7"
+                  :notes  [[:c3]  [:_] [:g3]  [:_]
+                           [:f3]  [:_] [:a2]  [:_]
+                           [:bb2] [:_] [:f3]  [:e3]
+                           [:eb3] [:_] [:bb2] [:_]
+                           [:a2]  [:_] [:eb3] [:_]
+                           [:d3]  [:_] [:a3]  [:d3]
+                           [:g3]  [:_] [:a3]  [:_]
+                           [:bb3] [:_] [:g3]  [:_]]}
+                 {:id "Majdown", :desc "Scalewise from root to fifth, Stuart Smith, p. 27", :chords "F7"
+                  :notes  [[:f3]  [:e3] [:d3]  [:c3]]}
+                 {:id "Mindown", :desc "Scalewise from root to fifth, Stuart Smith, p. 27", :chords "Fm"
+                  :notes  [[:f3]  [:eb3] [:db3]  [:c3]]}])
 
 ; Saving
 ; (map (partial save-bass-line conn) basslinedb)
@@ -332,7 +333,7 @@
    bar - bar number in a song (starting from 1);
    beat - a beat in a bar;
    chord - a chord that is played on this beat"
- []
+  []
   (let [m  {"bass-none" (fn [_ _ _] nil)
             "bass-1"    (fn [_ beat [r _ _]]   (case beat 1 r nil))
             "bass-15"   (fn [_ beat [r _ n5]]  (case beat 1 r 3 n5 nil))
@@ -353,7 +354,7 @@
                                     "bass-1234" "bass-1235" "bass-5321" "bass-4321"])
            "bass-ud3"   (partial f ["bass-1234" "bass-5321" "bass-1235" "bass-5321"
                                     "bass-1234" "bass-5321" "bass-1235" "bass-5321"]))))
-    
+
 (def chord-based-bass-db (init-chord-based-bass-db))
 
 ;; Drum patterns. Each drum pattern covers one standard bar (4/4). The pattern
