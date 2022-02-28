@@ -98,28 +98,32 @@
   (java.sql.DriverManager/getConnection (str "jdbc:sqlite:" db)))
 
 (defn cursor
-  "Takes open connection and query, runs query and returns
-   a lazy sequence of retrieved rows. When param return-map? each returned
-   element is a map, otherwise it's vector"
+  "Takes open connection, query, bind parameters.
+   Binds parameters and runs query and returns
+   a lazy sequence of retrieved rows. When param return-map? the returned
+   elements are maps, otherwize vectors"
   ([conn query]
    (cursor conn query [] false))
   ([conn query params]
    (cursor conn query params false))
   ([conn query params as-map?]
-   (let [rs       (.executeQuery
-                   (reduce (fn [acc i]
-                             (.setString acc (inc i) (nth params i))
-                             acc)
-                           (.prepareStatement conn query)
-                           (range (count params))))
+   (let [statement (.prepareStatement conn query)
+         statement (if (zero? (count params))
+                     statement
+                     (reduce (fn [acc i]
+                               (doto acc (.setObject (inc i) (nth params i))))
+                             statement
+                             (range (count params))))
+         rs        (.executeQuery statement)
          meta      (.getMetaData rs)
-         cols      (range 1 (inc (.getColumnCount meta)))
-         header    (map #(.getColumnLabel meta %) cols)
-         kheader   (map #(-> % str/lower-case keyword) header)
-         fetch-1   (fn [] (mapv #(.getObject rs %1) cols))
+         cols      (->> meta .getColumnCount inc (range 1))
+         header    (mapv (fn [col] (.getColumnLabel meta col)) cols)
+         kheader   (mapv (fn [col] (-> col str/lower-case keyword)) header)
          fetch-all (fn f [wrap]
                      (when (.next rs)
-                       (lazy-seq (cons (wrap (fetch-1)) (f wrap)))))]
+                       (lazy-seq
+                        (cons (wrap (mapv (fn [col] (.getObject rs col)) cols))
+                              (f wrap)))))]
      (if as-map?
        (fetch-all (partial zipmap kheader))
        (conj (fetch-all identity) header)))))

@@ -58,7 +58,7 @@
       2 [[1 a] [3 b]]
       3 [[1 a] [3 b] [4 c]]
       4 [[1 a] [2 b] [3 c] [4 d]]
-      :default (throw (Exception. "More than 4 chords per bar!")))))
+      :default (throw (Exception. "expecting 1 to 4 chords per bar")))))
 
 (defn dense-beats
   "Assign chords for each beat in a bar.
@@ -75,7 +75,7 @@
       2 [[1 a] [2 a] [3 b] [4 b]]
       3 [[1 a] [2 a] [3 b] [4 c]]
       4 [[1 a] [2 b] [3 c] [4 d]]
-      :default (throw (Exception. "More than 4 chords per bar!")))))
+      :default (throw (Exception. "expecting 1 to 4 chords per bar")))))
 
 (defn read-song-file
   "Reads song info from a map stored in EDN file"
