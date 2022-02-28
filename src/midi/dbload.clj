@@ -1,9 +1,7 @@
 (ns midi.dbload
   (:require [clojure.string :as str]
             [clojure.edn :as edn]
-            [midi.timlib :as tla
-             :refer [examples]]
-            [clojure.test :refer [is are]]))
+            [midi.timlib :as tla]))
 
 (def QUARTER-NOTE  384)      ; Length of quarter note in time code ticks
 (def WHOLE-NOTE    (* QUARTER-NOTE 4))
@@ -28,15 +26,15 @@
 (defn save-song-to-db
   "Takes song-map with keys and saves song to the database"
   [song-meta]
-  (let [{:keys [id nm numer denom ppq bb bpm bars bbcs drum bass]} song-meta]
+  (let [{:keys [id nm numer denom ppq bb bpm bars bbcs drum bass max-bar]} song-meta]
     (exec-dml "delete from song where song_id = ?" [[id]])
     (exec-dml "delete from bar where song_id = ?" [[id]])
     (exec-dml "delete from song_bar_beat where song_id = ?" [[id]])
 
     (exec-dml (str "insert into song(song_id, song_nm, time_sig_nmrtr_num, time_sig_denom_num,"
-                   "time_sig_ppq_num, time_sig_bb_num, bpm_num, drum_ptrn_cd, bass_ty_cd) "
-                   "values (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-              [[id nm numer denom ppq bb bpm drum bass]])
+                   "time_sig_ppq_num, time_sig_bb_num, bpm_num, drum_ptrn_cd, bass_ty_cd, max_bar) "
+                   "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+              [[id nm numer denom ppq bb bpm drum bass max-bar]])
 
     (exec-dml "insert into bar (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)" bars)
     (exec-dml "insert into song_bar_beat (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)" bbcs)
@@ -46,11 +44,6 @@
 (defn sparse-beats
   "Sparsely assign chords within a bar.
    Currently only supports 4/4 time signature."
-  {:test (examples sparse-beats
-                   [[:Am]]           [[1 :Am]]
-                   [[:Am :Dm]]       [[1 :Am] [3 :Dm]]
-                   [[:Am :Dm :G]]    [[1 :Am] [3 :Dm] [4 :G]]
-                   [[:Am :Dm :G :C]] [[1 :Am] [2 :Dm] [3 :G] [4 :C]])}
   [chords]
   (let [[a b c d] chords]
     (case (count chords)
@@ -63,11 +56,6 @@
 (defn dense-beats
   "Assign chords for each beat in a bar.
    Currently only supports 4/4 time signature"
-  {:test (examples dense-beats
-                   [[:Am]]           [[1 :Am] [2 :Am] [3 :Am] [4 :Am]]
-                   [[:Am :Dm]]       [[1 :Am] [2 :Am] [3 :Dm] [4 :Dm]]
-                   [[:Am :Dm :G]]    [[1 :Am] [2 :Am] [3 :Dm] [4 :G]]
-                   [[:Am :Dm :G :C]] [[1 :Am] [2 :Dm] [3 :G]  [4 :C]])}
   [chords]
   (let [[a b c d] chords]
     (case (count chords)
@@ -85,21 +73,21 @@
       edn/read-string))
 
 (defn enhance-song-map
-  "Takes song map and enhanced it by adding to keys
+  "Takes map of song and enhanced it by adding two keys
     :bars - with sparsely assigned chords to beats
     :bbcs - with densely assigned chords to beats"
   [song-map]
-  (let [hlp (fn [assign-beats]
-              (->> song-map
-                   :tab-score
-                   tabs->bars
+  (let [bars (-> song-map :tab-score tabs->bars)
+        hlp (fn [assign-beats]
+              (->> bars
                    (map-indexed (fn [bar tab]
                                   (for [[beat chord] (assign-beats tab)]
                                     [(song-map :id) (inc bar) beat chord])))
                    (apply concat)))]
     (-> song-map
         (assoc :bars (hlp sparse-beats)
-               :bbcs (hlp dense-beats)))))
+               :bbcs (hlp dense-beats)
+               :max-bar (count bars)))))
 
 (defn import-song
   "Imports song from a file into internal SQLite database"
