@@ -15,7 +15,12 @@
     [["Am"] ["Dm"]]                      "Am | Dm"
     [["Am"] ["Dm" "G"]]                  "Am | Dm G"
     [["Am"] ["Dm" "G"] ["Dm" "G" "C"]]   "Am | Dm G | Dm G C"
-    [["Am" "Dm" "G" "C"]]                "Am Dm G C"))
+    [["Am" "Dm" "G" "C"]]                "Am Dm G C"
+    [["Am"] ["Bm"]]                      "Am | 
+                                          Bm"
+    [["Am"] ["Dm"]]                      "Am
+                                          Dm"
+))
 
 (deftest enhance-song-map-test
   (let [result (db/enhance-song-map sample-edn)

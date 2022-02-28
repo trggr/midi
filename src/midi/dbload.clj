@@ -21,6 +21,7 @@
     (str/replace $ #"\n" "|")
     (str/split $ #"\|")
     (map str/trim $)
+    (remove (fn [x] (zero? (count x))) $)
     (map #(str/split % #"\s+") $)))
 
 (defn save-song-to-db

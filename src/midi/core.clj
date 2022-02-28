@@ -146,32 +146,16 @@
    For a typical 4/4, 32-bar song this collection is 128 elements
    long and shows what chord is played on each bar and beat"
   [song-name]
-  (let [query "with
-               bars  as (select * from bar_flat where upper(song_nm) = :1),
-               beats as (select * from all_beat where bar_id <= (select max(bar_id) from bars)),
-               fill  as (
-                   select a.bar_id, a.beat_id, b.bar_id orig_bar_id, b.beat_id orig_beat_id,
-                          b.chord_id,
-                          lag(b.chord_id, 1) over (partition by a.bar_id order by a.beat_id) c1,
-                          lag(b.chord_id, 2) over (partition by a.bar_id order by a.beat_id) c2,
-                          lag(b.chord_id, 3) over (partition by a.bar_id order by a.beat_id) c3,
-                          lag(b.chord_id, 4) over (order by a.bar_id, a.beat_id range between unbounded preceding and current row) c4,
-                          lag(b.chord_id, 5) over (order by a.bar_id, a.beat_id range between unbounded preceding and current row) c5,
-                          lag(b.chord_id, 6) over (order by a.bar_id, a.beat_id range between unbounded preceding and current row) c6,
-                          lag(b.chord_id, 7) over (order by a.bar_id, a.beat_id range between unbounded preceding and current row) c7,
-                          lag(b.chord_id, 8) over (order by a.bar_id, a.beat_id range between unbounded preceding and current row) c8
-                   from beats                a
-                        left outer join bars b on (a.bar_id = b.bar_id and a.beat_id = b.beat_id)),
-               rc as (select bar_id, beat_id, coalesce(chord_id, c1, c2, c3, c4, c5, c6, c7, c8) chord_id
-                      from fill)
-               select bar_id, beat_id, chord_id
-               from rc
-               where chord_id is not null
-               order by bar_id, beat_id"
-        bbcs  (db/query query [(str/upper-case song-name)])]
-    (map (fn [[bar beat chord]]
-           [bar beat (keyword chord)])
-         (rest bbcs))))
+  (->> song-name
+       str/upper-case
+       vector
+       (db/query "select b.bar_id, b.beat_id, b.chord_id
+                  from song_bar_beat b
+                       join song     s on (s.song_id = b.song_id)
+                  where upper(s.song_nm) = :1
+                  order by 1, 2")
+       rest
+       (map (fn [[bar beat chord]] [bar beat (keyword chord)]))))
 
 (defn paste-bass-line [from-bar bass-line-id transposition vel]
   (println "expand-bass-line" bass-line-id)
@@ -210,7 +194,6 @@
                                  "where song_id = ? "
                                  "order by beg_bar_id")
                             [song-id])
-        _ (println patterns)
         maxbar (-> (db/query "select max(bar_id) bar from bar where song_id = ?" [song-id])
                    second
                    first)
@@ -409,8 +392,6 @@
                 (->> bbcs (strum-chord-track "charleston") track->duration-track))]
     (println (format "song=%s, bpm=%d, drums=%s, bass=%s"
                      song-name bpm drum-pattern bass-method))
-    ;; (println "tracks")
-    ;; (doseq [s tracks] (println s))
     (midifile/save file-name tracks bpm)))
 
 (defn produce-midi-files []
