@@ -158,9 +158,9 @@
        (map (fn [[bar beat chord]] [bar beat (keyword chord)]))))
 
 (defn paste-bass-line [from-bar bass-line-id transposition vel]
-  (println "expand-bass-line" bass-line-id)
+  ;; (println "expand-bass-line" bass-line-id)
   (->> [bass-line-id]
-       (db/query "select n.midi_num, b.note_dur_num
+       (db/query "select n.midi_num, cast(b.note_dur_num as int) note_dur_num
                   from bass_line_note b join note n on (n.note_cd = b.note_cd)
                   where b.bass_line_id = :1
                   order by order_num")
@@ -187,9 +187,9 @@
        (concat tape
                (paste-bass-line from-bar bass-line-id transposition db/BASS-VELOCITY))])))
 
-(defn bass-patterns [song-id]
+(defn patterns-bass-track [song-id]
   (let [song-id (str song-id)
-        patterns (db/query (str "select bass_line_id, beg_bar_id, end_bar_id, transp_num - 12 transp_num "
+        patterns (db/query (str "select bass_line_id, beg_bar_id, end_bar_id, transp_num transp_num "
                                  "from bass_line_bar_v "
                                  "where song_id = ? "
                                  "order by beg_bar_id")
@@ -227,8 +227,8 @@
           (keys pattern)))
 
 (defn compress
-  "Takes collection and turns it into element, number of occurrences
-   coll. E.g. [a a a b b] => [a 3 b 2]"
+  "Takes coll and turns it into collection where each elements is followed by
+   a number of its occurrences, e.g. [a a a b b] => [a 3 b 2]"
   [coll]
   (->> coll
        (partition 2 1 nil)
@@ -238,12 +238,6 @@
                    [(conj acc x n) 1]))
                [[] 1])
        first))
-
-(comment
-  (compress [5 1 1 1 2 2 2 2 4])  ;=> [5 1 1 3 2 4 4 1]
-  (compress [2])  ;=> []
-  (compress [])  ;=> []
-  )
 
 (defn walking-bass
   "Takes a chord, number of beats of this chord, and the
@@ -347,7 +341,7 @@
         chord-track (strum-chord-track "rhythm-3-3-2" bbcs)
         drum-track  (make-drum-track drum-pattern bbcs)
         bass-track  (if (= bass-method "patterns")
-                      (bass-patterns song-id)
+                      (patterns-bass-track song-id)
                       (synthetic-bass-track bbcs))
         m           (meta bass-track)
         info        (if m
@@ -374,44 +368,56 @@
                    (rest sorted))]
     (remove nil? dur1)))
 
-(defn produce-midi-file
-  "Save song to a MIDI file"
-  [song-name file-name]
-  (let [[song-id bpm drum-pattern bass-method]
-        (-> (db/query "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd
+(defn export-midi-file
+  "Export song to a MIDI file. Song name should match SONG table.
+   If no file name provided, the MIDI file
+   is created in resources/midi."
+  ([song-name]
+   (export-midi-file song-name
+                     (as-> song-name $
+                       (str/lower-case $)
+                       (str/replace $ #"\s+" "_")
+                       (str "resources/midi/" $ ".midi"))))
+  ([song-name file-name]
+   (let [[song-id bpm drum-pattern bass-method]
+         (-> (db/query "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd
                        from song
                        where upper(song_nm) = ?" [song-name])
-            second)
-        bbcs        (get-song-bbcs song-name)
-        bass-track  (if (= bass-method "patterns")
-                      (bass-patterns song-id)
-                      (synthetic-bass-track bbcs))
-        tracks (concat
-                (->> bbcs (make-drum-track drum-pattern) track->duration-track)
-                (track->duration-track bass-track)
-                (->> bbcs (strum-chord-track "charleston") track->duration-track))]
-    (println (format "song=%s, bpm=%d, drums=%s, bass=%s"
-                     song-name bpm drum-pattern bass-method))
-    (midifile/save file-name tracks bpm)))
+             second)
+         bbcs        (get-song-bbcs song-name)
+         bass-track  (if (= bass-method "patterns")
+                       (patterns-bass-track song-id)
+                       (synthetic-bass-track bbcs))
+         tracks (concat
+                 (->> bbcs (make-drum-track drum-pattern) track->duration-track)
+                 (track->duration-track bass-track)
+                 (->> bbcs (strum-chord-track "charleston") track->duration-track))]
+     (println (format "song=%s, bpm=%d, drums=%s, bass=%s"
+                      song-name bpm drum-pattern bass-method))
+     (midifile/save file-name tracks bpm))))
 
-(defn produce-midi-files []
-  (doseq [song ["ALL THE THINGS YOU ARE"
-                "ALONE TOGETHER"
-                "MISTY"
-                "MEDIUM BLUES"
-                "IN A SENTIMENTAL MOOD"
-                "ALL OF ME"
-                "AUTUMN LEAVES"
-                "ALL BY MYSELF"
-                "LET IT BE"
-                "BLACK ORPHEUS"]]
-    (produce-midi-file song
-                       (str "resources/midi/" song ".midi"))))
 
-(defn -main [& args]
-  (let [[cmd & more] args]
-    (cond (= cmd "--import")
-          (let [song-nm (db/import-song (first more))]
-            (produce-midi-file song-nm (str "resources/midi/" song-nm ".midi")))
-          :else (produce-midi-files))))
+(def selected-songs
+  ["ALL THE THINGS YOU ARE"
+   "ALONE TOGETHER"
+   "MISTY"
+   "MEDIUM BLUES"
+   "IN A SENTIMENTAL MOOD"
+   "ALL OF ME"
+   "AUTUMN LEAVES"
+   "ALL BY MYSELF"
+   "LET IT BE"
+   "BLACK ORPHEUS"
+])
+
+(defn -main
+  ([]  (doseq [s selected-songs] (export-midi-file s)))
+  ([_] (println "Known commands: -- import-song, --import-bass-line"))
+  ([cmd arg]
+   (cond (= cmd "--import-song")      (->> arg
+                                           db/import-song
+                                           export-midi-file)
+         (= cmd "--import-bass-line") (-> arg
+                                          db/import-bass-line)
+         :else (println "unknown command" cmd))))
 

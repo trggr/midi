@@ -74,9 +74,10 @@
       edn/read-string))
 
 (defn enhance-song-map
-  "Takes map of song and enhanced it by adding two keys
+  "Takes map of song and enhanced it by adding  keys
     :bars - with sparsely assigned chords to beats
-    :bbcs - with densely assigned chords to beats"
+    :bbcs - with densely assigned chords to beats
+    :max-bar - length of score in bars"
   [song-map]
   (let [bars (-> song-map :tab-score tabs->bars)
         hlp (fn [assign-beats]
@@ -97,12 +98,6 @@
       read-song-file
       enhance-song-map
       save-song-to-db))
-
-(comment
-  (import-song "resources/tabs/black-orpheus.edn")
-  (exec-dml "delete from bar where song_id = ?" [[11]])
-  (query "select * from bar where song_id = ?" [11])
-  (query "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd from song where upper(song_nm) = ?" ["MISTY"]))
 
 ; Middle octave - C3 (also just C for convenience)
 (def notedb1 {:C 60, :C# 61, :Db 61,
@@ -223,98 +218,36 @@
                       [k f])))
 
 
-(defn save-bass-line [bass-line]
-  (let [{:keys [id desc chords notes]} bass-line
-        chords (->> (str/split chords #"\|")
-                    (map str/trim)
-                    (map #(str/split % #"\s+"))
-                    (map sparse-beats)
-                    (map-indexed #(vector (inc %1) %2)))
-        chords (for [[barno bar] chords, [beat chord] bar] [id barno beat chord])
-        cnt    (str (reduce max (map second chords)))
-        notes  (for [i (range (count notes))]
-                 (let [[note dur] (nth notes i)]
-                   [id (inc i) (name note) (or dur 4)]))]
-    (exec-dml "insert into bass_line(bass_line_id, bar_cnt, bass_line_desc) values (?, ?, ?)"
-              [[id cnt desc]])
-    (exec-dml "insert into bass_line_chord (bass_line_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)"
-              chords)
-    (exec-dml "insert into bass_line_note (bass_line_id, order_num, note_cd, note_dur_num) values (?, ?, ?, ?)"
-              notes)))
+(defn save-bass-line-to-db
+  "Takes enhanced map of bass line, and saves it to 
+   BASS_LINE, BASS_LINE_CHORD, BASS_LINE_NOTE.
+   Returns bass line ID."
+  [bass-line]
+  (let [{:keys [id desc bars notes max-bar]} bass-line
+        notes  (map-indexed (fn [idx [note dur]]
+                              [id (inc idx) (name note) (or dur 4)]) notes)]
+    (exec-dml "delete from bass_line       where bass_line_id = ?" [[id]])
+    (exec-dml "delete from bass_line_chord where bass_line_id = ?" [[id]])
+    (exec-dml "delete from bass_line_note  where bass_line_id = ?" [[id]])
 
-(def basslinedb [{:id "SMEDBLUES", :desc "Medium blues, Sobolev p. 14",
-                  :chords "C | F7 F#dim | C | C7 | F | F#dim | C | Em7-5 A7 | Dm7 | G7 | Em7-5 A7 | Dm G7"
-                  :notes  [[:c4] [:g3] [:e3] [:c3]
-                           [:f3] [:e3] [:f3] [:f#3]
-                           [:g3] [:b3] [:c4] [:b3]
-                           [:bb3] [:c3] [:d3] [:e3]
+    (exec-dml "insert into bass_line(bass_line_id, bar_cnt, bass_line_desc)
+               values (?, ?, ?)"
+              [[id max-bar desc]])
+    (exec-dml "insert into bass_line_chord (bass_line_id, bar_id, beat_id, chord_id)
+               values (?, ?, ?, ?)"
+              bars)
+    (exec-dml "insert into bass_line_note (bass_line_id, order_num, note_cd, note_dur_num)
+               values (?, ?, ?, ?)"
+              notes)
+    id))
 
-                           [:f3] [:a2] [:bb2] [:b2]
-                           [:c3] [:e3] [:f3] [:f#3]
-                           [:g3] [:e3] [:f3] [:d3]
-                           [:e3] [:bb3] [:a3] [:c#2]
-
-                           [:d3] [:a3] [:f3] [:f#3]
-                           [:g3] [:d3] [:g3] [:f3]
-                           [:e3] [:bb2] [:a2] [:c#4]
-                           [:d4] [:a3] [:b3] [:g3]]}
-                 {:id "T51", :desc "Walk from dominant to root" :chords "G7 G7 | C C"
-                  :notes  [[:g3] [:f3] [:e3] [:d3]  [:c3 2] [:g3 2]]}
-                 {:id "Milk min", :desc "Miliking minor chord, Kaye, p.15" :chords "Dm7 | Dm7"
-                  :notes  [[:d3] [:e3] [:f3] [:g3]  [:a3] [:f3] [:e3] [:d3]]}
-                 {:id "Milk maj", :desc "Miliking major chord" :chords "D7 | D7"
-                  :notes  [[:d3] [:e3] [:f#3] [:g3]  [:a3] [:f#3] [:e3] [:d3]]}
-                 {:id "S25", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 "
-                  :notes  [[:c3]  [:_] [:g3]  [:_]
-                           [:f3]  [:_] [:a2]  [:_]]}
-                 {:id "S251", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 | Bb7 "
-                  :notes  [[:c3]  [:_] [:g3]  [:_]
-                           [:f3]  [:_] [:a2]  [:_]
-                           [:bb2] [:_] [:f3]  [:e3]]}
-                 {:id "S2514", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 | Bb7 | Eb7"
-                  :notes  [[:c3]  [:_] [:g3]  [:_]
-                           [:f3]  [:_] [:a2]  [:_]
-                           [:bb2] [:_] [:f3]  [:e3]
-                           [:eb3] [:_] [:bb2] [:_]]}
-                 {:id "S25147", :desc "Sobolev p. 14, A1"  :chords "Cm7 | F7 | Bb7 | Eb7 | Am7-5"
-                  :notes  [[:c3]  [:_] [:g3]  [:_]
-                           [:f3]  [:_] [:a2]  [:_]
-                           [:bb2] [:_] [:f3]  [:e3]
-                           [:eb3] [:_] [:bb2] [:_]
-                           [:a2]  [:_] [:eb3] [:_]]}
-                 {:id "S251473", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 | Bb7 | Eb7 | Am7-5 | D7"
-                  :notes  [[:c3]  [:_] [:g3]  [:_]
-                           [:f3]  [:_] [:a2]  [:_]
-                           [:bb2] [:_] [:f3]  [:e3]
-                           [:eb3] [:_] [:bb2] [:_]
-                           [:a2]  [:_] [:eb3] [:_]
-                           [:d3]  [:_] [:a3]  [:_]]}
-                 {:id "S2514736", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 | Bb7 | Eb7 | Am7-5 | D7 | Gm7"
-                  :notes  [[:c3]  [:_] [:g3]  [:_]
-                           [:f3]  [:_] [:a2]  [:_]
-                           [:bb2] [:_] [:f3]  [:e3]
-                           [:eb3] [:_] [:bb2] [:_]
-                           [:a2]  [:_] [:eb3] [:_]
-                           [:d3]  [:_] [:a3]  [:d3]
-                           [:g3]  [:_] [:a3]  [:_]]}
-                 {:id "S25147366", :desc "Sobolev p. 14, A1", :chords "Cm7 | F7 | Bb7 | Eb7 | Am7-5 | D7 | Gm7 | Gm7"
-                  :notes  [[:c3]  [:_] [:g3]  [:_]
-                           [:f3]  [:_] [:a2]  [:_]
-                           [:bb2] [:_] [:f3]  [:e3]
-                           [:eb3] [:_] [:bb2] [:_]
-                           [:a2]  [:_] [:eb3] [:_]
-                           [:d3]  [:_] [:a3]  [:d3]
-                           [:g3]  [:_] [:a3]  [:_]
-                           [:bb3] [:_] [:g3]  [:_]]}
-                 {:id "Majdown", :desc "Scalewise from root to fifth, Stuart Smith, p. 27", :chords "F7"
-                  :notes  [[:f3]  [:e3] [:d3]  [:c3]]}
-                 {:id "Mindown", :desc "Scalewise from root to fifth, Stuart Smith, p. 27", :chords "Fm"
-                  :notes  [[:f3]  [:eb3] [:db3]  [:c3]]}])
-
-; Saving
-; (map (partial save-bass-line conn) basslinedb)
-; (map (partial save-bass-line conn) (drop 4 basslinedb))
-; (save-bass-line conn (last basslinedb))
+(defn import-bass-line
+  "Imports bass-line from a file into internal SQLite database"
+  [song-edn-file]
+  (-> song-edn-file
+      read-song-file
+      enhance-song-map
+      save-bass-line-to-db))
 
 (defn init-chord-based-bass-db
   "Returns a map of functions which can build bass line solely from the chords.
@@ -405,5 +338,3 @@
    "charleston-combo" [[0 8] [50 8/3] [50 8] [0 8/3]]
    "rhythm-2-4"       [[0 8/3] [50 8] [0 8/3] [50 8]]
    "rhythm-3-3-2"     [[50 8/3] [50 8/3] [50]]})
-
-;; (def x (run-tests))

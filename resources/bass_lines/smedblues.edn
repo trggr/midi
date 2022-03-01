@@ -1,0 +1,17 @@
+{:id "SMEDBLUES"
+ :desc "Medium blues, Sobolev p. 14"
+ :tab-score "C | F7 F#dim | C | C7 | F | F#dim | C | Em7-5 A7 | Dm7 | G7 | Em7-5 A7 | Dm G7"
+ :notes  [[:c4] [:g3] [:e3] [:c3]
+          [:f3] [:e3] [:f3] [:f#3]
+          [:g3] [:b3] [:c4] [:b3]
+          [:bb3] [:c3] [:d3] [:e3]
+
+          [:f3] [:a2] [:bb2] [:b2]
+          [:c3] [:e3] [:f3] [:f#3]
+          [:g3] [:e3] [:f3] [:d3]
+          [:e3] [:bb3] [:a3] [:c#2]
+
+          [:d3] [:a3] [:f3] [:f#3]
+          [:g3] [:d3] [:g3] [:f3]
+          [:e3] [:bb2] [:a2] [:c#4]
+          [:d4] [:a3] [:b3] [:g3]]}

@@ -24,4 +24,8 @@
             [4 1 :Am] [4 2 :Dm] [4 3 :G]  [4 4 :C]]
            (core/get-song-bbcs "TEST SONG")))))
 
-
+(deftest compress-test
+ (are [result args] (= result (core/compress args))
+   [5 1 1 3 2 4 4 1]    [5 1 1 1 2 2 2 2 4]
+   [2 1]                [2]
+   []                   []))

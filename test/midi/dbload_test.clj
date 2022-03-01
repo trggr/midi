@@ -2,12 +2,6 @@
   (:require [clojure.test :refer [deftest is are]]
             [midi.dbload :as db]))
 
-(def sample-edn
-  {:id 0, :nm "TEST SONG", :numer 4, :denom 4,
-   :ppq 400000, :bb 8, :bpm 90,
-   :drum "drums-swing",
-   :bass "bass-15-68",
-   :tab-score "Am | Am Dm | Am Dm G | Am Dm G C"})
 
 (deftest tabs->bars-test
   (are [result args] (= result (db/tabs->bars args))
@@ -19,11 +13,17 @@
     [["Am"] ["Bm"]]                      "Am | 
                                           Bm"
     [["Am"] ["Dm"]]                      "Am
-                                          Dm"
-))
+                                          Dm"))
+
+(def sample-song
+  {:id 0, :nm "TEST SONG", :numer 4, :denom 4,
+   :ppq 400000, :bb 8, :bpm 90,
+   :drum "drums-swing",
+   :bass "bass-15-68",
+   :tab-score "Am | Am Dm | Am Dm G | Am Dm G C"})
 
 (deftest enhance-song-map-test
-  (let [result (db/enhance-song-map sample-edn)
+  (let [result (db/enhance-song-map sample-song)
         bars (get result :bars)
         bbcs (get result :bbcs)]
     (is (and bars bbcs))
@@ -54,7 +54,7 @@
     [[1 :Am] [2 :Dm][3 :G][4 :C]]     [:Am :Dm :G :C]))
 
 (deftest save-song-to-db-test
-  (let [result (-> sample-edn
+  (let [result (-> sample-song
                    db/enhance-song-map
                    db/save-song-to-db)]
     (is (= "TEST SONG"
@@ -89,3 +89,38 @@
                 rest)))))
 
 
+(def sample-bass-line
+  {:id "SAMPLE-BASS-LINE"
+   :desc "FROM DOMINANT TO ROOT"
+   :tab-score "G7 | C"
+   :notes  [[:g3] [:f3] [:e3] [:d3]  [:c3 2] [:g3 2]]})
+
+
+(deftest save-bass-line-to-db-test
+  (let [result (-> sample-bass-line
+                   db/enhance-song-map
+                   db/save-bass-line-to-db)]
+    (is (= "SAMPLE-BASS-LINE"
+           result))
+    (is (= ["SAMPLE-BASS-LINE", "FROM DOMINANT TO ROOT", 2]
+           (->> ["SAMPLE-BASS-LINE"]
+                (db/query "select bass_line_id, bass_line_desc, bar_cnt
+                           from bass_line
+                           where bass_line_id = :1")
+                second)))
+    (is (= [[1 1 "G7"]
+            [2 1 "C"]]
+           (->> ["SAMPLE-BASS-LINE"]
+                (db/query "select bar_id, beat_id, chord_id
+                            from bass_line_chord
+                            where bass_line_id = :1
+                            order by 1, 2")
+                rest)))
+    (is (= [["g3" 4] ["f3" 4] ["e3" 4] ["d3" 4]
+            ["c3" 2] ["g3" 2]]
+           (->> ["SAMPLE-BASS-LINE"]
+                (db/query "select note_cd, cast(note_dur_num as int)
+                            from bass_line_note
+                            where bass_line_id = :1
+                            order by order_num")
+                rest)))))

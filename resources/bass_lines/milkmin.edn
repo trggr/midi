@@ -1,0 +1,4 @@
+{:id "MILKMIN"
+ :desc "Miliking minor chord, Kaye, p.15"
+ :tab-score "Dm7 | Dm7"
+ :notes  [[:d3] [:e3] [:f3] [:g3]  [:a3] [:f3] [:e3] [:d3]]}

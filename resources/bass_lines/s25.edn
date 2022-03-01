@@ -1,0 +1,5 @@
+{:id "S25",
+ :desc "Sobolev p. 14, A1",
+ :tab-score "Cm7 | F7 "
+ :notes  [[:c3]  [:_] [:g3]  [:_]
+          [:f3]  [:_] [:a2]  [:_]]}
