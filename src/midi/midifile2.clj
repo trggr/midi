@@ -4,8 +4,10 @@
            (com.leff.midi.event ProgramChange)
            (com.leff.midi.event.meta TimeSignature Tempo)))
 
-;;  [timecode channel note velocity]
-(defn save [file-name track bpm]
+(defn notes->midi-file
+  "Takes collection of notes (timecode channel note velocity) and BPM,
+   saving them as a MIDI file"
+  [notes bpm file-name]
   (let [tempo-track  (doto (MidiTrack.)
                        (.insertEvent
                         (doto (TimeSignature.)
@@ -15,12 +17,11 @@
                        (.insertEvent (doto (Tempo.) (.setBpm bpm)))
                        (.insertEvent (ProgramChange. 0 db/CHORD-CHANNEL 26))
                        (.insertEvent (ProgramChange. 0 db/BASS-CHANNEL 32)))
-        note-track (MidiTrack.)
         note-track (reduce (fn [acc [tc c note velocity duration]]
                              (println tc c note velocity duration)
                              (doto acc (.insertNote c note velocity tc duration)))
-                           note-track
-                           track)]
+                           (MidiTrack.)
+                           notes)]
     (doto (MidiFile. MidiFile/DEFAULT_RESOLUTION [tempo-track note-track])
       (.writeToFile (java.io.File. file-name)))))
 

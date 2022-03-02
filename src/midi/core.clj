@@ -394,8 +394,7 @@
                  (->> bbcs (strum-chord-track "charleston") track->duration-track))]
      (println (format "song=%s, bpm=%d, drums=%s, bass=%s"
                       song-name bpm drum-pattern bass-method))
-     (midifile/save file-name tracks bpm))))
-
+     (midifile/notes->midi-file tracks bpm file-name))))
 
 (def selected-songs
   ["ALL THE THINGS YOU ARE"
