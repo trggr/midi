@@ -1,7 +1,7 @@
 (ns midi.dbload-test
   (:require [clojure.test :refer [deftest is are]]
-            [midi.dbload :as db]))
-
+            [midi.dbload :as db]
+            [midi.timlib :as tla]))
 
 (deftest tabs->bars-test
   (are [result args] (= result (db/tabs->bars args))
@@ -26,6 +26,7 @@
   (let [result (db/enhance-song-map sample-song)
         bars (get result :bars)
         bbcs (get result :bbcs)]
+    (is (result :enhanced?))
     (is (and bars bbcs))
     (is (= 4 (get result :max-bar)))
     (is (= [[0 1 1 "Am"]
@@ -88,13 +89,30 @@
                             order by 1, 2, 3")
                 rest)))))
 
-
 (def sample-bass-line
   {:id "SAMPLE-BASS-LINE"
    :desc "FROM DOMINANT TO ROOT"
    :tab-score "G7 | C"
    :notes  [[:g3] [:f3] [:e3] [:d3]  [:c3 2] [:g3 2]]})
 
+(deftest transpose-note
+  (is (= "A" (db/transpose-note "G" 2)))
+  (is (= "A" (db/transpose-note "g" 2)))
+  (is (contains? #{"Bb" "A#" "A#3"} (db/transpose-note "g" 3)))
+  (is (= "F" (db/transpose-note "g" -2))))
+
+(deftest transpose-chord
+  (is (= "A7"  (db/transpose-chord "G7"   2)))
+  (is (= "Fm7" (db/transpose-chord "Gm7" -2)))
+  (is (= "Am7" (db/transpose-chord "Am7"  0))))
+
+(deftest transpose-bass-line
+  (let [result (-> sample-bass-line
+                   db/enhance-song-map
+                   (db/transpose-bass-line 2))]
+    (is (= "SAMPLE-BASS-LINE-A7" (result :id)))
+    (is (= (sample-bass-line :desc) (result :desc)))
+    (is false)))
 
 (deftest save-bass-line-to-db-test
   (let [result (-> sample-bass-line

@@ -203,6 +203,7 @@
                           (rest patterns))]
     (with-meta rc {:bass info})))
 
+(db/query "select * from bar_v where song_id = 1" [])
 
 (defn cover-bar-with-drum
   "Takes pattern, drum note, and covers a bar with this pattern.
@@ -279,17 +280,6 @@
               (db/drum-patterns (get bar->drum-fills % pattern-nm))
               %)
             (range maxbar))))
-
-(comment
-  ; (def bbcs (get-song-bbcs db/conn "MISTY"))
-
-  ; chord-track (make-chord-track2 bbcs "things-we-said-today")
-  ; (make-chord-track2 "things-we-said-today" bbcs)
-
-  ; drum-track  (make-drum-track drum-pattern bbcs)
-  ; (->> bbcs (map (fn [x] (nth x 2))) (partition 4))
-
-  )
 
 (defn strum-chords
   "Using a strumming pattern cover a bar with chords.

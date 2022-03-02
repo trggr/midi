@@ -85,11 +85,15 @@
                    (map-indexed (fn [bar tab]
                                   (for [[beat chord] (assign-beats tab)]
                                     [(song-map :id) (inc bar) beat chord])))
-                   (apply concat)))]
+                   (apply concat)
+                   (into [])))]
     (-> song-map
-        (assoc :bars (hlp sparse-beats)
+        (assoc :enhanced? true
+               :bars (hlp sparse-beats)
                :bbcs (hlp dense-beats)
                :max-bar (count bars)))))
+
+
 
 (defn import-song
   "Imports song from a file into internal SQLite database"
@@ -181,16 +185,16 @@
 (defn chord-notes [root form]
   (map #(+ -12 (notedb root) % -1) (first (chord-form form))))
 
-(def chord-sqlite
+(def chorddb
   (for [root [:C :C# :Db :D :D# :Eb :E :F :F# :Gb :G :G# :Ab :A :A# :Bb :B]
         form (keys chord-form)]
     (let [[pattern maj-ind] (chord-form form)
           [a b c d e f] (map #(+ (notedb root) % -1) pattern)
           r             (name root)]
-      {:chord_id      (str (name root) (if (= form :major) "" (name form)))
-       :root_midi_num (get notedb root)
-       :chord_form_cd (name form)
-       :root_note_cd  r
+      {:chord-id      (str (name root) (if (= form :major) "" (name form)))
+       :root-midi-num (get notedb root)
+       :chord-form-cd (name form)
+       :root-note-cd  r
        :major-ind     (name maj-ind)
        :a    a
        :b    b
@@ -199,12 +203,53 @@
        :e    e
        :f    f})))
 
+(defn transpose-note
+  "Takes note and number of semitones and returns transposed note"
+  [note semitones]
+  (if (zero? semitones)
+    note
+    (as-> note $
+      (keyword $)
+      (notedb $)
+      (+ $ semitones)
+      (filter (fn [[_ v]] (= v $)) notedb)
+      (first $)
+      (first $)
+      (name $)
+      (str/upper-case $))))
+
+(defn transpose-chord
+  "Takes chord and semitones and returns a string
+   representing a transposed chord"
+  [chord semitones]
+  (if (zero? semitones)
+    chord
+    (let [[root-note chord-form] (as-> chord $
+                                   (filter #(= (get % :chord-id) $) chorddb)
+                                   (first $)
+                                   ((juxt :root-note-cd :chord-form-cd) $))
+          transposed-root (transpose-note root-note semitones)]
+      (str transposed-root chord-form))))
+
+; (get-in chords [:Bm7])
+(defn transpose-bass-line
+  [bass-line semitones]
+  (let [enhanced (if (:enhanced? bass-line)
+                   bass-line
+                   (enhance-song-map bass-line))
+        [root-note chord-form] (as-> enhanced $
+                                 (get-in $ [:bbcs 0 3])
+                                 (filter #(= (get % :chord_id) $) chorddb)
+                                 (first $)
+                                 ((juxt :root_note_cd :chord_form_cd) $))]
+    (update enhanced :id (fn [id] (str id "-" "A7")))))
+
 (defn save-chords [chords]
   (exec-dml (str "insert into chord(chord_id, root_midi_num, chord_form_cd, root_note_cd,"
                  "  major_ind, midi1_num, midi2_num, midi3_num, midi4_num,"
                  "  midi5_num, midi6_num"
                  ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-            (map (juxt :chord_id :root_midi_num :chord_form_cd :root_note_cd :major-ind :a :b :c :d :e :f) chords)))
+            (map (juxt :chord-id :root-midi-num :chord-form-cd :root-note-cd :major-ind :a :b :c :d :e :f) chords)))
 
 ; (save-chords chord-sqlite)
 

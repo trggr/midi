@@ -2,10 +2,11 @@ drop view bass_line_bar_v;
 
 create view bass_line_bar_v as
 with recursive
-s (song_id, bass_line_id, beg_bar_id, next_bar_id, chord_id, step_num, bar_cnt,
+s (song_id, bass_line_id, xbass_line_id, beg_bar_id, next_bar_id, chord_id, step_num, bar_cnt,
    ptrn_root_midi_num, transp_root_midi_num, transp_num) as (
          select b.song_id,
                 p.bass_line_id,
+                p.xbass_line_id,
                 b.bar_id        beg_bar_id,
                 b.bar_id + 1    next_bar_id,
                 b.chord_id,
@@ -19,10 +20,11 @@ s (song_id, bass_line_id, beg_bar_id, next_bar_id, chord_id, step_num, bar_cnt,
                                      p.transp_root_midi_num = b.root_midi_num and
                                      p.major_ind            = b.major_ind     and
                                      p.beat_id              = b.beat_id)
-         where p.bar_id  = 1
+         where p.bar_id  = 1 and p.beat_id = 1
          union all
          select s.song_id,
                 s.bass_line_id,
+                s.xbass_line_id,
                 s.beg_bar_id,
                 b.bar_id + 1,
                 b.chord_id,
