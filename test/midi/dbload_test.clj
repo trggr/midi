@@ -3,6 +3,7 @@
             [midi.dbload :as db]
             [midi.timlib :as tla]))
 
+;;-------------------------------------------------------
 (deftest tabs->bars-test
   (are [result args] (= result (db/tabs->bars args))
     [["Am"]]                             "Am"
@@ -15,6 +16,7 @@
     [["Am"] ["Dm"]]                      "Am
                                           Dm"))
 
+;;-------------------------------------------------------
 (def sample-song
   {:id 0, :nm "TEST SONG", :numer 4, :denom 4,
    :ppq 400000, :bb 8, :bpm 90,
@@ -22,6 +24,7 @@
    :bass "bass-15-68",
    :tab-score "Am | Am Dm | Am Dm G | Am Dm G C"})
 
+;;-------------------------------------------------------
 (deftest enhance-song-map-test
   (let [result (db/enhance-song-map sample-song)
         bars (get result :bars)
@@ -40,6 +43,7 @@
             [0 4 1 "Am"] [0 4 2 "Dm"] [0 4 3 "G"]  [0 4 4 "C"]]
            bbcs))))
 
+;;-------------------------------------------------------
 (deftest dense-beats-test
   (are [result args] (= result (db/dense-beats args))
     [[1 :Am][2 :Am][3 :Am][4 :Am]]    [:Am]
@@ -47,6 +51,7 @@
     [[1 :Am][2 :Am][3 :Dm][4 :G]]     [:Am :Dm :G]
     [[1 :Am][2 :Dm][3 :G] [4 :C]]     [:Am :Dm :G :C]))
 
+;;-------------------------------------------------------
 (deftest sparse-beats-test
   (are [result args] (= result (db/sparse-beats args))
     [[1 :Am]]                         [:Am]
@@ -54,9 +59,10 @@
     [[1 :Am][3 :Dm][4 :G]]            [:Am :Dm :G]
     [[1 :Am] [2 :Dm][3 :G][4 :C]]     [:Am :Dm :G :C]))
 
+;;-------------------------------------------------------
 (deftest save-song-to-db-test
   (let [result (-> sample-song
-                   db/enhance-song-map
+                   db/enhance-bass-line-map
                    db/save-song-to-db)]
     (is (= "TEST SONG"
            result))
@@ -89,34 +95,51 @@
                             order by 1, 2, 3")
                 rest)))))
 
+;;-------------------------------------------------------
 (def sample-bass-line
   {:id "SAMPLE-BASS-LINE"
    :desc "FROM DOMINANT TO ROOT"
    :tab-score "G7 | C"
    :notes  [[:g3] [:f3] [:e3] [:d3]  [:c3 2] [:g3 2]]})
 
+;;-------------------------------------------------------
+;; C - 60, B - 71
 (deftest transpose-note
-  (is (= "A" (db/transpose-note "G" 2)))
-  (is (= "A" (db/transpose-note "g" 2)))
-  (is (contains? #{"Bb" "A#" "A#3"} (db/transpose-note "g" 3)))
-  (is (= "F" (db/transpose-note "g" -2))))
+  (is (= 67 (db/transpose-note "g" 0)))
+  (is (= 69 (db/transpose-note "G" 2)))
+  (is (= 69 (db/transpose-note "g" 2)))
+  (is (= 70 (db/transpose-note "g" 3)))
+  (is (= 65 (db/transpose-note "g" -2))))
 
+;;-------------------------------------------------------
 (deftest transpose-chord
+  (is (= "Am7" (db/transpose-chord "Am7"  0)))
   (is (= "A7"  (db/transpose-chord "G7"   2)))
-  (is (= "Fm7" (db/transpose-chord "Gm7" -2)))
-  (is (= "Am7" (db/transpose-chord "Am7"  0))))
+  (is (= "Fm7" (db/transpose-chord "Gm7" -2))))
 
+;;-------------------------------------------------------
 (deftest transpose-bass-line
   (let [result (-> sample-bass-line
-                   db/enhance-song-map
+                   db/enhance-bass-line-map
                    (db/transpose-bass-line 2))]
     (is (= "SAMPLE-BASS-LINE-A7" (result :id)))
     (is (= (sample-bass-line :desc) (result :desc)))
-    (is false)))
+    (is (= [["SAMPLE-BASS-LINE-A7" 1 1 "A7"]
+            ["SAMPLE-BASS-LINE-A7" 1 2 "A7"]
+            ["SAMPLE-BASS-LINE-A7" 1 3 "A7"]
+            ["SAMPLE-BASS-LINE-A7" 1 4 "A7"]
+            ["SAMPLE-BASS-LINE-A7" 2 1 "D"]
+            ["SAMPLE-BASS-LINE-A7" 2 2 "D"]
+            ["SAMPLE-BASS-LINE-A7" 2 3 "D"]
+            ["SAMPLE-BASS-LINE-A7" 2 4 "D"]] (result :bbcs)))
+    (is (= [["SAMPLE-BASS-LINE-A7" 1 1 "A7"]
+            ["SAMPLE-BASS-LINE-A7" 2 1 "D"]] (result :bars)))
+    (is (= [[69 4] [67 4] [66 4] [64 4]  [62 2] [69 2]] (result :midi-notes)))))
 
+;;-------------------------------------------------------
 (deftest save-bass-line-to-db-test
   (let [result (-> sample-bass-line
-                   db/enhance-song-map
+                   db/enhance-bass-line-map
                    db/save-bass-line-to-db)]
     (is (= "SAMPLE-BASS-LINE"
            result))
@@ -134,10 +157,10 @@
                             where bass_line_id = :1
                             order by 1, 2")
                 rest)))
-    (is (= [["g3" 4] ["f3" 4] ["e3" 4] ["d3" 4]
-            ["c3" 2] ["g3" 2]]
+    (is (= [[67 4] [65 4] [64 4] [62 4]
+            [60 2] [67 2]]
            (->> ["SAMPLE-BASS-LINE"]
-                (db/query "select note_cd, cast(note_dur_num as int)
+                (db/query "select midi_num, cast(note_dur_num as int)
                             from bass_line_note
                             where bass_line_id = :1
                             order by order_num")

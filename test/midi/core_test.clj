@@ -16,7 +16,7 @@
 
 (deftest get-song-bbcs-test
   (let [_ (-> sample-edn
-              db/enhance-song-map
+              db/enhance-bass-line-map
               db/save-song-to-db)]
     (is (= [[1 1 :Am] [1 2 :Am] [1 3 :Am] [1 4 :Am]
             [2 1 :Am] [2 2 :Am] [2 3 :Dm] [2 4 :Dm]

@@ -9,9 +9,26 @@
 (def BASS-CHANNEL  4)
 (def DRUMS-CHANNEL 9)
 (def BASS-VELOCITY 65)
-(def conn          (tla/connect-sqlite "resources/synth.db"))
-(def query         (partial tla/cursor conn))
-(def exec-dml      (partial tla/batch-update conn))
+(def DBFILE        "resources/synth.db")
+; (def conn          (tla/connect-sqlite "resources/synth.db"))
+; (def query         (partial tla/cursor conn))
+; (def exec-dml      (partial tla/batch-update conn))
+
+(defn exec-dml [& args]
+   (let [connection (java.sql.DriverManager/getConnection (str "jdbc:sqlite:" DBFILE))
+         rc         (apply tla/batch-update connection args)]
+      (.close connection)
+      rc))
+
+(defn query [& args]
+   (let [connection (java.sql.DriverManager/getConnection (str "jdbc:sqlite:" DBFILE))
+         rc       (doall (apply tla/cursor connection args))]
+      (.close connection)
+      rc))
+
+
+
+(declare enhance-bass-line-map)
 
 (defn tabs->bars
   "Split tabs into sequence of bars"
@@ -73,25 +90,6 @@
       slurp
       edn/read-string))
 
-(defn enhance-song-map
-  "Takes map of song and enhanced it by adding  keys
-    :bars - with sparsely assigned chords to beats
-    :bbcs - with densely assigned chords to beats
-    :max-bar - length of score in bars"
-  [song-map]
-  (let [bars (-> song-map :tab-score tabs->bars)
-        hlp (fn [assign-beats]
-              (->> bars
-                   (map-indexed (fn [bar tab]
-                                  (for [[beat chord] (assign-beats tab)]
-                                    [(song-map :id) (inc bar) beat chord])))
-                   (apply concat)
-                   (into [])))]
-    (-> song-map
-        (assoc :enhanced? true
-               :bars (hlp sparse-beats)
-               :bbcs (hlp dense-beats)
-               :max-bar (count bars)))))
 
 
 
@@ -100,22 +98,26 @@
   [song-edn-file]
   (-> song-edn-file
       read-song-file
-      enhance-song-map
+      enhance-bass-line-map
       save-song-to-db))
 
+(def midi->note (zipmap
+                 (range 21 128)
+                 (cycle [:A :Bb :B :C :Db :D :Eb :E :F :F# :G :Ab])))
+
 ; Middle octave - C3 (also just C for convenience)
-(def notedb1 {:C 60, :C# 61, :Db 61,
-              :D 62, :D# 63, :Eb 63,
-              :E 64,
-              :F 65, :F# 66, :Gb 66,
-              :G 67, :G# 68, :Ab 68,
-              :A 69, :A# 70, :Bb 70,
-              :B 71})
+(def middle-octave->midi {:C 60, :C# 61, :Db 61,
+                          :D 62, :D# 63, :Eb 63,
+                          :E 64,
+                          :F 65, :F# 66, :Gb 66,
+                          :G 67, :G# 68, :Ab 68,
+                          :A 69, :A# 70, :Bb 70,
+                          :B 71})
 
 (def notedb2 (reduce (fn [acc [k v]] (assoc acc k v))
-                     notedb1
+                     middle-octave->midi
                      (for [octave   (range -2 9)
-                           [id freq] notedb1]
+                           [id freq] middle-octave->midi]
                        [(keyword (str (name id) octave))
                         (+ freq (* 12 (- octave 3)))])))
 
@@ -149,6 +151,54 @@
 (defn save-notes [notes]
   (exec-dml "insert into note (note_cd, midi_num) values (?, ?)"
             (for [[k v] notes] [(name k) v])))
+
+(defn enhance-song-map
+  "Takes map of song and enhanced it by adding keys
+    :bars - with sparsely assigned chords to beats
+    :bbcs - with densely assigned chords to beats
+    :max-bar - length of score in bars
+    :midi-notes - notes converted to MIDI notes"
+  [song-map]
+  {:pre [(every? song-map [:id :tab-score])]}  
+  (let [bars (-> song-map :tab-score tabs->bars)
+        assign (fn [f coll]
+                 (->> coll
+                      (map-indexed (fn [bar tab]
+                                     (for [[beat chord] (f tab)]
+                                       [(song-map :id) (inc bar) beat chord])))
+                      (apply concat)
+                      (into [])))]
+    (-> song-map
+        (assoc :enhanced? true
+               :bars (assign sparse-beats bars)
+               :bbcs (assign dense-beats bars)
+               :max-bar (count bars)))))
+
+(defn enhance-bass-line-map
+  "Takes map of bass line and adds keys
+    :bars - with sparsely assigned chords to beats
+    :bbcs - with densely assigned chords to beats
+    :max-bar - length of score in bars
+    :midi-notes - notes converted to MIDI notes"
+  [song-map]
+  ; {:pre [(every? song-map [:id :tab-score :notes])]}  
+  (let [bars (-> song-map :tab-score tabs->bars)
+        assign (fn [f coll]
+                 (->> coll
+                      (map-indexed (fn [bar tab]
+                                     (for [[beat chord] (f tab)]
+                                       [(song-map :id) (inc bar) beat chord])))
+                      (apply concat)
+                      (into [])))]
+    (-> song-map
+        (assoc :enhanced? true
+               :bars (assign sparse-beats bars)
+               :bbcs (assign dense-beats bars)
+               :midi-notes  (map-indexed
+                             (fn [idx [note dur]]
+                               [(song-map :id) (inc idx) (notedb note) (or dur 4)])
+                             (song-map :notes))
+               :max-bar (count bars)))))
 
 (def chord-form {:major [[1 5 8]      :Y]
                  :+     [[1 4 9]      :Y]
@@ -204,19 +254,15 @@
        :f    f})))
 
 (defn transpose-note
-  "Takes note and number of semitones and returns transposed note"
+  "Takes note and number of semitones and returns transposed MIDI note. A note
+   can be a literal representation of note (such as G, G2, etc.) or a MIDI
+   note"
   [note semitones]
-  (if (zero? semitones)
-    note
-    (as-> note $
-      (keyword $)
-      (notedb $)
-      (+ $ semitones)
-      (filter (fn [[_ v]] (= v $)) notedb)
-      (first $)
-      (first $)
-      (name $)
-      (str/upper-case $))))
+  (println note)
+  (+ semitones
+     (if (string? note)
+       (notedb (keyword (str/upper-case note)))
+       note)))
 
 (defn transpose-chord
   "Takes chord and semitones and returns a string
@@ -224,25 +270,41 @@
   [chord semitones]
   (if (zero? semitones)
     chord
-    (let [[root-note chord-form] (as-> chord $
-                                   (filter #(= (get % :chord-id) $) chorddb)
-                                   (first $)
-                                   ((juxt :root-note-cd :chord-form-cd) $))
-          transposed-root (transpose-note root-note semitones)]
+    (let [[root-midi-num chord-form] (as-> chord $
+                                       (filter #(= (get % :chord-id) $) chorddb)
+                                       (first $)
+                                       ((juxt :root-midi-num :chord-form-cd) $))
+          transposed-root (-> root-midi-num (transpose-note semitones) midi->note name)
+          chord-form (if (= "major" chord-form) "" chord-form)]
       (str transposed-root chord-form))))
 
-; (get-in chords [:Bm7])
 (defn transpose-bass-line
+  "Takes bass line and number of semitones and updates
+   keys :id, :bars, and :bbcs. Returns a map representing a
+   transposed bass line"
   [bass-line semitones]
   (let [enhanced (if (:enhanced? bass-line)
                    bass-line
-                   (enhance-song-map bass-line))
-        [root-note chord-form] (as-> enhanced $
-                                 (get-in $ [:bbcs 0 3])
-                                 (filter #(= (get % :chord_id) $) chorddb)
-                                 (first $)
-                                 ((juxt :root_note_cd :chord_form_cd) $))]
-    (update enhanced :id (fn [id] (str id "-" "A7")))))
+                   (enhance-bass-line-map bass-line))
+        transposed-id (str (bass-line :id)
+                           "-"
+                           (-> bass-line
+                               :bbcs
+                               first
+                               tla/fourth
+                               (transpose-chord semitones)))
+        helper     (fn [coll]
+                     (map (fn [[_ bar beat chord]]
+                            [transposed-id bar beat (transpose-chord chord semitones)])
+                          coll))]
+    (assoc enhanced
+           :id    transposed-id
+           :bbcs  (-> bass-line :bbcs helper)
+           :bars  (-> bass-line :bars helper)
+           :midi-notes (->> bass-line
+                            :notes
+                            (map (fn [[note dur]]
+                                   [(transpose-note note semitones) (if (nil? dur) 4 dur)]))))))
 
 (defn save-chords [chords]
   (exec-dml (str "insert into chord(chord_id, root_midi_num, chord_form_cd, root_note_cd,"
@@ -262,15 +324,14 @@
                           f (keys chord-form)]
                       [k f])))
 
-
+;-----------------------------------------------------------
 (defn save-bass-line-to-db
   "Takes enhanced map of bass line, and saves it to 
    BASS_LINE, BASS_LINE_CHORD, BASS_LINE_NOTE.
    Returns bass line ID."
   [bass-line]
-  (let [{:keys [id desc bars notes max-bar]} bass-line
-        notes  (map-indexed (fn [idx [note dur]]
-                              [id (inc idx) (name note) (or dur 4)]) notes)]
+  {:pre [(every? bass-line [:id :desc :max-bar :enhanced? :midi-notes])]}
+  (let [{:keys [id desc bars midi-notes max-bar]} bass-line]
     (exec-dml "delete from bass_line       where bass_line_id = ?" [[id]])
     (exec-dml "delete from bass_line_chord where bass_line_id = ?" [[id]])
     (exec-dml "delete from bass_line_note  where bass_line_id = ?" [[id]])
@@ -281,18 +342,21 @@
     (exec-dml "insert into bass_line_chord (bass_line_id, bar_id, beat_id, chord_id)
                values (?, ?, ?, ?)"
               bars)
-    (exec-dml "insert into bass_line_note (bass_line_id, order_num, note_cd, note_dur_num)
+    (exec-dml "insert into bass_line_note (bass_line_id, order_num, midi_num, note_dur_num)
                values (?, ?, ?, ?)"
-              notes)
+              midi-notes)
     id))
 
 (defn import-bass-line
   "Imports bass-line from a file into internal SQLite database"
   [song-edn-file]
-  (-> song-edn-file
-      read-song-file
-      enhance-song-map
-      save-bass-line-to-db))
+  (let [enhanced (-> song-edn-file read-song-file enhance-bass-line-map)]
+    (doseq [semitones [-5 -4 -3 -2 -1 1 2 3 4 5 6]]
+      (-> enhanced
+          (transpose-bass-line semitones)
+          save-bass-line-to-db))
+    (save-bass-line-to-db enhanced))
+)
 
 (defn init-chord-based-bass-db
   "Returns a map of functions which can build bass line solely from the chords.

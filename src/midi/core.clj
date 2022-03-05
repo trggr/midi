@@ -190,10 +190,10 @@
 (defn patterns-bass-track [song-id]
   (let [song-id (str song-id)
         patterns (db/query (str "select bass_line_id, beg_bar_id, end_bar_id, transp_num transp_num "
-                                 "from bass_line_bar_v "
-                                 "where song_id = ? "
-                                 "order by beg_bar_id")
-                            [song-id])
+                                "from bass_line_bar_v "
+                                "where song_id = ? "
+                                "order by beg_bar_id")
+                           [song-id])
         maxbar (-> (db/query "select max(bar_id) bar from bar where song_id = ?" [song-id])
                    second
                    first)
@@ -202,8 +202,6 @@
                            []]
                           (rest patterns))]
     (with-meta rc {:bass info})))
-
-(db/query "select * from bar_v where song_id = 1" [])
 
 (defn cover-bar-with-drum
   "Takes pattern, drum note, and covers a bar with this pattern.
@@ -289,24 +287,24 @@
   [strumming-pattern bar bar-chords]
   (let [begin (bar->timecode bar)
         [a b c d] bar-chords]
-  (loop [rc []
-         tc begin
-         pattern strumming-pattern]
-    (if (empty? pattern)
-      rc
-      (let [[vel dur] (first pattern)
-            dur (or dur 4)
-            next-tc (+ tc (duration->timecode dur))
-            chord-notes (db/chords (cond
-                                     (< tc (+ begin (* 1 db/QUARTER-NOTE))) a
-                                     (< tc (+ begin (* 2 db/QUARTER-NOTE))) b
-                                     (< tc (+ begin (* 3 db/QUARTER-NOTE))) c
-                                     :else d))
-            ons   (map #(vector tc db/CHORD-CHANNEL % vel) chord-notes)
-            offs  (map (fn [[_ c n _]] [(dec next-tc) c n 0]) ons)]
-        (recur (concat rc ons offs)
-               next-tc
-               (rest pattern)))))))
+    (loop [rc []
+           tc begin
+           pattern strumming-pattern]
+      (if (empty? pattern)
+        rc
+        (let [[vel dur] (first pattern)
+              dur (or dur 4)
+              next-tc (+ tc (duration->timecode dur))
+              chord-notes (db/chords (cond
+                                       (< tc (+ begin (* 1 db/QUARTER-NOTE))) a
+                                       (< tc (+ begin (* 2 db/QUARTER-NOTE))) b
+                                       (< tc (+ begin (* 3 db/QUARTER-NOTE))) c
+                                       :else d))
+              ons   (map #(vector tc db/CHORD-CHANNEL % vel) chord-notes)
+              offs  (map (fn [[_ c n _]] [(dec next-tc) c n 0]) ons)]
+          (recur (concat rc ons offs)
+                 next-tc
+                 (rest pattern)))))))
 
 (defn strum-chord-track
   "Produce a chord track by strumming pattern over bbcs"
@@ -323,10 +321,11 @@
   "Plays a song"
   [song-name]
   (let [[song-id bpm drum-pattern bass-method]
-        (-> (db/query "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd
+        (->>  [song-name]
+              (db/query "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd
                        from song
-                       where upper(song_nm) = ?" [song-name])
-            second)
+                       where upper(song_nm) = ?")
+              second)
         bbcs        (get-song-bbcs song-name)
         chord-track (strum-chord-track "rhythm-3-3-2" bbcs)
         drum-track  (make-drum-track drum-pattern bbcs)
@@ -396,17 +395,17 @@
    "AUTUMN LEAVES"
    "ALL BY MYSELF"
    "LET IT BE"
-   "BLACK ORPHEUS"
-])
+   "BLACK ORPHEUS"])
 
 (defn -main
   ([]  (doseq [s selected-songs] (export-midi-file s)))
-  ([_] (println "Known commands: -- import-song, --import-bass-line"))
+  ([_] (println "Known commands: -- import-song, --import-bass-line, --play"))
   ([cmd arg]
    (cond (= cmd "--import-song")      (->> arg
                                            db/import-song
                                            export-midi-file)
          (= cmd "--import-bass-line") (-> arg
                                           db/import-bass-line)
+         (= cmd "--play")             (doseq [s selected-songs]
+                                        (play-song s))
          :else (println "unknown command" cmd))))
-
