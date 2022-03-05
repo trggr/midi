@@ -142,9 +142,9 @@
     (batch-update conn dml rows 50))
    ([conn dml rows batchsize]
     (let [cur (.prepareStatement conn dml)]
-        (loop [xs (seq rows) counter 0 batch batchsize]
-            (if xs
-                 (let [row (first xs)]
+        (loop [rows rows counter 0 batch batchsize]
+            (if (seq rows)
+                 (let [row (first rows)]
                    (reduce (fn [acc i]
                              (.setObject acc (inc i) (nth row i))
                              acc)
@@ -153,7 +153,7 @@
                    (.addBatch cur)
                    (when (zero? batch)
                      (.executeBatch cur))
-                   (recur (next xs)
+                   (recur (next rows)
                           (inc counter)
                           (if (zero? batch) 50 (dec batch))))
                  (do (.executeBatch cur)

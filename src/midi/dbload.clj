@@ -1,6 +1,8 @@
 (ns midi.dbload
   (:require [clojure.string :as str]
             [clojure.edn :as edn]
+            [next.jdbc :as jdbc]
+            [next.jdbc :as sql]
             [midi.timlib :as tla]))
 
 (def QUARTER-NOTE  384)      ; Length of quarter note in time code ticks
@@ -10,15 +12,43 @@
 (def DRUMS-CHANNEL 9)
 (def BASS-VELOCITY 65)
 (def DBFILE        "resources/synth.db")
-; (def conn          (tla/connect-sqlite "resources/synth.db"))
-; (def query         (partial tla/cursor conn))
-; (def exec-dml      (partial tla/batch-update conn))
+
+(def db {:dbtype "sqlite" :dbname "resources/synth.db"})
+(def ds (jdbc/get-datasource db))
+
+;; (jdbc/execute! ds ["select * from song where song_id = ?" 1])
+;; (jdbc/execute! ds ["delete from bass_line_note where bass_line_id = ?" "T51-E7"])
+;; (jdbc/execute! ds ["delete from song where song_id between ? and ?" 999 2000])
+;; (jdbc/execute! ds ["insert into song (song_id, song_nm) values (?, ?)" 999 "Song 999" 1000 "Song 1000"])
+
+; (def ps (jdbc/prepare ds ["INSERT INTO song (song_id, song_name) VALUES (?,?)"]))
+
+;; (jdbc/with-transaction [t ds]
+;;   (with-open [ps (jdbc/prepare t ["INSERT INTO song (song_id, song_nm) VALUES (?,?)"])]
+;;     (let [result (jdbc/execute-batch! ps [[999 "one"]
+;;                                           [1000 "two"]])]
+;;       result)))
+
+;; (defn exec-dml [query args]
+;;   (let [db {:dbtype "sqlite" :dbname DBFILE}
+;;         ds (jdbc/get-datasource db)]
+;;     (jdbc/with-transaction [t ds]
+;;       (with-open [ps (jdbc/prepare t [query])]
+;;         (let [result (jdbc/execute-batch! ps args)]
+;;           result)))))
+
+;; (exec-dml "delete from song where song_id between ? and ?" [[999 1000]])
+;; (exec-dml "delete from song where song_id = ?" [[999]])
+;; (exec-dml "delete from song where song_id = ?" [[1000]])
+;; (exec-dml "insert into song (song_id, song_nm) values (?,?)"
+;;           [[999 "one"]
+;;            [1000 "two"]])
 
 (defn exec-dml [& args]
    (let [connection (java.sql.DriverManager/getConnection (str "jdbc:sqlite:" DBFILE))
-         rc         (apply tla/batch-update connection args)]
-      (.close connection)
-      rc))
+         rc       (apply tla/batch-update connection args)]
+     (.close connection)
+     rc))
 
 (defn query [& args]
    (let [connection (java.sql.DriverManager/getConnection (str "jdbc:sqlite:" DBFILE))
@@ -26,9 +56,8 @@
       (.close connection)
       rc))
 
-
-
 (declare enhance-bass-line-map)
+(declare enhance-song-map)
 
 (defn tabs->bars
   "Split tabs into sequence of bars"
@@ -90,15 +119,12 @@
       slurp
       edn/read-string))
 
-
-
-
 (defn import-song
   "Imports song from a file into internal SQLite database"
   [song-edn-file]
   (-> song-edn-file
       read-song-file
-      enhance-bass-line-map
+      enhance-song-map
       save-song-to-db))
 
 (def midi->note (zipmap
@@ -181,7 +207,7 @@
     :max-bar - length of score in bars
     :midi-notes - notes converted to MIDI notes"
   [song-map]
-  ; {:pre [(every? song-map [:id :tab-score :notes])]}  
+  {:pre [(every? song-map [:id :tab-score :notes])]}  
   (let [bars (-> song-map :tab-score tabs->bars)
         assign (fn [f coll]
                  (->> coll
@@ -258,11 +284,11 @@
    can be a literal representation of note (such as G, G2, etc.) or a MIDI
    note"
   [note semitones]
-  (println note)
-  (+ semitones
-     (if (string? note)
-       (notedb (keyword (str/upper-case note)))
-       note)))
+  (let [note (cond (keyword? note) (notedb note)
+                   (string? note) (-> note keyword notedb)
+                   (integer? note) note
+                   :else (throw (Exception. "expecting keyword, string or integer")))]
+    (+ note semitones)))
 
 (defn transpose-chord
   "Takes chord and semitones and returns a string
@@ -296,15 +322,20 @@
         helper     (fn [coll]
                      (map (fn [[_ bar beat chord]]
                             [transposed-id bar beat (transpose-chord chord semitones)])
-                          coll))]
-    (assoc enhanced
-           :id    transposed-id
-           :bbcs  (-> bass-line :bbcs helper)
-           :bars  (-> bass-line :bars helper)
-           :midi-notes (->> bass-line
-                            :notes
-                            (map (fn [[note dur]]
-                                   [(transpose-note note semitones) (if (nil? dur) 4 dur)]))))))
+                          coll))
+        rc (assoc enhanced
+                  :id    transposed-id
+                  :bbcs  (-> bass-line :bbcs helper)
+                  :bars  (-> bass-line :bars helper)
+                  :midi-notes (->> bass-line
+                                   :notes
+                                   (map-indexed (fn [idx [note dur]]
+                                                  [transposed-id
+                                                   idx
+                                                   (transpose-note note semitones)
+                                                   (if (nil? dur) 4 dur)]))))]
+    (println rc)
+    rc))
 
 (defn save-chords [chords]
   (exec-dml (str "insert into chord(chord_id, root_midi_num, chord_form_cd, root_note_cd,"
@@ -332,31 +363,39 @@
   [bass-line]
   {:pre [(every? bass-line [:id :desc :max-bar :enhanced? :midi-notes])]}
   (let [{:keys [id desc bars midi-notes max-bar]} bass-line]
-    (exec-dml "delete from bass_line       where bass_line_id = ?" [[id]])
-    (exec-dml "delete from bass_line_chord where bass_line_id = ?" [[id]])
-    (exec-dml "delete from bass_line_note  where bass_line_id = ?" [[id]])
+    (println "save-bass-line-to-db" id)
+    (println (exec-dml "delete from bass_line       where bass_line_id = ?" [[id]]))
+    (println (exec-dml "delete from bass_line_chord where bass_line_id = ?" [[id]]))
+    (println (exec-dml "delete from bass_line_note  where bass_line_id = ?" [[id]]))
 
-    (exec-dml "insert into bass_line(bass_line_id, bar_cnt, bass_line_desc)
-               values (?, ?, ?)"
-              [[id max-bar desc]])
-    (exec-dml "insert into bass_line_chord (bass_line_id, bar_id, beat_id, chord_id)
-               values (?, ?, ?, ?)"
-              bars)
-    (exec-dml "insert into bass_line_note (bass_line_id, order_num, midi_num, note_dur_num)
-               values (?, ?, ?, ?)"
-              midi-notes)
+    (println "midi-notes" midi-notes)
+
+    (println (exec-dml "insert into bass_line(bass_line_id, bar_cnt, bass_line_desc) values (?, ?, ?)"
+                       [[id max-bar desc]]))
+    (println (exec-dml "insert into bass_line_chord (bass_line_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)"
+                       bars))
+    (println (exec-dml "insert into bass_line_note (bass_line_id, order_num, midi_num, note_dur_num) values (?, ?, ?, ?)"
+                       midi-notes))
     id))
+
 
 (defn import-bass-line
   "Imports bass-line from a file into internal SQLite database"
   [song-edn-file]
-  (let [enhanced (-> song-edn-file read-song-file enhance-bass-line-map)]
+  (let [enhanced (-> song-edn-file
+                     read-song-file
+                     enhance-bass-line-map)]
     (doseq [semitones [-5 -4 -3 -2 -1 1 2 3 4 5 6]]
-      (-> enhanced
-          (transpose-bass-line semitones)
-          save-bass-line-to-db))
-    (save-bass-line-to-db enhanced))
-)
+      (println "Semitones" semitones)
+      (let [rc1 (transpose-bass-line enhanced semitones)
+            _   (println rc1)]
+        (save-bass-line-to-db rc1)))
+      ;; (-> enhanced
+      ;;     (transpose-bass-line semitones)
+      ;;     (tla/tee println)
+      ;;     save-bass-line-to-db))
+    (save-bass-line-to-db enhanced)))
+
 
 (defn init-chord-based-bass-db
   "Returns a map of functions which can build bass line solely from the chords.

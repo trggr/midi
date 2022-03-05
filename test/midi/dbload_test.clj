@@ -13,8 +13,7 @@
     [["Am" "Dm" "G" "C"]]                "Am Dm G C"
     [["Am"] ["Bm"]]                      "Am | 
                                           Bm"
-    [["Am"] ["Dm"]]                      "Am
-                                          Dm"))
+    [["Am"] ["Dm"]]                      "Am \n Dm"))
 
 ;;-------------------------------------------------------
 (def sample-song
@@ -62,7 +61,7 @@
 ;;-------------------------------------------------------
 (deftest save-song-to-db-test
   (let [result (-> sample-song
-                   db/enhance-bass-line-map
+                   db/enhance-song-map
                    db/save-song-to-db)]
     (is (= "TEST SONG"
            result))
@@ -96,13 +95,6 @@
                 rest)))))
 
 ;;-------------------------------------------------------
-(def sample-bass-line
-  {:id "SAMPLE-BASS-LINE"
-   :desc "FROM DOMINANT TO ROOT"
-   :tab-score "G7 | C"
-   :notes  [[:g3] [:f3] [:e3] [:d3]  [:c3 2] [:g3 2]]})
-
-;;-------------------------------------------------------
 ;; C - 60, B - 71
 (deftest transpose-note
   (is (= 67 (db/transpose-note "g" 0)))
@@ -118,48 +110,51 @@
   (is (= "Fm7" (db/transpose-chord "Gm7" -2))))
 
 ;;-------------------------------------------------------
+(def sample-bass-line
+  {:id "FOO"
+   :desc "FROM DOMINANT TO ROOT"
+   :tab-score "G7 | C"
+   :notes  [[:g3] [:f3] [:e3] [:d3]  [:c3 2] [:g3 2]]})
+
+
+;;-------------------------------------------------------
 (deftest transpose-bass-line
   (let [result (-> sample-bass-line
                    db/enhance-bass-line-map
-                   (db/transpose-bass-line 2))]
-    (is (= "SAMPLE-BASS-LINE-A7" (result :id)))
+                   (db/transpose-bass-line 2))
+        id "FOO-A7"]
+    (is (= id (result :id)))
     (is (= (sample-bass-line :desc) (result :desc)))
-    (is (= [["SAMPLE-BASS-LINE-A7" 1 1 "A7"]
-            ["SAMPLE-BASS-LINE-A7" 1 2 "A7"]
-            ["SAMPLE-BASS-LINE-A7" 1 3 "A7"]
-            ["SAMPLE-BASS-LINE-A7" 1 4 "A7"]
-            ["SAMPLE-BASS-LINE-A7" 2 1 "D"]
-            ["SAMPLE-BASS-LINE-A7" 2 2 "D"]
-            ["SAMPLE-BASS-LINE-A7" 2 3 "D"]
-            ["SAMPLE-BASS-LINE-A7" 2 4 "D"]] (result :bbcs)))
-    (is (= [["SAMPLE-BASS-LINE-A7" 1 1 "A7"]
-            ["SAMPLE-BASS-LINE-A7" 2 1 "D"]] (result :bars)))
-    (is (= [[69 4] [67 4] [66 4] [64 4]  [62 2] [69 2]] (result :midi-notes)))))
+    (is (= [[id 1 1 "A7"] [id 1 2 "A7"] [id 1 3 "A7"] [id 1 4 "A7"]
+            [id 2 1 "D"]  [id 2 2 "D"] [id 2 3 "D"] [id 2 4 "D"]]
+           (result :bbcs)))
+    (is (= [[id 1 1 "A7"] [id 2 1 "D"]]
+           (result :bars)))
+    (is (= [[id 0 69 4] [id 1 67 4] [id 2 66 4] [id 3 64 4]
+            [id 4 62 2] [id 5 69 2]]
+           (result :midi-notes)))))
 
 ;;-------------------------------------------------------
 (deftest save-bass-line-to-db-test
   (let [result (-> sample-bass-line
                    db/enhance-bass-line-map
                    db/save-bass-line-to-db)]
-    (is (= "SAMPLE-BASS-LINE"
-           result))
-    (is (= ["SAMPLE-BASS-LINE", "FROM DOMINANT TO ROOT", 2]
-           (->> ["SAMPLE-BASS-LINE"]
+    (is (= "FOO" result))
+    (is (= ["FOO", "FROM DOMINANT TO ROOT", 2]
+           (->> ["FOO"]
                 (db/query "select bass_line_id, bass_line_desc, bar_cnt
                            from bass_line
                            where bass_line_id = :1")
                 second)))
-    (is (= [[1 1 "G7"]
-            [2 1 "C"]]
-           (->> ["SAMPLE-BASS-LINE"]
+    (is (= [[1 1 "G7"] [2 1 "C"]]
+           (->> ["FOO"]
                 (db/query "select bar_id, beat_id, chord_id
                             from bass_line_chord
                             where bass_line_id = :1
                             order by 1, 2")
                 rest)))
-    (is (= [[67 4] [65 4] [64 4] [62 4]
-            [60 2] [67 2]]
-           (->> ["SAMPLE-BASS-LINE"]
+    (is (= [[67 4] [65 4] [64 4] [62 4] [60 2] [67 2]]
+           (->> ["FOO"]
                 (db/query "select midi_num, cast(note_dur_num as int)
                             from bass_line_note
                             where bass_line_id = :1
