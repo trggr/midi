@@ -1,7 +1,6 @@
 (ns midi.dbload-test
   (:require [clojure.test :refer [deftest is are]]
-            [midi.dbload :as db]
-            [midi.timlib :as tla]))
+            [midi.dbload :as db]))
 
 ;;-------------------------------------------------------
 (deftest tabs->bars-test
@@ -11,8 +10,7 @@
     [["Am"] ["Dm" "G"]]                  "Am | Dm G"
     [["Am"] ["Dm" "G"] ["Dm" "G" "C"]]   "Am | Dm G | Dm G C"
     [["Am" "Dm" "G" "C"]]                "Am Dm G C"
-    [["Am"] ["Bm"]]                      "Am | 
-                                          Bm"
+    [["Am"] ["Bm"]]                      "Am |\n Bm"
     [["Am"] ["Dm"]]                      "Am \n Dm"))
 
 ;;-------------------------------------------------------
@@ -63,8 +61,7 @@
   (let [result (-> sample-song
                    db/enhance-song-map
                    db/save-song-to-db)]
-    (is (= "TEST SONG"
-           result))
+    (is (= "TEST SONG" result))
     (is (= [0, "TEST SONG" 4 4 400000 8 90 "drums-swing" "bass-15-68" 4]
            (->> [0]
                 (db/query "select song_id, song_nm, time_sig_nmrtr_num, time_sig_denom_num,
@@ -95,19 +92,20 @@
                 rest)))))
 
 ;;-------------------------------------------------------
-;; C - 60, B - 71
 (deftest transpose-note
-  (is (= 67 (db/transpose-note "g" 0)))
-  (is (= 69 (db/transpose-note "G" 2)))
-  (is (= 69 (db/transpose-note "g" 2)))
-  (is (= 70 (db/transpose-note "g" 3)))
-  (is (= 65 (db/transpose-note "g" -2))))
+  (are [result n s] (= result (db/transpose-note n s))
+    67    "g" 0
+    69    "G" 2
+    69    "g" 2
+    70    "g" 3
+    65    "g" -2))
 
 ;;-------------------------------------------------------
 (deftest transpose-chord
-  (is (= "Am7" (db/transpose-chord "Am7"  0)))
-  (is (= "A7"  (db/transpose-chord "G7"   2)))
-  (is (= "Fm7" (db/transpose-chord "Gm7" -2))))
+  (are [result c s] (= result (db/transpose-chord c s))
+    "Am7"    "Am7"  0
+    "A7"     "G7"   2
+    "Fm7"    "Gm7" -2))
 
 ;;-------------------------------------------------------
 (def sample-bass-line
@@ -115,7 +113,6 @@
    :desc "FROM DOMINANT TO ROOT"
    :tab-score "G7 | C"
    :notes  [[:g3] [:f3] [:e3] [:d3]  [:c3 2] [:g3 2]]})
-
 
 ;;-------------------------------------------------------
 (deftest transpose-bass-line

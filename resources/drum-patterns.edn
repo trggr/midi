@@ -1,0 +1,40 @@
+;; Drum patterns. Each drum pattern covers one standard bar (4/4). The pattern
+;; can have one or more drums. Each item is [velocity duration], duration can be omitted.
+;; Velocity is measured in percents, duration is measured in standard note durations:
+;; 1 - whole note, 2 - half, 4 - quarter (default), 8 - eighth, 12 - tripplets
+;; basically answer the question: How many of these notes do you need
+;; to cover the whole bar?
+
+{"drums-swing" {:ride-cymbal-1      [[99]
+                                     [99 12] [0 12] [90 12]
+                                     [99]
+                                     [99 12] [0 12] [90 12]]
+                :closed-hi-hat      [[0] [99] [0]  [99]]
+                :acoustic-bass-drum [[85] [65] [85] [65]]}
+ "drums-fill2" {:ride-cymbal-1      [[70]]
+                :acoustic-snare     [[0 12] [50 12] [50 12]
+                                     [50 12] [0 12] [50 12]
+                                     [0  12] [0 12] [50 12]
+                                     [50 12] [50 12] [50 12]]
+                :low-mid-tom        [[0]
+                                     [0]
+                                     [50 12] [0 12] [0 12]
+                                     [0]]
+                :acoustic-bass-drum [[90]]}
+ "drums-fill3" {:ride-cymbal-1      [[70] [0] [70]]
+                :acoustic-snare     [[0 12] [0 12] [50 12]
+                                     [0 12] [0 12] [50 12]
+                                     [0]
+                                     [0 12] [50 12] [50 12]]
+                :high-floor-tom     [[0]
+                                     [0]
+                                     [50 12] [50 12] [0 12]]
+                :low-mid-tom        [[0]
+                                     [0]
+                                     [0 12] [0 12] [50 12]
+                                     [50 12]]
+                :acoustic-bass-drum [[90] [0] [90]]},
+ "drums-intro" {:bass-drum-1 [[100]
+                              [100]
+                              [100 8] [100 8]
+                              [100 8] [100 8]]}}

@@ -1,0 +1,13 @@
+;; Chord strumming patterns. Each pattern is a collection of velocities,
+;; optionally paired with duration. Duration is a fraction of a whole note.
+;; 1 - whole note
+;; 2 - half note
+;; 4 - quarter note, etc.
+
+{"things-we-said"   [[70 12] [70 12] [70 12]   [70]  [70 8] [70 8]  [70]]
+ "swing"            [[0] [50] [0] [0]]
+ "freddie-green"    [[30] [50] [30] [50]]
+ "charleston"       [[50 8/3] [50 8] [0 2]]
+ "charleston-combo" [[0 8] [50 8/3] [50 8] [0 8/3]]
+ "rhythm-2-4"       [[0 8/3] [50 8] [0 8/3] [50 8]]
+ "rhythm-3-3-2"     [[50 8/3] [50 8/3] [50]]}

@@ -1,8 +1,6 @@
 (ns midi.dbload
   (:require [clojure.string :as str]
             [clojure.edn :as edn]
-            [next.jdbc :as jdbc]
-            [next.jdbc :as sql]
             [midi.timlib :as tla]))
 
 (def QUARTER-NOTE  384)      ; Length of quarter note in time code ticks
@@ -12,49 +10,26 @@
 (def DRUMS-CHANNEL 9)
 (def BASS-VELOCITY 65)
 (def DBFILE        "resources/synth.db")
+(def
+  ^{:arglists '([edn-file])
+    :doc "Returns map stored in EDN file"}
+  read-edn-file (comp edn/read-string slurp))
 
-(def db {:dbtype "sqlite" :dbname "resources/synth.db"})
-(def ds (jdbc/get-datasource db))
-
-;; (jdbc/execute! ds ["select * from song where song_id = ?" 1])
-;; (jdbc/execute! ds ["delete from bass_line_note where bass_line_id = ?" "T51-E7"])
-;; (jdbc/execute! ds ["delete from song where song_id between ? and ?" 999 2000])
-;; (jdbc/execute! ds ["insert into song (song_id, song_nm) values (?, ?)" 999 "Song 999" 1000 "Song 1000"])
-
-; (def ps (jdbc/prepare ds ["INSERT INTO song (song_id, song_name) VALUES (?,?)"]))
-
-;; (jdbc/with-transaction [t ds]
-;;   (with-open [ps (jdbc/prepare t ["INSERT INTO song (song_id, song_nm) VALUES (?,?)"])]
-;;     (let [result (jdbc/execute-batch! ps [[999 "one"]
-;;                                           [1000 "two"]])]
-;;       result)))
-
-;; (defn exec-dml [query args]
-;;   (let [db {:dbtype "sqlite" :dbname DBFILE}
-;;         ds (jdbc/get-datasource db)]
-;;     (jdbc/with-transaction [t ds]
-;;       (with-open [ps (jdbc/prepare t [query])]
-;;         (let [result (jdbc/execute-batch! ps args)]
-;;           result)))))
-
-;; (exec-dml "delete from song where song_id between ? and ?" [[999 1000]])
-;; (exec-dml "delete from song where song_id = ?" [[999]])
-;; (exec-dml "delete from song where song_id = ?" [[1000]])
-;; (exec-dml "insert into song (song_id, song_nm) values (?,?)"
-;;           [[999 "one"]
-;;            [1000 "two"]])
+(def chord-forms   (read-edn-file "resources/chord-forms.edn"))
+(def drum-patterns (read-edn-file "resources/drum-patterns.edn"))
+(def chord-strumming-patterns (read-edn-file "resources/chord-strumming-patterns.edn"))
 
 (defn exec-dml [& args]
-   (let [connection (java.sql.DriverManager/getConnection (str "jdbc:sqlite:" DBFILE))
-         rc       (apply tla/batch-update connection args)]
-     (.close connection)
-     rc))
+  (let [connection (java.sql.DriverManager/getConnection (str "jdbc:sqlite:" DBFILE))
+        rc       (apply tla/batch-update connection args)]
+    (.close connection)
+    rc))
 
 (defn query [& args]
-   (let [connection (java.sql.DriverManager/getConnection (str "jdbc:sqlite:" DBFILE))
-         rc       (doall (apply tla/cursor connection args))]
-      (.close connection)
-      rc))
+  (let [connection (java.sql.DriverManager/getConnection (str "jdbc:sqlite:" DBFILE))
+        rc       (doall (apply tla/cursor connection args))]
+    (.close connection)
+    rc))
 
 (declare enhance-bass-line-map)
 (declare enhance-song-map)
@@ -112,20 +87,10 @@
       4 [[1 a] [2 b] [3 c] [4 d]]
       :default (throw (Exception. "expecting 1 to 4 chords per bar")))))
 
-(defn read-song-file
-  "Reads song info from a map stored in EDN file"
-  [song-edn-file]
-  (-> song-edn-file
-      slurp
-      edn/read-string))
-
-(defn import-song
-  "Imports song from a file into internal SQLite database"
-  [song-edn-file]
-  (-> song-edn-file
-      read-song-file
-      enhance-song-map
-      save-song-to-db))
+(def
+  ^{:arglists '([edn-file])
+    :doc "Imports song from EDN file into database"}
+  import-song (comp save-song-to-db enhance-song-map read-edn-file))
 
 (def midi->note (zipmap
                  (range 21 128)
@@ -185,7 +150,7 @@
     :max-bar - length of score in bars
     :midi-notes - notes converted to MIDI notes"
   [song-map]
-  {:pre [(every? song-map [:id :tab-score])]}  
+  {:pre [(every? song-map [:id :tab-score])]}
   (let [bars (-> song-map :tab-score tabs->bars)
         assign (fn [f coll]
                  (->> coll
@@ -207,13 +172,14 @@
     :max-bar - length of score in bars
     :midi-notes - notes converted to MIDI notes"
   [song-map]
-  {:pre [(every? song-map [:id :tab-score :notes])]}  
-  (let [bars (-> song-map :tab-score tabs->bars)
+  {:pre [(every? song-map [:id :tab-score :notes])]}
+  (let [id (song-map :id)
+        bars (-> song-map :tab-score tabs->bars)
         assign (fn [f coll]
                  (->> coll
                       (map-indexed (fn [bar tab]
                                      (for [[beat chord] (f tab)]
-                                       [(song-map :id) (inc bar) beat chord])))
+                                       [id (inc bar) beat chord])))
                       (apply concat)
                       (into [])))]
     (-> song-map
@@ -222,49 +188,17 @@
                :bbcs (assign dense-beats bars)
                :midi-notes  (map-indexed
                              (fn [idx [note dur]]
-                               [(song-map :id) (inc idx) (notedb note) (or dur 4)])
+                               [id (inc idx) (notedb note) (or dur 4)])
                              (song-map :notes))
                :max-bar (count bars)))))
 
-(def chord-form {:major [[1 5 8]      :Y]
-                 :+     [[1 4 9]      :Y]
-                 :sus4  [[1 6 8]      :Y]
-                 :6     [[1 5 8 11]   :Y]
-                 :m6    [[1 4 8 11]   :N]
-                 :7     [[1 5 8 11]   :Y]
-                 :m     [[1 4 8]      :N]
-                 :m7    [[1 4 8 11]   :N]
-                 :maj7  [[1 5 8 12]   :Y]
-                 :7sus4 [[1 6 8 11]   :Y]
-                 :7+5   [[1 5 9 11]   :Y]
-                 :7-5   [[1 5 7 11]   :Y]
-                 :dim   [[1 4 7]       :N]
-                 :dim7  [[1 4 7 11]    :N]
-                 :m7-5  [[1 4 7 11]    :N]
-                 :mmaj7 [[1 4 8 12]    :Y]
-                 :mmaj9 [[1 5 8 12 15] :Y]
-                 :m9    [[1 4 8 11 15] :N]
-                 :9     [[1 5 8 11 15] :Y]
-                 :9+5   [[1 5 9 11 15] :Y]
-                 :9-5   [[1 5 7 11 15]    :Y]
-                 :96    [[1 5 8 10 11 15] :Y]
-                 :maj11 [[1 5 8 12 15 18] :Y]
-                 :m11   [[1 4 8 11 15 18] :N]
-                 :11    [[1 5 8 11 15 18] :Y]
-                 :11-9  [[1 5 8 11 14 18] :Y]
-                 :7-9   [[1 5 8 11 13]    :Y]
-                 :maj13 [[-1 3 6 10]      :Y]
-                 :m13   [[-2 3 6 10]      :N]
-                 :13    [[-2 3 6 10]      :Y] ; same as m13?
-                 :13-9  [[-2 2 6 10]      :Y]})
-
 (defn chord-notes [root form]
-  (map #(+ -12 (notedb root) % -1) (first (chord-form form))))
+  (map #(+ -12 (notedb root) % -1) (first (chord-forms form))))
 
 (def chorddb
   (for [root [:C :C# :Db :D :D# :Eb :E :F :F# :Gb :G :G# :Ab :A :A# :Bb :B]
-        form (keys chord-form)]
-    (let [[pattern maj-ind] (chord-form form)
+        form (keys chord-forms)]
+    (let [[pattern maj-ind] (chord-forms form)
           [a b c d e f] (map #(+ (notedb root) % -1) pattern)
           r             (name root)]
       {:chord-id      (str (name root) (if (= form :major) "" (name form)))
@@ -334,7 +268,6 @@
                                                    idx
                                                    (transpose-note note semitones)
                                                    (if (nil? dur) 4 dur)]))))]
-    (println rc)
     rc))
 
 (defn save-chords [chords]
@@ -344,7 +277,6 @@
                  ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
             (map (juxt :chord-id :root-midi-num :chord-form-cd :root-note-cd :major-ind :a :b :c :d :e :f) chords)))
 
-; (save-chords chord-sqlite)
 
 (def chords (reduce (fn [acc [k f]]
                       (assoc acc
@@ -352,7 +284,7 @@
                              (chord-notes k f)))
                     {}
                     (for [k [:C :C# :Db :D :D# :Eb :E :F :F# :Gb :G :G# :Ab :A :A# :Bb :B]
-                          f (keys chord-form)]
+                          f (keys chord-forms)]
                       [k f])))
 
 ;-----------------------------------------------------------
@@ -363,19 +295,16 @@
   [bass-line]
   {:pre [(every? bass-line [:id :desc :max-bar :enhanced? :midi-notes])]}
   (let [{:keys [id desc bars midi-notes max-bar]} bass-line]
-    (println "save-bass-line-to-db" id)
-    (println (exec-dml "delete from bass_line       where bass_line_id = ?" [[id]]))
-    (println (exec-dml "delete from bass_line_chord where bass_line_id = ?" [[id]]))
-    (println (exec-dml "delete from bass_line_note  where bass_line_id = ?" [[id]]))
+    (exec-dml "delete from bass_line       where bass_line_id = ?" [[id]])
+    (exec-dml "delete from bass_line_chord where bass_line_id = ?" [[id]])
+    (exec-dml "delete from bass_line_note  where bass_line_id = ?" [[id]])
 
-    (println "midi-notes" midi-notes)
-
-    (println (exec-dml "insert into bass_line(bass_line_id, bar_cnt, bass_line_desc) values (?, ?, ?)"
-                       [[id max-bar desc]]))
-    (println (exec-dml "insert into bass_line_chord (bass_line_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)"
-                       bars))
-    (println (exec-dml "insert into bass_line_note (bass_line_id, order_num, midi_num, note_dur_num) values (?, ?, ?, ?)"
-                       midi-notes))
+    (exec-dml "insert into bass_line(bass_line_id, bar_cnt, bass_line_desc) values (?, ?, ?)"
+              [[id max-bar desc]])
+    (exec-dml "insert into bass_line_chord (bass_line_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)"
+              bars)
+    (exec-dml "insert into bass_line_note (bass_line_id, order_num, midi_num, note_dur_num) values (?, ?, ?, ?)"
+              midi-notes)
     id))
 
 
@@ -383,17 +312,13 @@
   "Imports bass-line from a file into internal SQLite database"
   [song-edn-file]
   (let [enhanced (-> song-edn-file
-                     read-song-file
+                     read-edn-file
                      enhance-bass-line-map)]
     (doseq [semitones [-5 -4 -3 -2 -1 1 2 3 4 5 6]]
       (println "Semitones" semitones)
       (let [rc1 (transpose-bass-line enhanced semitones)
             _   (println rc1)]
         (save-bass-line-to-db rc1)))
-      ;; (-> enhanced
-      ;;     (transpose-bass-line semitones)
-      ;;     (tla/tee println)
-      ;;     save-bass-line-to-db))
     (save-bass-line-to-db enhanced)))
 
 
@@ -426,63 +351,3 @@
                                     "bass-1234" "bass-5321" "bass-1235" "bass-5321"]))))
 
 (def chord-based-bass-db (init-chord-based-bass-db))
-
-;; Drum patterns. Each drum pattern covers one standard bar (4/4). The pattern
-;; can have one or more drums. Each item is [velocity duration], duration can be omitted.
-;; Velocity is measured in percents, duration is measured in standard note durations:
-;; 1 - whole note, 2 - half, 4 - quarter (default), 8 - eighth, 12 - tripplets
-;; basically answer the question: How many of these notes do you need
-;; to cover the whole bar?
-(def  drum-patterns
-  {"drums-swing"
-   {:ride-cymbal-1      [[99]
-                         [99 12] [0 12] [90 12]
-                         [99]
-                         [99 12] [0 12] [90 12]]
-    :closed-hi-hat      [[0] [99] [0]  [99]]
-    :acoustic-bass-drum [[85] [65] [85] [65]]}
-   "drums-fill2"
-   {:ride-cymbal-1      [[70]]
-    :acoustic-snare     [[0 12] [50 12] [50 12]
-                         [50 12] [0 12] [50 12]
-                         [0  12] [0 12] [50 12]
-                         [50 12] [50 12] [50 12]]
-    :low-mid-tom        [[0]
-                         [0]
-                         [50 12] [0 12] [0 12]
-                         [0]]
-    :acoustic-bass-drum [[90]]}
-   "drums-fill3"
-   {:ride-cymbal-1      [[70] [0] [70]]
-    :acoustic-snare     [[0 12] [0 12] [50 12]
-                         [0 12] [0 12] [50 12]
-                         [0]
-                         [0 12] [50 12] [50 12]]
-    :high-floor-tom     [[0]
-                         [0]
-                         [50 12] [50 12] [0 12]]
-    :low-mid-tom        [[0]
-                         [0]
-                         [0 12] [0 12] [50 12]
-                         [50 12]]
-    :acoustic-bass-drum [[90] [0] [90]]},
-   "drums-intro"
-   {:bass-drum-1 [[100]
-                  [100]
-                  [100 8] [100 8]
-                  [100 8] [100 8]]}})
-
-;; Chord strumming patterns. Each pattern is a collection of velocities,
-;; optionally paired with duration. Duration is a fraction of a whole note.
-;; 1 - whole note
-;; 2 - half note
-;; 4 - quarter note, etc.
-
-(def chord-strumming-patterns
-  {"things-we-said"   [[70 12] [70 12] [70 12]   [70]  [70 8] [70 8]  [70]]
-   "swing"            [[0] [50] [0] [0]]
-   "freddie-green"    [[30] [50] [30] [50]]
-   "charleston"       [[50 8/3] [50 8] [0 2]]
-   "charleston-combo" [[0 8] [50 8/3] [50 8] [0 8/3]]
-   "rhythm-2-4"       [[0 8/3] [50 8] [0 8/3] [50 8]]
-   "rhythm-3-3-2"     [[50 8/3] [50 8/3] [50]]})
