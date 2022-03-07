@@ -76,27 +76,6 @@
   [xs x]
   (contains? (set xs) x))
 
-;(defn connect
-;  "Connects to db via JDBC. The db is a vector of URL, username, and password"
-;  [db]
-;  (let [[url user pass] db
-;        ods (doto (new oracle.jdbc.pool.OracleDataSource)
-;              (.setURL url)
-;              (.setUser user)
-;              (.setPassword pass))]
-;    (.getConnection ods)))
-
-; Example of SQLite operations
-; (def conn (connect-sqlite "sample3.db"))
-; (-> conn .createStatement (.executeUpdate "create table person (id number, name string);"))
-; (batch-update conn "insert into person(id, name) values (?, ?)"  [["5" "Yolochka"]["6" "Slooshie"]])
-; (cursor conn "select * from person")
-
-(defn connect-sqlite
-  "Connects to SQLite database db"
-  [db]
-  (java.sql.DriverManager/getConnection (str "jdbc:sqlite:" db)))
-
 (defn cursor
   "Takes open connection, query, bind parameters.
    Binds parameters and runs query and returns

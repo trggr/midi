@@ -1,4 +1,4 @@
 {:id "T51"
  :desc "Walk from dominant to root"
  :tab-score "G7 G7 | C C"
- :notes  [[:g3] [:f3] [:e3] [:d3]  [:c3 2] [:g3 2]]}
+ :notes  [[:g2] [:f2] [:e2] [:d2]  [:c2 2] [:g2 2]]}

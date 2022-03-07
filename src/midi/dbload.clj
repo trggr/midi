@@ -20,17 +20,17 @@
 (def chord-strumming-patterns (read-edn-file "resources/chord-strumming-patterns.edn"))
 
 (defn dbhelper [f & args]
-  (let [connection (java.sql.DriverManager/getConnection (str "jdbc:sqlite:" DBFILE))
-        rc       (apply f connection args)
-        rc       (if (sequential? rc) (doall rc) rc)]
-    (.close connection)
+  (let [conn (java.sql.DriverManager/getConnection (str "jdbc:sqlite:" DBFILE))
+        rc   (apply f conn args)
+        rc   (if (sequential? rc) (doall rc) rc)]
+    (.close conn)
     rc))
 
 (def dml     (partial dbhelper tla/batch-update))
 (def query   (partial dbhelper tla/cursor))
 
 (declare enhance-bass-line-map)
-(declare enhance-song-map)
+; (declare enhance-song-map)
 
 (defn tabs->bars
   "Split tabs into sequence of bars"
@@ -55,40 +55,33 @@
                    "time_sig_ppq_num, time_sig_bb_num, bpm_num, drum_ptrn_cd, bass_ty_cd, max_bar) "
                    "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
               [[id nm numer denom ppq bb bpm drum bass max-bar]])
-
     (dml "insert into bar (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)" bars)
     (dml "insert into song_bar_beat (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)" bbcs)
-    (dml "update bar set chord_id = null where length(chord_id) = 0" [[]])
     nm))
 
 (defn sparse-beats
   "Sparsely assign chords within a bar.
-   Currently only supports 4/4 time signature."
-  [chords]
-  (let [[a b c d] chords]
-    (case (count chords)
-      1 [[1 a]]
-      2 [[1 a] [3 b]]
-      3 [[1 a] [3 b] [4 c]]
-      4 [[1 a] [2 b] [3 c] [4 d]]
-      :default (throw (Exception. "expecting 1 to 4 chords per bar")))))
+   Supports up to four chords per bar"
+  [[a b c d :as chords]]
+  (case (count chords)
+    1 [[1 a]]
+    2 [[1 a] [3 b]]
+    3 [[1 a] [3 b] [4 c]]
+    4 [[1 a] [2 b] [3 c] [4 d]]
+    :default (throw (Exception. "expecting 1 to 4 chords per bar"))))
 
 (defn dense-beats
   "Assign chords for each beat in a bar.
-   Currently only supports 4/4 time signature"
-  [chords]
-  (let [[a b c d] chords]
-    (case (count chords)
-      1 [[1 a] [2 a] [3 a] [4 a]]
-      2 [[1 a] [2 a] [3 b] [4 b]]
-      3 [[1 a] [2 a] [3 b] [4 c]]
-      4 [[1 a] [2 b] [3 c] [4 d]]
-      :default (throw (Exception. "expecting 1 to 4 chords per bar")))))
+   Supports up to four chords per bar"
+  [[a b c d :as chords]]
+  (mapv (fn [x y] [x y])
+        (range 1 5)
+        (case (count chords)
+          1 [a a a a]
+          2 [a a b b]
+          3 [a a b c]
+          4 [a b c d])))
 
-(def
-  ^{:arglists '([edn-file])
-    :doc "Imports song from EDN file into database"}
-  import-song (comp save-song-to-db enhance-song-map read-edn-file))
 
 (def midi->note (zipmap
                  (range 21 128)
@@ -162,6 +155,11 @@
                :bars (assign sparse-beats bars)
                :bbcs (assign dense-beats bars)
                :max-bar (count bars)))))
+
+(def
+  ^{:arglists '([edn-file])
+    :doc "Imports song from EDN file into database"}
+  import-song (comp save-song-to-db enhance-song-map read-edn-file))
 
 (defn enhance-bass-line-map
   "Takes map of bass line and adds keys
@@ -312,12 +310,11 @@
   (let [enhanced (-> song-edn-file
                      read-edn-file
                      enhance-bass-line-map)]
-    (doseq [semitones [-5 -4 -3 -2 -1 1 2 3 4 5 6]]
+    (doseq [semitones [-5 -4 -3 -2 -1 1 2 3 4 5 6 0]]
       (println "Semitones" semitones)
       (let [rc1 (transpose-bass-line enhanced semitones)
             _   (println rc1)]
-        (save-bass-line-to-db rc1)))
-    (save-bass-line-to-db enhanced)))
+        (save-bass-line-to-db rc1)))))
 
 
 (defn init-chord-based-bass-db
@@ -340,7 +337,7 @@
               (f bar beat chord)))]
     (assoc m
            "bass-15-8"  (partial f ["bass-15" "bass-15" "bass-15" "bass-15"
-                                    "bass-15"   "bass-15" "bass-15" "bass-5321"])
+                                    "bass-15" "bass-15" "bass-15" "bass-1234"])
            "bass-15-68" (partial f ["bass-15" "bass-15" "bass-15" "bass-15"
                                     "bass-5321" "bass-15" "bass-15" "bass-5321"])
            "bass-ud2"   (partial f ["bass-1234" "bass-1235" "bass-5321" "bass-4321"

@@ -116,10 +116,14 @@
 
 ;;-------------------------------------------------------
 (deftest transpose-bass-line
-  (let [result (-> sample-bass-line
+  (let [same  (-> sample-bass-line
+                  db/enhance-bass-line-map
+                  (db/transpose-bass-line 0))
+        result (-> sample-bass-line
                    db/enhance-bass-line-map
                    (db/transpose-bass-line 2))
         id "FOO-A7"]
+    (is (= "FOO-G7" (same :id)))
     (is (= id (result :id)))
     (is (= (sample-bass-line :desc) (result :desc)))
     (is (= [[id 1 1 "A7"] [id 1 2 "A7"] [id 1 3 "A7"] [id 1 4 "A7"]

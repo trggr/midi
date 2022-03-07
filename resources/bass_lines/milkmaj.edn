@@ -1,4 +1,4 @@
 {:id "MILKMAJ",
  :desc "Miliking major chord"
  :tab-score "D7 | D7"
- :notes  [[:d3] [:e3] [:f#3] [:g3]  [:a3] [:f#3] [:e3] [:d3]]}
+ :notes  [[:d2] [:e2] [:f#2] [:g2]  [:a2] [:f#2] [:e2] [:d2]]}

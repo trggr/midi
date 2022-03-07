@@ -263,7 +263,7 @@
        compress
        (partition 3 2 nil)
        (mapcat (partial apply walking-bass))
-       (map (fn [note] (- note 12)))    ; lower one octave to make jazzier
+       (map (fn [note] (- note 24)))    ; lower one octave to make jazzier
        (map-indexed (fn [beat note]
                       (wrap-in-walking-bass-timecode (+ beat 4) ; compensate for zero bar
                                                      note)))
@@ -386,16 +386,18 @@
      (midifile/notes->midi-file tracks bpm file-name))))
 
 (def selected-songs
-  ["ALL THE THINGS YOU ARE"
-   "ALONE TOGETHER"
-   "MISTY"
-   "MEDIUM BLUES"
-   "IN A SENTIMENTAL MOOD"
-   "ALL OF ME"
-   "AUTUMN LEAVES"
-   "ALL BY MYSELF"
-   "LET IT BE"
-   "BLACK ORPHEUS"])
+  [;; "ALL THE THINGS YOU ARE"
+  ;;  "ALONE TOGETHER"
+  ;; "MISTY"
+  ;;  "MEDIUM BLUES"
+  ;;  "IN A SENTIMENTAL MOOD"
+  ;;  "ALL OF ME"
+  ;;  "AUTUMN LEAVES"
+  ;;  "ALL BY MYSELF"
+  ;;  "LET IT BE"
+  ;; "BLACK ORPHEUS"
+   "MISTY-FITZERALD"
+])
 
 (defn -main
   ([]  (doseq [s selected-songs] (export-midi-file s)))
