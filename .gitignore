@@ -22,3 +22,4 @@ pom.xml.asc
 .clj-kondo
 resources/midi/*
 [0-9].txt
+work/*

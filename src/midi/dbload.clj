@@ -19,17 +19,15 @@
 (def drum-patterns (read-edn-file "resources/drum-patterns.edn"))
 (def chord-strumming-patterns (read-edn-file "resources/chord-strumming-patterns.edn"))
 
-(defn exec-dml [& args]
+(defn dbhelper [f & args]
   (let [connection (java.sql.DriverManager/getConnection (str "jdbc:sqlite:" DBFILE))
-        rc       (apply tla/batch-update connection args)]
+        rc       (apply f connection args)
+        rc       (if (sequential? rc) (doall rc) rc)]
     (.close connection)
     rc))
 
-(defn query [& args]
-  (let [connection (java.sql.DriverManager/getConnection (str "jdbc:sqlite:" DBFILE))
-        rc       (doall (apply tla/cursor connection args))]
-    (.close connection)
-    rc))
+(def dml     (partial dbhelper tla/batch-update))
+(def query   (partial dbhelper tla/cursor))
 
 (declare enhance-bass-line-map)
 (declare enhance-song-map)
@@ -49,18 +47,18 @@
   "Takes song-map with keys and saves song to the database"
   [song-meta]
   (let [{:keys [id nm numer denom ppq bb bpm bars bbcs drum bass max-bar]} song-meta]
-    (exec-dml "delete from song where song_id = ?" [[id]])
-    (exec-dml "delete from bar where song_id = ?" [[id]])
-    (exec-dml "delete from song_bar_beat where song_id = ?" [[id]])
+    (dml "delete from song where song_id = ?" [[id]])
+    (dml "delete from bar where song_id = ?" [[id]])
+    (dml "delete from song_bar_beat where song_id = ?" [[id]])
 
-    (exec-dml (str "insert into song(song_id, song_nm, time_sig_nmrtr_num, time_sig_denom_num,"
+    (dml (str "insert into song(song_id, song_nm, time_sig_nmrtr_num, time_sig_denom_num,"
                    "time_sig_ppq_num, time_sig_bb_num, bpm_num, drum_ptrn_cd, bass_ty_cd, max_bar) "
                    "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
               [[id nm numer denom ppq bb bpm drum bass max-bar]])
 
-    (exec-dml "insert into bar (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)" bars)
-    (exec-dml "insert into song_bar_beat (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)" bbcs)
-    (exec-dml "update bar set chord_id = null where length(chord_id) = 0" [[]])
+    (dml "insert into bar (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)" bars)
+    (dml "insert into song_bar_beat (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)" bbcs)
+    (dml "update bar set chord_id = null where length(chord_id) = 0" [[]])
     nm))
 
 (defn sparse-beats
@@ -140,7 +138,7 @@
 (def notedb (assoc notedb4 :_ 0))  ; silence
 
 (defn save-notes [notes]
-  (exec-dml "insert into note (note_cd, midi_num) values (?, ?)"
+  (dml "insert into note (note_cd, midi_num) values (?, ?)"
             (for [[k v] notes] [(name k) v])))
 
 (defn enhance-song-map
@@ -271,7 +269,7 @@
     rc))
 
 (defn save-chords [chords]
-  (exec-dml (str "insert into chord(chord_id, root_midi_num, chord_form_cd, root_note_cd,"
+  (dml (str "insert into chord(chord_id, root_midi_num, chord_form_cd, root_note_cd,"
                  "  major_ind, midi1_num, midi2_num, midi3_num, midi4_num,"
                  "  midi5_num, midi6_num"
                  ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
@@ -295,15 +293,15 @@
   [bass-line]
   {:pre [(every? bass-line [:id :desc :max-bar :enhanced? :midi-notes])]}
   (let [{:keys [id desc bars midi-notes max-bar]} bass-line]
-    (exec-dml "delete from bass_line       where bass_line_id = ?" [[id]])
-    (exec-dml "delete from bass_line_chord where bass_line_id = ?" [[id]])
-    (exec-dml "delete from bass_line_note  where bass_line_id = ?" [[id]])
+    (dml "delete from bass_line       where bass_line_id = ?" [[id]])
+    (dml "delete from bass_line_chord where bass_line_id = ?" [[id]])
+    (dml "delete from bass_line_note  where bass_line_id = ?" [[id]])
 
-    (exec-dml "insert into bass_line(bass_line_id, bar_cnt, bass_line_desc) values (?, ?, ?)"
+    (dml "insert into bass_line(bass_line_id, bar_cnt, bass_line_desc) values (?, ?, ?)"
               [[id max-bar desc]])
-    (exec-dml "insert into bass_line_chord (bass_line_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)"
+    (dml "insert into bass_line_chord (bass_line_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)"
               bars)
-    (exec-dml "insert into bass_line_note (bass_line_id, order_num, midi_num, note_dur_num) values (?, ?, ?, ?)"
+    (dml "insert into bass_line_note (bass_line_id, order_num, midi_num, note_dur_num) values (?, ?, ?, ?)"
               midi-notes)
     id))
 
