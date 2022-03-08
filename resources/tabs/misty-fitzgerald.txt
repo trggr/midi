@@ -1,0 +1,43 @@
+{:id 12, :nm "MISTY-FITZGERALD",
+ :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 50,
+ :drum "drums-swing",
+ :bass "bass-15-68",
+ :tab-score "
+ Bb  Gm7    | Cm7 F |
+ Bb  Gm7    | Cm7 F |
+
+ Bb           | Fm7        Bb7              |   Ebmaj7 |
+; Look at me, I am as helpless as a kitten up a tree
+
+                      Ebm            Ab7-9  |
+; And I feel like I am clinging to a cloud
+
+  Bb      Gm         |     Cm7     F7 |
+; I can't understand I get misty just
+
+  Bbmaj7       Cm7  | Dbm7 Gb |
+; holding your hand
+
+ Bmaj7        |         Gbm7     B7              | Emaj7    |
+; walk my way   and the thousand violins begin to  play
+
+
+                     Em7           A7    |      Bmaj7   Abm |
+; or it might be the sound of your hello   that music I hear
+
+        Dbm7  Gb                  | B    D  C |
+; I get misty   the moment you are  near
+
+            B               | Gbm7          |
+; can't you see that you are  leading me on
+
+          B7       | Emaj7           | Emaj7 |
+; and it's just what I want you to do
+
+ Fm7 | Bb Db | Gb | E D Dbm7 Gb |
+ B | Gbm7 B | Emaj7 | Em A |
+ B Abm | Dbm7 Gb |
+ Ebm Ebm7-5 Ab7 | Ab7 Dbm7 |
+ Dbm7 | Dm C |
+ C | C | C | B | B
+"}

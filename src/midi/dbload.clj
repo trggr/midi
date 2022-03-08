@@ -10,10 +10,19 @@
 (def DRUMS-CHANNEL 9)
 (def BASS-VELOCITY 65)
 (def DBFILE        "resources/synth.db")
-(def
-  ^{:arglists '([edn-file])
-    :doc "Returns map stored in EDN file"}
-  read-edn-file (comp edn/read-string slurp))
+
+(defn read-edn-file
+  "Returns map stored in extended EDN file, in which the mpty lines and comments
+   embedded in strings are ignored."
+  [edn-file]
+  (as-> edn-file $
+    (slurp $)
+    (str/split $ #"\n")
+    (map #(str/replace % #";.*" "") $)
+    (map #(str/trim %) $)
+    (remove #(zero? (count %)) $)
+    (str/join "\n" $)
+    (edn/read-string $)))
 
 (def chord-forms   (read-edn-file "resources/chord-forms.edn"))
 (def drum-patterns (read-edn-file "resources/drum-patterns.edn"))
