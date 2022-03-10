@@ -1,5 +1,11 @@
 {:id 9, :nm "MISTY", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 60,
  :drum "drums-swing",
+ :drum-pattern "drums-swing",
+ :drum-fills {0 "drums-fill2"
+              8 "drums-fill3"
+              16 "drums-fill2"
+              24 "drums-fill3"
+              32 "drums-fill3"}
  :bass "bass-15-68",
  :tab-score "
  Ebmaj7      | Bbm7  Eb7 | Abmaj7       | Abm7   Db7

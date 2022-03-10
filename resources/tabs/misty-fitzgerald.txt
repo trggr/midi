@@ -1,6 +1,12 @@
 {:id 12, :nm "MISTY-FITZGERALD",
  :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 50,
- :drum "drums-swing",
+ :drum-pattern "drums-swing",
+ :drum-fills {0  "drums-intro"
+              4  "drums-fill3"
+              12 "drums-fill2"
+              20 "drums-fill3"
+              28 "drums-fill2"
+              36 "drums-fill3"}
  :bass "bass-15-68",
  :tab-score "
  Bb  Gm7    | Cm7 F |
