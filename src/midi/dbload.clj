@@ -55,17 +55,20 @@
 (defn save-song-to-db
   "Takes song-map with keys and saves song to the database"
   [song-meta]
-  (let [{:keys [id nm numer denom ppq bb bpm bars bbcs drum bass max-bar]} song-meta]
-    (dml "delete from song where song_id = ?" [[id]])
-    (dml "delete from bar where song_id = ?" [[id]])
+  (let [{:keys [id nm numer denom ppq bb bpm bars bbcs
+                drum-pattern bass max-bar song-drums]} song-meta]
+    (dml "delete from song          where song_id = ?" [[id]])
+    (dml "delete from bar           where song_id = ?" [[id]])
     (dml "delete from song_bar_beat where song_id = ?" [[id]])
+    (dml "delete from song_drum     where song_id = ?" [[id]])
 
     (dml (str "insert into song(song_id, song_nm, time_sig_nmrtr_num, time_sig_denom_num,"
                    "time_sig_ppq_num, time_sig_bb_num, bpm_num, drum_ptrn_cd, bass_ty_cd, max_bar) "
                    "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-              [[id nm numer denom ppq bb bpm drum bass max-bar]])
+              [[id nm numer denom ppq bb bpm drum-pattern bass max-bar]])
     (dml "insert into bar (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)" bars)
     (dml "insert into song_bar_beat (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)" bbcs)
+    (dml "insert into song_drum (song_id, bar_id, drum_ptrn_cd) values (?, ?, ?)" song-drums)
     nm))
 
 (defn sparse-beats
@@ -143,20 +146,26 @@
   (dml "insert into note (note_cd, midi_num) values (?, ?)"
             (for [[k v] notes] [(name k) v])))
 
+(defn fm1 [{:keys [a b], :as all}]
+    [a b all])
+
+ (def m {:a 10, :b 20})
+
+ (fm1 m)
+
 (defn enhance-song-map
   "Takes map of song and enhanced it by adding keys
     :bars - with sparsely assigned chords to beats
     :bbcs - with densely assigned chords to beats
-    :max-bar - length of score in bars
-    :midi-notes - notes converted to MIDI notes"
-  [song-map]
-  {:pre [(every? song-map [:id :tab-score])]}
-  (let [bars (-> song-map :tab-score tabs->bars)
+    :max-bar - length of score in bars"
+  [{:keys [id tab-score] :as song-map}]
+  {:pre [(every? identity [id tab-score])]}
+  (let [bars (tabs->bars tab-score)
         assign (fn [f coll]
                  (->> coll
                       (map-indexed (fn [bar tab]
                                      (for [[beat chord] (f tab)]
-                                       [(song-map :id) (inc bar) beat chord])))
+                                       [id (inc bar) beat chord])))
                       (apply concat)
                       (into [])))]
     (-> song-map
@@ -165,10 +174,28 @@
                :bbcs (assign dense-beats bars)
                :max-bar (count bars)))))
 
+(defn enhance-song-drums
+  "Takes map of song and enhanced it by adding keys
+    :song-drums - drum patterns mixed with drum fills"
+  [{:keys [id max-bar drum-fills drum-pattern], :as song-map}]
+  {:pre [(every? identity [id max-bar drum-pattern])]}
+  (assoc song-map
+         :song-drums
+         (mapv (fn [bar]
+                 (let [pattern (if (and drum-fills
+                                        (contains? drum-fills bar))
+                                 (drum-fills bar)
+                                 drum-pattern)]
+                   [id bar pattern]))
+               (range 0 (inc max-bar)))))
+
 (def
   ^{:arglists '([edn-file])
     :doc "Imports song from EDN file into database"}
-  import-song (comp save-song-to-db enhance-song-map read-edn-file))
+  import-song (comp save-song-to-db
+                    enhance-song-drums
+                    enhance-song-map
+                    read-edn-file))
 
 (defn enhance-bass-line-map
   "Takes map of bass line and adds keys

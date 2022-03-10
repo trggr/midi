@@ -4,12 +4,6 @@
             [midi.dbload :as db]
             [midi.midifile2 :as midifile]))
 
-(def bar->drum-fills {0 "drums-intro"
-                      8 "drums-fill2"
-                      16 "drums-fill3"
-                      24 "drums-fill2"
-                      32 "drums-fill3"})
-
 (defn bar->timecode
   "Returns beginning on bar in timecode ticks"
   [bar]
@@ -112,6 +106,7 @@
         (cons [0 :time-signature signature])
         (sort-by first))))
 
+
 (defn midi-synthesizer
   "Takes a collection of [channel instrument] assignments and
    returns fn which accepts channel, note and velocity
@@ -131,6 +126,7 @@
     (fn [c note vol]
       (.noteOn (nth channels c) note vol))))
 
+
 (defn play-mtape
   "Plays collection of vectors: [timecode, channel, note, velocity]"
   [mtape]
@@ -140,6 +136,7 @@
       (Thread/sleep tc)
       (doseq [[chan note vel] notes]
         (player chan note vel)))))
+
 
 (defn get-song-bbcs
   "Returns a collection of BBC (bar-beat-chord) elements for a given song.
@@ -157,8 +154,8 @@
        rest
        (map (fn [[bar beat chord]] [bar beat (keyword chord)]))))
 
+
 (defn paste-bass-line [from-bar bass-line-id transposition vel]
-  ;; (println "expand-bass-line" bass-line-id)
   (->> [bass-line-id]
        (db/query "select n.midi_num, cast(b.note_dur_num as int) note_dur_num
                   from bass_line_note b join note n on (n.note_cd = b.note_cd)
@@ -176,6 +173,7 @@
                 (bar->timecode from-bar)])
        first))
 
+
 (defn combine-bass-lines [[timeline tape :as rc]
                           [bass-line-id from-bar to-bar transposition]]
   (let [bars (range from-bar (inc to-bar))]
@@ -186,6 +184,7 @@
                bars)
        (concat tape
                (paste-bass-line from-bar bass-line-id transposition db/BASS-VELOCITY))])))
+
 
 (defn patterns-bass-track [song-id]
   (let [song-id (str song-id)
@@ -203,6 +202,7 @@
                           (rest patterns))]
     (with-meta rc {:bass info})))
 
+
 (defn cover-bar-with-drum
   "Takes pattern, drum note, and covers a bar with this pattern.
    Drum pattern is a collection of [velocity duration] elements"
@@ -219,11 +219,18 @@
                next-tc
                (rest pattern))))))
 
-(defn apply-drum-pattern
-  "Takes drums pattern and applies it to a bar. Each drum pattern can have one or more drums"
-  [pattern bar]
-  (mapcat #(cover-bar-with-drum (pattern %) (db/notedb %) bar)
+
+(defn drum-pattern->ttape
+  "Takes bar and drum pattern and returns ttape
+   for this bar.
+   Each drum pattern can have one or more drums"
+  [bar pattern]
+  (mapcat (fn [drum]
+            (cover-bar-with-drum (pattern drum)
+                                 (db/notedb drum)
+                                 bar))
           (keys pattern)))
+
 
 (defn compress
   "Takes coll and turns it into collection where each elements is followed by
@@ -237,6 +244,7 @@
                    [(conj acc x n) 1]))
                [[] 1])
        first))
+
 
 (defn walking-bass
   "Takes a chord, number of beats of this chord, and the
@@ -269,15 +277,16 @@
                                                      note)))
        (apply concat)))
 
+
 (defn make-drum-track
-  "Covers all availble beats with a drum-pattern-nm. Covers zero beat with
-   metronom clicks"
-  [pattern-nm beats]
-  (let [maxbar (inc (reduce max (map first beats)))]
-    (mapcat #(apply-drum-pattern
-              (db/drum-patterns (get bar->drum-fills % pattern-nm))
-              %)
-            (range maxbar))))
+  "Gets data stored in table SONG_DRUM"
+  [song-id]
+  (->> [song-id]
+       (db/query "select bar_id, drum_ptrn_cd from song_drum where song_id = ? order by bar_id")
+       rest
+       (mapcat (fn [[bar pattern]]
+                 (drum-pattern->ttape bar (db/drum-patterns pattern))))))
+
 
 (defn strum-chords
   "Using a strumming pattern cover a bar with chords.
@@ -306,6 +315,7 @@
                  next-tc
                  (rest pattern)))))))
 
+
 (defn strum-chord-track
   "Produce a chord track by strumming pattern over bbcs"
   [pattern-name bbcs]
@@ -316,6 +326,7 @@
          (map-indexed (fn [bar chords]
                         (strum-chords pattern (inc bar) chords)))
          (apply concat))))
+
 
 (defn play-song
   "Plays a song"
@@ -328,7 +339,7 @@
               second)
         bbcs        (get-song-bbcs song-name)
         chord-track (strum-chord-track "rhythm-3-3-2" bbcs)
-        drum-track  (make-drum-track drum-pattern bbcs)
+        ;; TODO - fix this: drum-track  (make-drum-track drum-pattern bbcs)
         bass-track  (if (= bass-method "patterns")
                       (patterns-bass-track song-id)
                       (synthetic-bass-track bbcs))
@@ -341,10 +352,11 @@
     (println (tla/view (map (fn [[bar v] c] [bar v (pr-str c)])
                             info
                             (partition 4 (map (fn [[_ _ c]] c) bbcs)))))
-    (-> (concat chord-track bass-track drum-track)
+    (-> (concat chord-track bass-track)
         (tracks->ttape bpm)
         ttape->mtape
         play-mtape)))
+
 
 (defn track->duration-track
   [track]
@@ -356,6 +368,7 @@
                    sorted
                    (rest sorted))]
     (remove nil? dur1)))
+
 
 (defn export-midi-file
   "Export song to a MIDI file. Song name should match SONG table.
@@ -370,15 +383,16 @@
   ([song-name file-name]
    (let [[song-id bpm drum-pattern bass-method]
          (-> (db/query "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd
-                       from song
-                       where upper(song_nm) = ?" [song-name])
+                        from song
+                        where upper(song_nm) = ?" [song-name])
              second)
          bbcs        (get-song-bbcs song-name)
          bass-track  (if (= bass-method "patterns")
                        (patterns-bass-track song-id)
                        (synthetic-bass-track bbcs))
+         drum-track (->> song-id make-drum-track track->duration-track)
          tracks (concat
-                 (->> bbcs (make-drum-track drum-pattern) track->duration-track)
+                 drum-track
                  (track->duration-track bass-track)
                  (->> bbcs (strum-chord-track "charleston") track->duration-track))]
      (println (format "song=%s, bpm=%d, drums=%s, bass=%s"
@@ -388,7 +402,7 @@
 (def selected-songs
   [;; "ALL THE THINGS YOU ARE"
   ;;  "ALONE TOGETHER"
-  ;; "MISTY"
+   "MISTY"
   ;;  "MEDIUM BLUES"
   ;;  "IN A SENTIMENTAL MOOD"
   ;;  "ALL OF ME"

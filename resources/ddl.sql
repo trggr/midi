@@ -349,3 +349,10 @@ alter table song add bass_ty_cd varchar(30);
 
 update song set drum_ptrn_cd = 'drums-swing';
 update song set bass_ty_cd = 'patterns';
+
+create table song_drum (
+  song_id            integer not null,
+  bar_id             integer,
+  drum_ptrn_cd       varchar(30)
+  primary key(song_id, bar_id)
+);

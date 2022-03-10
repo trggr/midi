@@ -2,6 +2,8 @@
   (:require [clojure.test :refer [deftest is are]]
             [midi.dbload :as db]))
 
+; (remove-ns 'midi.dbload-test)
+
 ;;-------------------------------------------------------
 (deftest tabs->bars-test
   (are [result args] (= result (db/tabs->bars args))
@@ -17,8 +19,8 @@
 (def sample-song
   {:id 0, :nm "TEST SONG", :numer 4, :denom 4,
    :ppq 400000, :bb 8, :bpm 90,
-   :drum "drums-swing",
-   :bass "bass-15-68",
+   :drum-pattern "drums-swing",
+   :bass         "bass-15-68",
    :tab-score "Am | Am Dm | Am Dm G | Am Dm G C"})
 
 ;;-------------------------------------------------------
@@ -39,6 +41,12 @@
             [0 3 1 "Am"] [0 3 2 "Am"] [0 3 3 "Dm"] [0 3 4 "G"]  ;
             [0 4 1 "Am"] [0 4 2 "Dm"] [0 4 3 "G"]  [0 4 4 "C"]]
            bbcs))))
+
+(deftest enhance-song-drums-test
+  (let [rc (-> sample-song
+               db/enhance-song-map
+               db/enhance-song-drums)]
+    (is (contains? rc :song-drums))))
 
 ;;-------------------------------------------------------
 (deftest dense-beats-test
