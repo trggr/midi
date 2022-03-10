@@ -356,3 +356,5 @@ create table song_drum (
   drum_ptrn_cd       varchar(30)
   primary key(song_id, bar_id)
 );
+
+alter table song add strum_ptrn_cd varchar2(30);

@@ -1,6 +1,9 @@
 {:id 12, :nm "MISTY-FITZGERALD",
  :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 50,
  :drum-pattern "drums-swing",
+;  :strum-pattern "charleston-combo"
+;  :strum-pattern "freddie-green"
+ :strum-pattern "things-we-said"
  :drum-fills {0  "drums-intro"
               4  "drums-fill3"
               12 "drums-fill2"
@@ -12,19 +15,16 @@
  Bb  Gm7    | Cm7 F |
  Bb  Gm7    | Cm7 F |
 
- Bb           | Fm7        Bb7              |   Ebmaj7 |
+ Bb                 | Fm7           Bb7     |   Ebmaj7 |
 ; Look at me, I am as helpless as a kitten up a tree
 
                       Ebm            Ab7-9  |
 ; And I feel like I am clinging to a cloud
 
-  Bb      Gm         |     Cm7     F7 |
-; I can't understand I get misty just
+  Bb      Gm         |     Cm7     F7 |    Bbmaj7       Cm7  | Dbm7 Gb |
+; I can't understand I get misty just      holding your hand
 
-  Bbmaj7       Cm7  | Dbm7 Gb |
-; holding your hand
-
- Bmaj7        |         Gbm7     B7              | Emaj7    |
+         Bmaj7   |      Gbm7     B7              | Emaj7    |
 ; walk my way   and the thousand violins begin to  play
 
 

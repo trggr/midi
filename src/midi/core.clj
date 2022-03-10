@@ -370,19 +370,19 @@
     (remove nil? dur1)))
 
 
-(defn export-midi-file
-  "Export song to a MIDI file. Song name should match SONG table.
-   If no file name provided, the MIDI file
+(defn song->midi-file
+  "Export song to a MIDI file. Song's name should match
+   the one in a SONG table. If no file name provided, the MIDI file
    is created in resources/midi."
   ([song-name]
-   (export-midi-file song-name
-                     (as-> song-name $
-                       (str/lower-case $)
-                       (str/replace $ #"\s+" "_")
-                       (str "resources/midi/" $ ".midi"))))
+   (song->midi-file song-name
+                    (as-> song-name $
+                      (str/lower-case $)
+                      (str/replace $ #"\s+" "_")
+                      (str "resources/midi/" $ ".midi"))))
   ([song-name file-name]
-   (let [[song-id bpm drum-pattern bass-method]
-         (-> (db/query "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd
+   (let [[song-id bpm drum-pattern bass-method strum-pattern]
+         (-> (db/query "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd, strum_ptrn_cd
                         from song
                         where upper(song_nm) = ?" [song-name])
              second)
@@ -394,7 +394,7 @@
          tracks (concat
                  drum-track
                  (track->duration-track bass-track)
-                 (->> bbcs (strum-chord-track "charleston") track->duration-track))]
+                 (->> bbcs (strum-chord-track strum-pattern) track->duration-track))]
      (println (format "song=%s, bpm=%d, drums=%s, bass=%s"
                       song-name bpm drum-pattern bass-method))
      (midifile/notes->midi-file tracks bpm file-name))))
@@ -410,16 +410,16 @@
   ;;  "ALL BY MYSELF"
   ;;  "LET IT BE"
   ;; "BLACK ORPHEUS"
-   "MISTY-FITZERALD"
+   "MISTY-FITZGERALD"
 ])
 
 (defn -main
-  ([]  (doseq [s selected-songs] (export-midi-file s)))
+  ([]  (doseq [s selected-songs] (song->midi-file s)))
   ([_] (println "Known commands: -- import-song, --import-bass-line, --play"))
   ([cmd arg]
    (cond (= cmd "--import-song")      (->> arg
                                            db/import-song
-                                           export-midi-file)
+                                           song->midi-file)
          (= cmd "--import-bass-line") (-> arg
                                           db/import-bass-line)
          (= cmd "--play")             (doseq [s selected-songs]

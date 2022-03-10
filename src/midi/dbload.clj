@@ -24,9 +24,9 @@
     (str/join "\n" $)
     (edn/read-string $)))
 
-(def chord-forms   (read-edn-file "resources/chord-forms.edn"))
-(def drum-patterns (read-edn-file "resources/drum-patterns.edn"))
-(def chord-strumming-patterns (read-edn-file "resources/chord-strumming-patterns.edn"))
+(def chord-forms   (read-edn-file "resources/chord-forms.txt"))
+(def drum-patterns (read-edn-file "resources/drum-patterns.txt"))
+(def chord-strumming-patterns (read-edn-file "resources/chord-strumming-patterns.txt"))
 
 (defn dbhelper [f & args]
   (let [conn (java.sql.DriverManager/getConnection (str "jdbc:sqlite:" DBFILE))
@@ -56,16 +56,18 @@
   "Takes song-map with keys and saves song to the database"
   [song-meta]
   (let [{:keys [id nm numer denom ppq bb bpm bars bbcs
-                drum-pattern bass max-bar song-drums]} song-meta]
+                drum-pattern bass max-bar song-drums strum-pattern]} song-meta]
     (dml "delete from song          where song_id = ?" [[id]])
     (dml "delete from bar           where song_id = ?" [[id]])
     (dml "delete from song_bar_beat where song_id = ?" [[id]])
     (dml "delete from song_drum     where song_id = ?" [[id]])
 
-    (dml (str "insert into song(song_id, song_nm, time_sig_nmrtr_num, time_sig_denom_num,"
-                   "time_sig_ppq_num, time_sig_bb_num, bpm_num, drum_ptrn_cd, bass_ty_cd, max_bar) "
-                   "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-              [[id nm numer denom ppq bb bpm drum-pattern bass max-bar]])
+    (dml "insert into song (
+            song_id, song_nm, time_sig_nmrtr_num, time_sig_denom_num,
+            time_sig_ppq_num, time_sig_bb_num, bpm_num, drum_ptrn_cd,
+            strum_ptrn_cd, bass_ty_cd, max_bar
+         ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            [[id nm numer denom ppq bb bpm drum-pattern strum-pattern bass max-bar]])
     (dml "insert into bar (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)" bars)
     (dml "insert into song_bar_beat (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)" bbcs)
     (dml "insert into song_drum (song_id, bar_id, drum_ptrn_cd) values (?, ?, ?)" song-drums)
