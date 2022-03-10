@@ -139,17 +139,14 @@
 
 
 (defn get-song-bbcs
-  "Returns a collection of BBC (bar-beat-chord) elements for a given song.
+  "Returns a collection of BBC (bar-beat-chord) elements for a given song ID.
    For a typical 4/4, 32-bar song this collection is 128 elements
    long and shows what chord is played on each bar and beat"
-  [song-name]
-  (->> song-name
-       str/upper-case
-       vector
-       (db/query "select b.bar_id, b.beat_id, b.chord_id
-                  from song_bar_beat b
-                       join song     s on (s.song_id = b.song_id)
-                  where upper(s.song_nm) = :1
+  [song-id]
+  (->> [song-id]
+       (db/query "select bar_id, beat_id, chord_id
+                  from song_bar_beat
+                  where song_id = :1
                   order by 1, 2")
        rest
        (map (fn [[bar beat chord]] [bar beat (keyword chord)]))))
@@ -369,34 +366,37 @@
                    (rest sorted))]
     (remove nil? dur1)))
 
+(defn song-name->midi-file-name
+  "Returns relative path to the MIDI file corresponding to song name"
+  [song-name]
+  (as-> song-name $
+    (str/lower-case $)
+    (str/replace $ #"\s+" "_")
+    (str "resources/midi/" $ ".midi")))
+
 
 (defn song->midi-file
   "Export song to a MIDI file. Song's name should match
    the one in a SONG table. If no file name provided, the MIDI file
    is created in resources/midi."
   ([song-name]
-   (song->midi-file song-name
-                    (as-> song-name $
-                      (str/lower-case $)
-                      (str/replace $ #"\s+" "_")
-                      (str "resources/midi/" $ ".midi"))))
+   (song->midi-file (song-name->midi-file-name song-name)))
   ([song-name file-name]
    (let [[song-id bpm drum-pattern bass-method strum-pattern]
          (-> (db/query "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd, strum_ptrn_cd
                         from song
                         where upper(song_nm) = ?" [song-name])
              second)
-         bbcs        (get-song-bbcs song-name)
+         bbcs        (get-song-bbcs song-id)
          bass-track  (if (= bass-method "patterns")
                        (patterns-bass-track song-id)
                        (synthetic-bass-track bbcs))
-         drum-track (->> song-id make-drum-track track->duration-track)
-         tracks (concat
-                 drum-track
-                 (track->duration-track bass-track)
-                 (->> bbcs (strum-chord-track strum-pattern) track->duration-track))]
-     (println (format "song=%s, bpm=%d, drums=%s, bass=%s"
-                      song-name bpm drum-pattern bass-method))
+         tracks (mapcat track->duration-track
+                        [(make-drum-track song-id)
+                         bass-track
+                         (strum-chord-track strum-pattern bbcs)])]
+     (println (format "song=%s, bpm=%d, drums=%s, bass=%s, strum=%s"
+                      song-name bpm drum-pattern bass-method strum-pattern))
      (midifile/notes->midi-file tracks bpm file-name))))
 
 (def selected-songs
