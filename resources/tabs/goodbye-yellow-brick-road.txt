@@ -1,0 +1,74 @@
+{:id 14, :nm "GOODBYE YELLOW BRICK ROAD",
+ :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 80,
+ :drum-pattern "drums-swing",
+ :strum-pattern "freddie-green"
+ :drum-fills {0  "drums-intro"
+              5  "drums-fill3"
+              20 "drums-fill3"
+              26 "drums-fill3"
+              38 "drums-fill3"
+}
+ :bass "bass-15-68",
+ :tab-score "
+;1
+F   C |  Dm Dm    |  Bb  F  |  F
+
+     Gm          Bb       |  C    |   F               |    Bb
+;5  When are you gonna come down,    When are you going to land
+
+         Eb                   |   C                |   F  | F |
+;9  I should have stayed on the farm, should have   Listened to my old man
+
+         Gm            Bb   |    C      |    F        |         Bb
+;13 You know you can't hold me forever    I didn't sign up with you
+
+         Eb             |         C            |       F    | F    |
+;17  I'm not a present for your friends to open   This boy's too young to be singing
+
+         Bbm7 | Eb  |  Ab  | Db |  Bbm7 |  C7    |
+;21 The blues.      Ah        Ah
+
+        F                |   A7   |          Bb       |       F
+;27 So goodbye yellow brick road   Where the dogs of society howl
+
+         D7       |            Gm7       |        C      |        F
+;31 You can't plant me in your penthouse    I'm going back to my plow
+
+      Dm          |            A              |   Bb             |      Db    | 
+;35 Back to the howling old owl in the woods    Hunting the horny back toad
+
+     Db Eb |   F       C   |          Dm   |    Bb                       |    Bbm
+;39 Oh I've finally decided where my future lies    Beyond the yellow brick   road
+
+     Eb  | Ab | Db  | Bbm7 |  C  | F | F 
+;44 Ah        Ah
+
+    Gm           Bb          |   C
+;51 What do you think you'll do then?
+
+     F                  |             Bb
+;53 I bet they'll shoot down the plane
+
+        Eb            |       C7
+;55 It'll take you a couple of vodka and tonics
+
+        F                        | F
+;57 To set you on your feet again
+
+       Gm7          Bb   |   C
+;59  Maybe you'll get a replacement
+
+         F                |     Bb
+;61 There's plenty like me to be found
+
+       Eb        |   C
+;63 Mongrels who ain't got a penny
+
+        F                     |    F
+;65 Sniffing for tidbits like you
+
+         Bbm7 | Eb  |  Ab  | Db |  Bbm7 |  C7    |
+;67  On the ground      Ah      Ah
+;73
+F | F
+"}
