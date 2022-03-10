@@ -374,13 +374,16 @@
     (str/replace $ #"\s+" "_")
     (str "resources/midi/" $ ".midi")))
 
+(song-name->midi-file-name "MISTY")
 
 (defn song->midi-file
   "Export song to a MIDI file. Song's name should match
    the one in a SONG table. If no file name provided, the MIDI file
    is created in resources/midi."
   ([song-name]
-   (song->midi-file (song-name->midi-file-name song-name)))
+   (song->midi-file
+    song-name
+    (song-name->midi-file-name song-name)))
   ([song-name file-name]
    (let [[song-id bpm drum-pattern bass-method strum-pattern]
          (-> (db/query "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd, strum_ptrn_cd
@@ -402,7 +405,7 @@
 (def selected-songs
   [;; "ALL THE THINGS YOU ARE"
   ;;  "ALONE TOGETHER"
-   "MISTY"
+  ;; "MISTY"
   ;;  "MEDIUM BLUES"
   ;;  "IN A SENTIMENTAL MOOD"
   ;;  "ALL OF ME"
@@ -410,8 +413,8 @@
   ;;  "ALL BY MYSELF"
   ;;  "LET IT BE"
   ;; "BLACK ORPHEUS"
-   "MISTY-FITZGERALD"
-])
+  ;; "MISTY-FITZGERALD"
+   "GOODBYE YELLOW BRICK ROAD"])
 
 (defn -main
   ([]  (doseq [s selected-songs] (song->midi-file s)))

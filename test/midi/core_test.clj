@@ -22,7 +22,7 @@
             [2 1 :Am] [2 2 :Am] [2 3 :Dm] [2 4 :Dm]
             [3 1 :Am] [3 2 :Am] [3 3 :Dm] [3 4 :G]
             [4 1 :Am] [4 2 :Dm] [4 3 :G]  [4 4 :C]]
-           (core/get-song-bbcs "TEST SONG")))))
+           (core/get-song-bbcs 0)))))
 
 (deftest compress-test
  (are [result args] (= result (core/compress args))
