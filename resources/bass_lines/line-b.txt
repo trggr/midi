@@ -1,0 +1,8 @@
+{:id "LINE-B"
+ :desc "Line-B from https://www.learnjazzstandards.com/blog/learning-jazz/bass/keep-bass-lines-interesting/"
+ :tab-score "Fm7 | Bbm7 | Eb7 | Abmaj7"
+ :notes  [[:f2] [:g2] [:ab2] [:a2]
+          [:bb2] [:c3] [:db3] [:f3]
+          [:eb3] [:g3] [:bb3] [:a3]
+          [:ab3]]}
+
