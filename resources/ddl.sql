@@ -358,3 +358,5 @@ create table song_drum (
 );
 
 alter table song add strum_ptrn_cd varchar2(30);
+
+alter table chord add midi7_num integer;

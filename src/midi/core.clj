@@ -374,7 +374,6 @@
     (str/replace $ #"\s+" "_")
     (str "resources/midi/" $ ".midi")))
 
-(song-name->midi-file-name "MISTY")
 
 (defn song->midi-file
   "Export song to a MIDI file. Song's name should match

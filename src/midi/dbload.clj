@@ -148,13 +148,6 @@
   (dml "insert into note (note_cd, midi_num) values (?, ?)"
             (for [[k v] notes] [(name k) v])))
 
-(defn fm1 [{:keys [a b], :as all}]
-    [a b all])
-
- (def m {:a 10, :b 20})
-
- (fm1 m)
-
 (defn enhance-song-map
   "Takes map of song and enhanced it by adding keys
     :bars - with sparsely assigned chords to beats
@@ -233,7 +226,7 @@
   (for [root [:C :C# :Db :D :D# :Eb :E :F :F# :Gb :G :G# :Ab :A :A# :Bb :B]
         form (keys chord-forms)]
     (let [[pattern maj-ind] (chord-forms form)
-          [a b c d e f] (map #(+ (notedb root) % -1) pattern)
+          [a b c d e f g] (map #(+ (notedb root) % -1) pattern)
           r             (name root)]
       {:chord-id      (str (name root) (if (= form :major) "" (name form)))
        :root-midi-num (get notedb root)
@@ -245,7 +238,8 @@
        :c    c
        :d    d
        :e    e
-       :f    f})))
+       :f    f
+       :g    g})))
 
 (defn transpose-note
   "Takes note and number of semitones and returns transposed MIDI note. A note
@@ -307,10 +301,16 @@
 (defn save-chords [chords]
   (dml (str "insert into chord(chord_id, root_midi_num, chord_form_cd, root_note_cd,"
                  "  major_ind, midi1_num, midi2_num, midi3_num, midi4_num,"
-                 "  midi5_num, midi6_num"
-                 ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-            (map (juxt :chord-id :root-midi-num :chord-form-cd :root-note-cd :major-ind :a :b :c :d :e :f) chords)))
+                 "  midi5_num, midi6_num, midi7_num"
+                 ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+            (map (juxt :chord-id :root-midi-num :chord-form-cd :root-note-cd
+                       :major-ind :a :b :c :d :e :f :g)
+                 chords)))
 
+(comment
+(dml "delete from chord" [[]])
+(save-chords chorddb)
+)
 
 (def chords (reduce (fn [acc [k f]]
                       (assoc acc
