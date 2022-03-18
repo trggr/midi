@@ -1,0 +1,12 @@
+#!/usr/bin/bash
+
+song=`basename $1 .txt`
+
+lein run --import-song resources/tabs/$1
+lein run
+
+for x in 1 2 3 4 5
+do
+    aplaymidi --port 20:0 ../midi/${song}.midi
+done
+

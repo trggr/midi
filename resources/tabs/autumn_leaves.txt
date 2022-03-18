@@ -1,6 +1,11 @@
 {:id 4, :nm "AUTUMN LEAVES", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 70,
- :drum "drums-swing",
- :bass "bass-15-68",
+ :drum-pattern "drums-swing",
+ :strum-pattern "freddie-green"
+ :drum-fills {0  "drums-intro"
+              8  "drums-fill3"
+              16 "drums-fill3"
+              24 "drums-fill3"
+              32 "drums-fill3"}
  :tab-score "
 Am7    | D7    | Gmaj7    | Cmaj7    
 F#m7-5 | B7    | Em       | Em       

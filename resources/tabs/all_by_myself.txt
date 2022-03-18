@@ -1,6 +1,13 @@
-{:id 5, :nm "ALL BY MYSELF", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 120,
- :drum "drums-swing",
- :bass "bass-15-68",
+{:id 5,
+ :nm "ALL BY MYSELF",
+ :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 100,
+ :drum-pattern "drums-swing",
+ :strum-pattern "freddie-green"
+ :drum-fills {0  "drums-intro"
+              8  "drums-fill3"
+              16 "drums-fill3"
+              24 "drums-fill3"
+              32 "drums-fill3"}
  :tab-score "
 Cmaj7       | C6        | D7           | Am7    D7 
 G7          | Dm7   G7  | Em7    A7    | Dm     G7 

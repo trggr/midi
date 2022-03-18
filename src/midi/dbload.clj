@@ -24,9 +24,9 @@
     (str/join "\n" $)
     (edn/read-string $)))
 
-(def chord-forms   (read-edn-file "resources/chord-forms.txt"))
-(def drum-patterns (read-edn-file "resources/drum-patterns.txt"))
-(def chord-strumming-patterns (read-edn-file "resources/chord-strumming-patterns.txt"))
+(def chord-form-db   (read-edn-file "resources/chord-forms.txt"))
+(def drum-pattern-db (read-edn-file "resources/drum-patterns.txt"))
+(def chord-strumming-pattern-db (read-edn-file "resources/chord-strumming-patterns.txt"))
 
 (defn dbhelper [f & args]
   (let [conn (java.sql.DriverManager/getConnection (str "jdbc:sqlite:" DBFILE))
@@ -96,7 +96,6 @@
           3 [a a b c]
           4 [a b c d])))
 
-
 (def midi->note (zipmap
                  (range 21 128)
                  (cycle [:A :Bb :B :C :Db :D :Eb :E :F :F# :G :Ab])))
@@ -142,7 +141,7 @@
                      :mute-cuica      78 :open-cuica      79 :mute-triangle       80
                      :open-triangle   81}))
 
-(def notedb (assoc notedb4 :_ 0))  ; silence
+(def note-db (assoc notedb4 :_ 0))  ; silence
 
 (defn save-notes [notes]
   (dml "insert into note (note_cd, midi_num) values (?, ?)"
@@ -215,52 +214,66 @@
                :bbcs (assign dense-beats bars)
                :midi-notes  (map-indexed
                              (fn [idx [note dur]]
-                               [id (inc idx) (notedb note) (or dur 4)])
+                               [id (inc idx) (note-db note) (or dur 4)])
                              (song-map :notes))
                :max-bar (count bars)))))
 
-(defn chord-notes [root form]
-  (map #(+ -12 (notedb root) % -1) (first (chord-forms form))))
+(defn chord->notes
+  "Takes root (e.g. :C) and chord's form (e.g. :Am) and returns a
+   collection of midi notes in this accord"
+  [root form]
+  (->> form
+       chord-form-db
+       first
+       (map (fn [relative-note]
+              (+ -12 -1 relative-note (note-db root))))))
 
-(def chorddb
-  (for [root [:C :C# :Db :D :D# :Eb :E :F :F# :Gb :G :G# :Ab :A :A# :Bb :B]
-        form (keys chord-forms)]
-    (let [[pattern maj-ind] (chord-forms form)
-          [a b c d e f g] (map #(+ (notedb root) % -1) pattern)
-          r             (name root)]
-      {:chord-id      (str (name root) (if (= form :major) "" (name form)))
-       :root-midi-num (get notedb root)
-       :chord-form-cd (name form)
-       :root-note-cd  r
-       :major-ind     (name maj-ind)
-       :a    a
-       :b    b
-       :c    c
-       :d    d
-       :e    e
-       :f    f
-       :g    g})))
+(def chord-db (->>
+               (for [root [:C :C# :Db :D :D# :Eb :E :F :F# :Gb :G :G# :Ab :A :A# :Bb :B]
+                     form (keys chord-form-db)]
+                 [root form])
+               (reduce (fn [acc [root form]]
+                         (let [r               (name root)
+                               id              (str r
+                                                    (if (= form :major)
+                                                      ""
+                                                      (name form)))
+                               [notes major?]  (chord-form-db form)
+                               notes           (map #(+ (note-db root) % -1) notes)
+                               [a b c d e f g] notes]
+                           (assoc acc id {:root-midi-num (get note-db root)
+                                          :chord-form-cd (name form)
+                                          :root-note-cd  r
+                                          :major-ind     (name major?)
+                                          :notes notes
+                                          :a    a
+                                          :b    b
+                                          :c    c
+                                          :d    d
+                                          :e    e
+                                          :f    f
+                                          :g    g})))
+                       {})))
 
 (defn transpose-note
   "Takes note and number of semitones and returns transposed MIDI note. A note
    can be a literal representation of note (such as G, G2, etc.) or a MIDI
    note"
   [note semitones]
-  (let [note (cond (keyword? note) (notedb note)
-                   (string? note) (-> note keyword notedb)
+  (let [note (cond (keyword? note) (note-db note)
+                   (string? note) (-> note keyword note-db)
                    (integer? note) note
                    :else (throw (Exception. "expecting keyword, string or integer")))]
     (+ note semitones)))
 
 (defn transpose-chord
-  "Takes chord and semitones and returns a string
+  "Takes chord (string) and semitones and returns a string
    representing a transposed chord"
   [chord semitones]
   (if (zero? semitones)
     chord
     (let [[root-midi-num chord-form] (as-> chord $
-                                       (filter #(= (get % :chord-id) $) chorddb)
-                                       (first $)
+                                       (get chord-db $)
                                        ((juxt :root-midi-num :chord-form-cd) $))
           transposed-root (-> root-midi-num (transpose-note semitones) midi->note name)
           chord-form (if (= "major" chord-form) "" chord-form)]
@@ -298,28 +311,24 @@
                                                    (if (nil? dur) 4 dur)]))))]
     rc))
 
-(defn save-chords [chords]
-  (dml (str "insert into chord(chord_id, root_midi_num, chord_form_cd, root_note_cd,"
-                 "  major_ind, midi1_num, midi2_num, midi3_num, midi4_num,"
-                 "  midi5_num, midi6_num, midi7_num"
-                 ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-            (map (juxt :chord-id :root-midi-num :chord-form-cd :root-note-cd
-                       :major-ind :a :b :c :d :e :f :g)
-                 chords)))
+(defn save-chords
+  "Takes map of chords and saves to CHORD table"
+  [chords]
+  (dml (str "insert into chord (chord_id, root_midi_num, chord_form_cd, root_note_cd,"
+            "  major_ind, midi1_num, midi2_num, midi3_num, midi4_num,"
+            "  midi5_num, midi6_num, midi7_num"
+            ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+       (map (fn [[chord info]]
+              (list* chord
+                     ((juxt :root-midi-num :chord-form-cd :root-note-cd
+                            :major-ind :a :b :c :d :e :f :g) info)))
+            chords)))
 
 (comment
-(dml "delete from chord" [[]])
-(save-chords chorddb)
-)
+(dml "delete from chord1" [[]])
+(save-chords chord-db)
 
-(def chords (reduce (fn [acc [k f]]
-                      (assoc acc
-                             (keyword (str (name k) (if (= f :major) "" (name f))))
-                             (chord-notes k f)))
-                    {}
-                    (for [k [:C :C# :Db :D :D# :Eb :E :F :F# :Gb :G :G# :Ab :A :A# :Bb :B]
-                          f (keys chord-forms)]
-                      [k f])))
+)
 
 ;-----------------------------------------------------------
 (defn save-bass-line-to-db

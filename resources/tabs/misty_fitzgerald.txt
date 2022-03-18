@@ -1,4 +1,4 @@
-{:id 12, :nm "MISTY-FITZGERALD",
+{:id 12, :nm "MISTY FITZGERALD",
  :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 50,
  :drum-pattern "drums-swing",
  :strum-pattern "charleston-combo"

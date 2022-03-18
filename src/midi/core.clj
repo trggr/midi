@@ -149,7 +149,7 @@
                   where song_id = :1
                   order by 1, 2")
        rest
-       (map (fn [[bar beat chord]] [bar beat (keyword chord)]))))
+       (map (fn [[bar beat chord]] [bar beat chord]))))
 
 
 (defn paste-bass-line [from-bar bass-line-id transposition vel]
@@ -224,7 +224,7 @@
   [bar pattern]
   (mapcat (fn [drum]
             (cover-bar-with-drum (pattern drum)
-                                 (db/notedb drum)
+                                 (db/note-db drum)
                                  bar))
           (keys pattern)))
 
@@ -249,8 +249,8 @@
   ([chord nbeats]
    (walking-bass chord nbeats chord))
   ([chord nbeats next-chord]
-   (let [a (db/chords chord)
-         b (db/chords next-chord)
+   (let [a (get-in db/chord-db [chord :notes])
+         b (get-in db/chord-db [next-chord :notes])
          [a1 a3 a5 _]    a
          rc     (case nbeats
                   1 [a1]
@@ -282,7 +282,7 @@
        (db/query "select bar_id, drum_ptrn_cd from song_drum where song_id = ? order by bar_id")
        rest
        (mapcat (fn [[bar pattern]]
-                 (drum-pattern->ttape bar (db/drum-patterns pattern))))))
+                 (drum-pattern->ttape bar (db/drum-pattern-db pattern))))))
 
 
 (defn strum-chords
@@ -301,11 +301,12 @@
         (let [[vel dur] (first pattern)
               dur (or dur 4)
               next-tc (+ tc (duration->timecode dur))
-              chord-notes (db/chords (cond
-                                       (< tc (+ begin (* 1 db/QUARTER-NOTE))) a
-                                       (< tc (+ begin (* 2 db/QUARTER-NOTE))) b
-                                       (< tc (+ begin (* 3 db/QUARTER-NOTE))) c
-                                       :else d))
+              chord (cond
+                      (< tc (+ begin (* 1 db/QUARTER-NOTE))) a
+                      (< tc (+ begin (* 2 db/QUARTER-NOTE))) b
+                      (< tc (+ begin (* 3 db/QUARTER-NOTE))) c
+                      :else d)
+              chord-notes (get-in db/chord-db [chord :notes])
               ons   (map #(vector tc db/CHORD-CHANNEL % vel) chord-notes)
               offs  (map (fn [[_ c n _]] [(dec next-tc) c n 0]) ons)]
           (recur (concat rc ons offs)
@@ -316,7 +317,7 @@
 (defn strum-chord-track
   "Produce a chord track by strumming pattern over bbcs"
   [pattern-name bbcs]
-  (let [pattern (db/chord-strumming-patterns pattern-name)]
+  (let [pattern (db/chord-strumming-pattern-db pattern-name)]
     (->> bbcs
          (map (fn [[_ _ chord]] chord))
          (partition 4)
@@ -402,18 +403,19 @@
      (midifile/notes->midi-file tracks bpm file-name))))
 
 (def selected-songs
-  [;; "ALL THE THINGS YOU ARE"
-  ;;  "ALONE TOGETHER"
-  ;; "MISTY"
+  ["ALL THE THINGS YOU ARE"
+   "ALONE TOGETHER"
+   "MISTY"
   ;;  "MEDIUM BLUES"
   ;;  "IN A SENTIMENTAL MOOD"
   ;;  "ALL OF ME"
   ;;  "AUTUMN LEAVES"
   ;;  "ALL BY MYSELF"
   ;;  "LET IT BE"
-  ;; "BLACK ORPHEUS"
-  ;; "MISTY-FITZGERALD"
-   "GOODBYE YELLOW BRICK ROAD"])
+  ;;  "BLACK ORPHEUS"
+  ;;  "MISTY-FITZGERALD"
+  ;;  "GOODBYE YELLOW BRICK ROAD"
+   ])
 
 (defn -main
   ([]  (doseq [s selected-songs] (song->midi-file s)))

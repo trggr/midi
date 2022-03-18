@@ -6,8 +6,7 @@
               5  "drums-fill3"
               20 "drums-fill3"
               26 "drums-fill3"
-              38 "drums-fill3"
-}
+              38 "drums-fill3"}
  :bass "bass-15-68",
  :tab-score "
 ;1

@@ -1,0 +1,17 @@
+{:id 6, :nm "LET IT BE", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 90,
+ :drum-pattern "drums-swing",
+ :strum-pattern "freddie-green"
+ :drum-fills {0  "drums-intro"
+              8  "drums-fill3"
+              16 "drums-fill3"
+              24 "drums-fill3"
+              32 "drums-fill3"}
+ :tab-score "
+C  | G  | Am | F
+C  | G  | F  | C
+C  | G  | Am | F
+C  | G  | F  | C
+Am | G  | F  | C
+C  | G  | F  | C
+"}
+

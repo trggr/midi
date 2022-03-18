@@ -1,6 +1,11 @@
 {:id 3, :nm "ALL OF ME", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 120,
- :drum "drums-swing",
- :bass "bass-15-68",
+ :drum-pattern "drums-swing",
+ :strum-pattern "freddie-green"
+ :drum-fills {0  "drums-intro"
+              8  "drums-fill3"
+              16 "drums-fill3"
+              24 "drums-fill3"
+              32 "drums-fill3"}
  :tab-score "
  C6  | C6  | E7           | E7      
  A7  | A7  | Dm7          | Dm7     

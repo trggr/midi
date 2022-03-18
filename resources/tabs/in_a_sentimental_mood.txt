@@ -1,7 +1,12 @@
 {:id 2,
  :nm "IN A SENTIMENTAL MOOD", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 60,
- :drum "drums-swing",
- :bass "patterns",
+ :drum-pattern "drums-swing",
+ :strum-pattern "freddie-green"
+ :drum-fills {0  "drums-intro"
+              8  "drums-fill3"
+              16 "drums-fill3"
+              24 "drums-fill3"
+              32 "drums-fill3"}
  :tab-score "
 Dm       Dmmaj7 | Dm7    Dm6 | Gm      Gmmaj7 | Gm7      Gm6 A7
 Dm              | D7         | Gm7     Gb7    | Fmaj7          
