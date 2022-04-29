@@ -403,7 +403,8 @@
      (midifile/notes->midi-file tracks bpm file-name))))
 
 (def selected-songs
-  ["ALL THE THINGS YOU ARE"
+  ["MY FOOLISH HEART"
+   "ALL THE THINGS YOU ARE"
    "ALONE TOGETHER"
    "MISTY"
   ;;  "MEDIUM BLUES"

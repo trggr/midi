@@ -1,0 +1,23 @@
+{:id 15, :nm "MY FOOLISH HEART",
+ :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 40,
+ :drum-pattern "swing",
+ :strum-pattern "swing"
+ :drum-fills {0  "drums-intro"
+              4  "drums-fill3"
+              12 "drums-fill2"
+              20 "drums-fill3"
+              28 "drums-fill2"
+              36 "drums-fill3"}
+ :bass "bass-15-68",
+ :tab-score "
+Bbmaj7 Ebmaj7 | Dm7 G7   | Cm7        |
+Em7 A7        | Dm7 D7+9 | Gm7 Db7    | Cm7         |
+Cm7-5   F7-9  | Bbmaj7   | Fm7 Bb7    | Ebmaj7      |
+Am7-5   D7    | Gm7      | Em7-5 A7-9 | Dm7    G7+5 |
+Cm7 F7        |
+Bbmaj7 Ebmaj7 | Dm7 G7   | Cm7        |
+Em7 A7        | Dm7 D7+9 | Gm7 Db7    | Cm7         |
+Cm7-5   F7-9  | Bbmaj7   | Fm7 Bb7    | Ebmaj7      |
+Am7-5   D7    | Gm7      | Em7-5 A7-9 | Dm7    G7+5 |
+Cm7 F7        |
+"}
