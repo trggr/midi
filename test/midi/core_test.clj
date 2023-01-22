@@ -18,10 +18,10 @@
   (let [_ (-> sample-edn
               db/enhance-song-map
               db/save-song-to-db)]
-    (is (= [[1 1 :Am] [1 2 :Am] [1 3 :Am] [1 4 :Am]
-            [2 1 :Am] [2 2 :Am] [2 3 :Dm] [2 4 :Dm]
-            [3 1 :Am] [3 2 :Am] [3 3 :Dm] [3 4 :G]
-            [4 1 :Am] [4 2 :Dm] [4 3 :G]  [4 4 :C]]
+    (is (= [[1 1 "Am"] [1 2 "Am"] [1 3 "Am"] [1 4 "Am"]
+            [2 1 "Am"] [2 2 "Am"] [2 3 "Dm"] [2 4 "Dm"]
+            [3 1 "Am"] [3 2 "Am"] [3 3 "Dm"] [3 4 "G"]
+            [4 1 "Am"] [4 2 "Dm"] [4 3 "G"]  [4 4 "C"]]
            (core/get-song-bbcs 0)))))
 
 (deftest compress-test

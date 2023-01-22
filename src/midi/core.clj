@@ -33,18 +33,18 @@
   "Converts ttape to MIDI tape format"
   ([ttape] (ttape->mtape ttape 1))
   ([ttape tempo-correction]
-   (loop [prior 0, ppq 0, tempo 0, acc [], xs ttape]
-     (if-not (seq xs)
+   (loop [prior 0, ppq 0, tempo 0, acc [], ttape ttape]
+     (if-not (seq ttape)
        acc
-       (let [[[tc cmd val] & others] xs]
+       (let [[[tc cmd val] & more] ttape]
          (cond (= :set-tempo cmd)
-               (recur tc   ppq  val acc others)
+               (recur tc ppq val acc more)
                (= :time-signature cmd)
                (let [x (* (first val) (tla/third val) tempo-correction)]
-                 (recur tc  x tempo acc others))
+                 (recur tc x tempo acc more))
                :else
                (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
-                 (recur tc ppq tempo (conj acc [x val]) others))))))))
+                 (recur tc ppq tempo (conj acc [x val]) more))))))))
 
 (defn fill-in-beats-2-and-4
   "1. Place the roots of the indicated chords on beats 1 and 3 to create the skeleton
@@ -148,9 +148,7 @@
                   from song_bar_beat
                   where song_id = :1
                   order by 1, 2")
-       rest
-       (map (fn [[bar beat chord]] [bar beat chord]))))
-
+       rest))
 
 (defn paste-bass-line [from-bar bass-line-id transposition vel]
   (->> [bass-line-id]
@@ -319,7 +317,7 @@
   [pattern-name bbcs]
   (let [pattern (db/chord-strumming-pattern-db pattern-name)]
     (->> bbcs
-         (map (fn [[_ _ chord]] chord))
+         (map tla/third)
          (partition 4)
          (map-indexed (fn [bar chords]
                         (strum-chords pattern (inc bar) chords)))
@@ -332,8 +330,8 @@
   (let [[song-id bpm drum-pattern bass-method]
         (->>  [song-name]
               (db/query "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd
-                       from song
-                       where upper(song_nm) = ?")
+                         from song
+                         where upper(song_nm) = ?")
               second)
         bbcs        (get-song-bbcs song-name)
         chord-track (strum-chord-track "rhythm-3-3-2" bbcs)
@@ -413,7 +411,7 @@
   ;;  "AUTUMN LEAVES"
   ;;  "ALL BY MYSELF"
   ;;  "LET IT BE"
-  ;;  "BLACK ORPHEUS"
+   "BLACK ORPHEUS"
   ;;  "MISTY-FITZGERALD"
   ;;  "GOODBYE YELLOW BRICK ROAD"
    ])
@@ -422,11 +420,11 @@
   ([]  (doseq [s selected-songs] (song->midi-file s)))
   ([_] (println "Known commands: -- import-song, --import-bass-line, --play"))
   ([cmd arg]
-   (cond (= cmd "--import-song")      (->> arg
-                                           db/import-song
-                                           song->midi-file)
-         (= cmd "--import-bass-line") (-> arg
-                                          db/import-bass-line)
-         (= cmd "--play")             (doseq [s selected-songs]
-                                        (play-song s))
-         :else (println "unknown command" cmd))))
+   (case cmd
+     "--import-song"
+     (->> arg db/import-song song->midi-file)
+     "--import-bass-line"
+     (-> arg db/import-bass-line)
+     "--play"
+     (doseq [s selected-songs] (play-song s))
+     :else (println "unknown command" cmd))))
