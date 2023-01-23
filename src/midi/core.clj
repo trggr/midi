@@ -4,30 +4,37 @@
             [midi.dbload :as db]
             [midi.midifile2 :as midifile]))
 
-(defn bar->timecode
+(defn bar->tc
   "Returns beginning on bar in timecode ticks"
   [bar]
-  (* bar db/WHOLE-NOTE))
+  (* bar db/whole-note-tc))
 
-(defn duration->timecode
-  "Returns duration of note in time code ticks"
-  [duration]
-  (/ db/WHOLE-NOTE duration))
+(defn beat->tc
+  "Returns beginning of beat in timecode. Beat is a quarter note"
+  [beat]
+  (* beat db/quarter-note-tc))  
 
-(defn wrap-in-timecode
-  "Takes beat, note, velocity, and channel and wraps it into timecode 
-   suitable to play the note on this channel"
-  ([beat note duration velocity channel]
-   (let [on  (* duration beat)
-         off (+ on duration -1)]
-     [[on channel note velocity] [off channel note 0]])))
+(defn music-dur->tc
+  "Returns musical duration of a note in timecode"
+  [music-dur]
+  (/ db/whole-note-tc music-dur))
 
-(defn wrap-in-walking-bass-timecode [beat note]
-  (wrap-in-timecode beat
-                    note
-                    db/QUARTER-NOTE
-                    db/BASS-VELOCITY
-                    db/BASS-CHANNEL))
+(defn tcnext
+  "Next timecode after this note"
+  [tc dur]
+  (+ tc dur))
+
+(defn tcoff
+  "Timecode to turn off this timecode"
+  [tc dur]
+  (dec (tcnext tc dur)))
+
+(defn tc-pair
+  "Takes tc, tcoff, chan, note, vel and makes a pair of on/off notes
+   suitable to play a note on a MIDI device"
+  [tc tcoff chan note vel]
+  [[tc chan note vel]
+   [tcoff chan note 0]])
 
 (defn ttape->mtape
   "Converts ttape to MIDI tape format"
@@ -136,8 +143,9 @@
 (defn play-mtape
   "Plays collection of vectors: [timecode, channel, note, velocity]"
   [mtape]
-  (let [player (midi-synthesizer [[db/CHORD-CHANNEL 26]
-                                  [db/BASS-CHANNEL  32]])]
+  (let [player (midi-synthesizer
+                [[db/chord-chan (db/instruments "Acoustic Guitar (steel)")]
+                 [db/bass-chan  (db/instruments "Fretless Bass")]])]
     (doseq [[tc notes] mtape]
       (Thread/sleep tc)
       (doseq [[chan note vel] notes]
@@ -156,45 +164,42 @@
                   order by 1, 2")
        rest))
 
-(defn paste-bass-line [from-bar bass-line-id transposition vel]
+(defn paste-bass-line [start-bar bass-line-id transposition vel]
   (->> [bass-line-id]
-       (db/query "select n.midi_num, cast(b.note_dur_num as int) note_dur_num
-                  from bass_line_note b join note n on (n.note_cd = b.note_cd)
+       (db/query "select n.midi_num                  note,
+                         cast(b.note_dur_num as int) note_dur_num
+                  from bass_line_note b
+                       join note      n on (n.note_cd = b.note_cd)
                   where b.bass_line_id = :1
                   order by order_num")
        rest
-       (reduce (fn [[acc tc] [note dur]]
+       (reduce (fn [[acc tc] [note note-dur]]
                  (let [note (+ note transposition)
-                       next-tc (+ tc (duration->timecode dur))]
-                   [(conj acc
-                          [tc db/BASS-CHANNEL note vel]
-                          [(dec next-tc) db/BASS-CHANNEL note 0])
+                       next-tc (tcnext tc (music-dur->tc note-dur))]
+                   [(concat acc (tc-pair tc (dec next-tc) db/bass-chan note vel))
                     next-tc]))
-               [[]
-                (bar->timecode from-bar)])
+               [[] (bar->tc start-bar)])
        first))
 
 
-(defn combine-bass-lines [[timeline tape :as rc]
-                          [bass-line-id from-bar to-bar transposition]]
-  (let [bars (range from-bar (inc to-bar))]
+(defn combine-bass-lines
+  [[timeline tape :as rc] [bass-line-id start-bar stop-bar transposition]]
+  (let [bars (range start-bar (inc stop-bar))]
     (if (some identity (vals (select-keys timeline bars)))
       rc
-      [(reduce (fn [a k] (assoc a k bass-line-id))
-               timeline
-               bars)
+      [(reduce (fn [acc bar] (assoc acc bar bass-line-id)) timeline bars)
        (concat tape
-               (paste-bass-line from-bar bass-line-id transposition db/BASS-VELOCITY))])))
+               (paste-bass-line start-bar bass-line-id transposition db/bass-vel))])))
 
 
-(defn patterns-bass-track [song-id]
-  (let [song-id (str song-id)
-        patterns (db/query (str "select bass_line_id, beg_bar_id, end_bar_id, transp_num transp_num "
+(defn patterns-bass-track
+  [song-id]
+  (let [patterns (db/query (str "select bass_line_id, beg_bar_id, end_bar_id, transp_num transp_num "
                                 "from bass_line_bar_v "
-                                "where song_id = ? "
+                                "where song_id = :1 "
                                 "order by beg_bar_id")
                            [song-id])
-        maxbar (-> (db/query "select max(bar_id) bar from bar where song_id = ?" [song-id])
+        maxbar (-> (db/query "select max(bar_id) bar from bar where song_id = :1" [song-id])
                    second
                    first)
         [info rc] (reduce combine-bass-lines
@@ -204,21 +209,21 @@
     (with-meta rc {:bass info})))
 
 
-(defn cover-bar-with-drum
-  "Takes pattern, drum note, and covers a bar with this pattern.
-   Drum pattern is a collection of [velocity duration] elements"
-  [pattern drum-note bar]
-  (loop [rc [], tc (bar->timecode bar), pattern pattern]
-    (if (empty? pattern)
+(defn apply-drum-pattern
+  "Takes pattern (coll of [vel dur]), drum, and bar.
+   Applies a drumming pattern to this bar"
+  [pattern drum bar]
+  (loop [rc [], tc (bar->tc bar), pattern pattern]
+    (if-not (seq pattern)
       rc
-      (let [[vel dur] (first pattern)
+      (let [[[vel dur] & more] pattern
             dur (or dur 4)
-            next-tc (+ tc (duration->timecode dur))]
+            next-tc (+ tc (music-dur->tc dur))]
         (recur (conj rc
-                     [tc db/DRUMS-CHANNEL drum-note vel]
-                     [(dec next-tc) db/DRUMS-CHANNEL drum-note 0])
+                     [tc db/drum-chan drum vel]
+                     [(dec next-tc) db/drum-chan drum 0])
                next-tc
-               (rest pattern))))))
+               more)))))
 
 
 (defn drum-pattern->ttape
@@ -227,7 +232,7 @@
    Each drum pattern can have one or more drums"
   [bar pattern]
   (mapcat (fn [drum]
-            (cover-bar-with-drum (pattern drum)
+            (apply-drum-pattern (pattern drum)
                                  (db/note-db drum)
                                  bar))
           (keys pattern)))
@@ -273,11 +278,15 @@
        (partition 3 2 nil)
        (mapcat (partial apply walking-bass))
        (map (fn [note] (- note 24)))    ; lower one octave to make jazzier
-       (map-indexed (fn [beat note]
-                      (wrap-in-walking-bass-timecode (+ beat 4) ; compensate for zero bar
-                                                     note)))
+       (map-indexed (fn [idx note]
+                      (let [beat (+ idx 4)  ; compensate for intro in bar 0
+                            tc (beat->tc beat)]
+                        (tc-pair tc
+                                 (tcoff tc db/quarter-note-tc)
+                                 db/bass-chan
+                                 note
+                                 db/bass-vel))))
        (apply concat)))
-
 
 (defn make-drum-track
   "Gets data stored in table SONG_DRUM"
@@ -290,32 +299,32 @@
 
 
 (defn strum-chords
-  "Using a strumming pattern cover a bar with chords.
+  "Applies a strumming pattern to chords in a bar.
    Strumming pattern is a collection of velocities. A velocity can
-   optionally paired with duration, if duration is omitted it
-   is assumed to be 4 beats"
-  [strumming-pattern bar bar-chords]
-  (let [begin (bar->timecode bar)
-        [a b c d] bar-chords]
+   optionally be paired with duration, when duration is omitted it
+   is assumed to be a quarter note"
+  [pattern bar chords]
+  (let [begin (bar->tc bar)
+        [a b c d] chords]
     (loop [rc []
            tc begin
-           pattern strumming-pattern]
-      (if (empty? pattern)
+           pattern pattern]
+      (if-not (seq pattern)
         rc
-        (let [[vel dur] (first pattern)
+        (let [[[vel dur] & more] pattern
               dur (or dur 4)
-              next-tc (+ tc (duration->timecode dur))
+              next-tc (tcnext tc (music-dur->tc dur))
               chord (cond
-                      (< tc (+ begin (* 1 db/QUARTER-NOTE))) a
-                      (< tc (+ begin (* 2 db/QUARTER-NOTE))) b
-                      (< tc (+ begin (* 3 db/QUARTER-NOTE))) c
+                      (< tc (+ begin (* 1 db/quarter-note-tc))) a
+                      (< tc (+ begin (* 2 db/quarter-note-tc))) b
+                      (< tc (+ begin (* 3 db/quarter-note-tc))) c
                       :else d)
-              chord-notes (get-in db/chord-db [chord :notes])
-              ons   (map #(vector tc db/CHORD-CHANNEL % vel) chord-notes)
+              notes (get-in db/chord-db [chord :notes])
+              ons   (map #(vector tc db/chord-chan % vel) notes)
               offs  (map (fn [[_ c n _]] [(dec next-tc) c n 0]) ons)]
           (recur (concat rc ons offs)
                  next-tc
-                 (rest pattern)))))))
+                 more))))))
 
 
 (defn strum-chord-track
@@ -418,29 +427,21 @@ Usage: lein run
 "))
 
 (defn -main
-  ([] (-main "--export-selected-songs"))
+  ([] (-main "--usage"))
   ([cmd & [arg & _]]
    (case cmd
      "--export"
      (export-song arg)
-
      "--export-all"
      (doseq [s (->> (db/list-songs) rest (map second))] (export-song s))
-
      "--import-bass-line"
      (-> arg db/import-bass-line)
-
      "--import-song"
      (->> arg db/import-song export-song)
-
      "--list-songs"
      (println (tla/view (db/list-songs)))
-
      "--play-song"
      (play-song arg)
-
      "--usage"
      (println usage)
-
-     :else
      (println usage))))

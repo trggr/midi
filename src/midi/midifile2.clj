@@ -8,18 +8,22 @@
   "Takes collection of notes (timecode channel note velocity) and BPM,
    saving them as a MIDI file"
   [notes bpm file-name]
-  (let [tempo-track  (doto (MidiTrack.)
-                       (.insertEvent
-                        (doto (TimeSignature.)
-                          (.setTimeSignature 4 4
-                                             TimeSignature/DEFAULT_METER
-                                             TimeSignature/DEFAULT_DIVISION)))
-                       (.insertEvent (doto (Tempo.) (.setBpm bpm)))
-                       (.insertEvent (ProgramChange. 0 db/CHORD-CHANNEL 26))
-                       (.insertEvent (ProgramChange. 0 db/BASS-CHANNEL 32)))
-        note-track (reduce (fn [acc [tc c note velocity duration]]
-                             (println tc c note velocity duration)
-                             (doto acc (.insertNote c note velocity tc duration)))
+  (let [tempo-track (doto (MidiTrack.)
+                      (.insertEvent
+                       (doto (TimeSignature.)
+                         (.setTimeSignature 4 4
+                                            TimeSignature/DEFAULT_METER
+                                            TimeSignature/DEFAULT_DIVISION)))
+                      (.insertEvent (doto (Tempo.) (.setBpm bpm)))
+                      (.insertEvent (ProgramChange. 0
+                                                    db/chord-chan
+                                                    (db/instruments "Acoustic Guitar (steel)")))
+                      (.insertEvent (ProgramChange. 0
+                                                    db/bass-chan
+                                                    (db/instruments "Fretless Bass"))))
+        note-track (reduce (fn [acc [tc c note vel dur]]
+                             ;; (println tc c note vel dur)
+                             (doto acc (.insertNote c note vel tc dur)))
                            (MidiTrack.)
                            notes)]
     (doto (MidiFile. MidiFile/DEFAULT_RESOLUTION [tempo-track note-track])

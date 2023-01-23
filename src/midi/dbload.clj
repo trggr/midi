@@ -3,16 +3,16 @@
             [clojure.edn :as edn]
             [midi.timlib :as tla]))
 
-(def QUARTER-NOTE  384)      ; Length of quarter note in time code ticks
-(def WHOLE-NOTE    (* QUARTER-NOTE 4))
-(def CHORD-CHANNEL 2)
-(def BASS-CHANNEL  4)
-(def DRUMS-CHANNEL 9)
-(def BASS-VELOCITY 65)
-(def DBFILE        "resources/synth.db")
+(def quarter-note-tc 384)                   ; Quarter note in timecode ticks
+(def whole-note-tc   (* quarter-note-tc 4))
+(def chord-chan      2)
+(def bass-chan       4)
+(def drum-chan       9)
+(def bass-vel        65)
+(def DBFILE          "resources/synth.db")
 
 (defn read-edn-file
-  "Returns map stored in extended EDN file, in which the mpty lines and comments
+  "Returns map stored in extended EDN file, in which the empty lines and comments
    embedded in strings are ignored."
   [edn-file]
   (as-> edn-file $
@@ -24,9 +24,10 @@
     (str/join "\n" $)
     (edn/read-string $)))
 
-(def chord-form-db   (read-edn-file "resources/chord-forms.txt"))
-(def drum-pattern-db (read-edn-file "resources/drum-patterns.txt"))
-(def chord-strumming-pattern-db (read-edn-file "resources/chord-strumming-patterns.txt"))
+(def chord-form-db   (read-edn-file "resources/chord-forms.edn"))
+(def drum-pattern-db (read-edn-file "resources/drum-patterns.edn"))
+(def chord-strumming-pattern-db (read-edn-file "resources/chord-strumming-patterns.edn"))
+(def instruments (read-edn-file "resources/instruments.edn"))
 
 (defn dbhelper [f & args]
   (let [conn (java.sql.DriverManager/getConnection (str "jdbc:sqlite:" DBFILE))
@@ -39,7 +40,6 @@
 (def query   (partial dbhelper tla/cursor))
 
 (declare enhance-bass-line-map)
-; (declare enhance-song-map)
 
 (defn tabs->bars
   "Split tabs into sequence of bars"
@@ -143,9 +143,9 @@
 
 (def note-db (assoc notedb4 :_ 0))  ; silence
 
-(defn save-notes [notes]
-  (dml "insert into note (note_cd, midi_num) values (?, ?)"
-            (for [[k v] notes] [(name k) v])))
+;; (defn save-notes [notes]
+;;   (dml "insert into note (note_cd, midi_num) values (?, ?)"
+;;             (for [[k v] notes] [(name k) v])))
 
 (defn enhance-song-map
   "Takes map of song and enhanced it by adding keys

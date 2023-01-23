@@ -1,4 +1,4 @@
-(ns midi.midifile
+(ns midi.archive.midifile
   (:require [clojure.string :as str]))
 
 (defn ascii [n]
