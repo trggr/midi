@@ -185,3 +185,8 @@
   ([txt status] {:status  status
                  :headers {"Content-Type" "text/html"}
                  :body    txt}))
+
+(defn between?
+  [x low high]
+  (<= low x high))
+

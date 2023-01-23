@@ -37,14 +37,14 @@
      (if-not (seq ttape)
        acc
        (let [[[tc cmd val] & more] ttape]
-         (cond (= :set-tempo cmd)
-               (recur tc ppq val acc more)
-               (= :time-signature cmd)
-               (let [x (* (first val) (tla/third val) tempo-correction)]
-                 (recur tc x tempo acc more))
-               :else
-               (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
-                 (recur tc ppq tempo (conj acc [x val]) more))))))))
+         (case cmd
+           :set-tempo
+           (recur tc ppq val acc more)
+           :time-signature
+           (let [[numer _ clicks _] val]
+             (recur tc (* numer clicks tempo-correction) tempo acc more))
+           (let [x (/ (* (- tc prior) tempo) (* 1000 ppq))]
+             (recur tc ppq tempo (conj acc [x val]) more))))))))
 
 (defn fill-in-beats-2-and-4
   "1. Place the roots of the indicated chords on beats 1 and 3 to create the skeleton
@@ -66,14 +66,16 @@
       d. If a chord is held for the entire duration of a measure, the bass line can be filled out
          with a scalewise line from the root of the chord down to the fifth.
          This is done under the FÎ chord in measure 5."
-  [x y]
-  (let [[a n3] x
-        [b]    y
-        sep (Math/abs (- a b))]
-    (cond (<= 1 sep 2) a
-          (<= 3 sep 4) (+ a 2)
-          (<= 5 sep 7) n3
-          :else        n3)))
+  [chord1 chord2]
+  (let [[root n3] chord1
+        [root2]   chord2]
+    (case (Math/abs (- root root2))
+      1 root
+      2 root
+      3 (+ root 2)
+      4 (+ root 2)
+      n3)))
+
 
 (defn tracks->ttape
   "Makes a tick tape from an array of raw notes each of which has a stucture:
@@ -90,6 +92,10 @@
    Example:
    [0	:set-tempo	434464
    [0	:time-signature	[4 2 24 8]
+             ; numer
+             ; denom - (power of two)
+             ; midi clicks in a single metronome click
+             ; number of 32nd notes in midi quarter note 
    [384	:data	        [[384 2 70 50]]
    [477	:data	        [[477 2 98 74]]
    [479	:data	        [[479 2 101 78]]
@@ -374,14 +380,13 @@
     (str "resources/midi/" $ ".midi")))
 
 
-(defn song->midi-file
+(defn export-song
   "Export song to a MIDI file. Song's name should match
    the one in a SONG table. If no file name provided, the MIDI file
    is created in resources/midi."
-  ([song-name]
-   (song->midi-file
-    song-name
-    (song-name->midi-file-name song-name)))
+  ([song]
+   (export-song song
+                (song-name->midi-file-name song)))
   ([song-name file-name]
    (let [[song-id bpm drum-pattern bass-method strum-pattern]
          (-> (db/query "select song_id, bpm_num, drum_ptrn_cd, bass_ty_cd, strum_ptrn_cd
@@ -400,31 +405,42 @@
                       song-name bpm drum-pattern bass-method strum-pattern))
      (midifile/notes->midi-file tracks bpm file-name))))
 
-(def selected-songs
-  ["MY FOOLISH HEART"
-   "ALL THE THINGS YOU ARE"
-   "ALONE TOGETHER"
-   "MISTY"
-  ;;  "MEDIUM BLUES"
-  ;;  "IN A SENTIMENTAL MOOD"
-  ;;  "ALL OF ME"
-  ;;  "AUTUMN LEAVES"
-  ;;  "ALL BY MYSELF"
-  ;;  "LET IT BE"
-   "BLACK ORPHEUS"
-  ;;  "MISTY-FITZGERALD"
-  ;;  "GOODBYE YELLOW BRICK ROAD"
-   ])
+
+(def usage (str "
+Usage: lein run
+--export [song]               - export song to MIDI file
+--export-all                  - export all songs
+--import-song [file.edn]      - import song into db
+--import-bass-line [file.edn] - import bass line into db
+--list-songs                  - list songs in the db
+--play-song [name]            - play song  TODO: THIS IS NOT WORKING
+--usage                       - this message
+"))
 
 (defn -main
-  ([]  (doseq [s selected-songs] (song->midi-file s)))
-  ([_] (println "Known commands: -- import-song, --import-bass-line, --play"))
-  ([cmd arg]
+  ([] (-main "--export-selected-songs"))
+  ([cmd & [arg & _]]
    (case cmd
-     "--import-song"
-     (->> arg db/import-song song->midi-file)
+     "--export"
+     (export-song arg)
+
+     "--export-all"
+     (doseq [s (->> (db/list-songs) rest (map second))] (export-song s))
+
      "--import-bass-line"
      (-> arg db/import-bass-line)
-     "--play"
-     (doseq [s selected-songs] (play-song s))
-     :else (println "unknown command" cmd))))
+
+     "--import-song"
+     (->> arg db/import-song export-song)
+
+     "--list-songs"
+     (println (tla/view (db/list-songs)))
+
+     "--play-song"
+     (play-song arg)
+
+     "--usage"
+     (println usage)
+
+     :else
+     (println usage))))

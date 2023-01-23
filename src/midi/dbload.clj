@@ -241,7 +241,7 @@
                                [notes major?]  (chord-form-db form)
                                notes           (map #(+ (note-db root) % -1) notes)
                                [a b c d e f g] notes]
-                           (assoc acc id {:root-midi-num (get note-db root)
+                           (assoc acc id {:root-midi-num (get notes root)
                                           :chord-form-cd (name form)
                                           :root-note-cd  r
                                           :major-ind     (name major?)
@@ -352,7 +352,7 @@
 
 
 (defn import-bass-line
-  "Imports bass-line from a file into internal SQLite database"
+  "Imports bass-line from an EDN file into internal SQLite database"
   [song-edn-file]
   (let [enhanced (-> song-edn-file
                      read-edn-file
@@ -392,4 +392,7 @@
            "bass-ud3"   (partial f ["bass-1234" "bass-5321" "bass-1235" "bass-5321"
                                     "bass-1234" "bass-5321" "bass-1235" "bass-5321"]))))
 
-(def chord-based-bass-db (init-chord-based-bass-db))
+(defn list-songs []
+  (query "select song_id, song_nm, bpm_num, drum_ptrn_cd, bass_ty_cd
+          from song
+          order by song_nm"))
