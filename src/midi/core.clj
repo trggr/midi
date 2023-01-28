@@ -1,6 +1,6 @@
 (ns midi.core
   (:require [clojure.string :as str]
-            [midi.timlib :as tla]
+            [timlib.core :as tla]
             [midi.dbload :as db]
             [midi.midifile2 :as midifile]))
 
@@ -419,10 +419,10 @@
 Usage: lein run
 --export [song]               - export song to MIDI file
 --export-all                  - export all songs
---import-song [file.edn]      - import song into db
+--import [file.edn]           - import song into db
 --import-bass-line [file.edn] - import bass line into db
 --list-songs                  - list songs in the db
---play-song [name]            - play song  TODO: THIS IS NOT WORKING
+--play [song]                 - play song  TODO: THIS IS NOT WORKING
 --usage                       - this message
 "))
 
@@ -436,11 +436,11 @@ Usage: lein run
      (doseq [s (->> (db/list-songs) rest (map second))] (export-song s))
      "--import-bass-line"
      (-> arg db/import-bass-line)
-     "--import-song"
+     "--import"
      (->> arg db/import-song export-song)
      "--list-songs"
      (println (tla/view (db/list-songs)))
-     "--play-song"
+     "--play"
      (play-song arg)
      "--usage"
      (println usage)

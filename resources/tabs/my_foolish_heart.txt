@@ -1,6 +1,6 @@
 {:id 15, :nm "MY FOOLISH HEART",
  :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 40,
- :drum-pattern "swing",
+ :drum-pattern "drums-swing",
  :strum-pattern "swing"
  :drum-fills {0  "drums-intro"
               4  "drums-fill3"

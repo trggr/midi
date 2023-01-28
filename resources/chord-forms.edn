@@ -1,10 +1,12 @@
+;; The database of chords. The key is form, the values are the notes, and
+;; an indicator whether the accord is major
 {
  :major     [[1 5 8]             :Y]
  :6         [[1 5 8 10]          :Y]
  :69        [[1 5 8 10 15]       :Y]
  :add9      [[1 5 8 15]          :Y]
  :maj7      [[1 5 8 12]          :Y]
- :maj7add13 [[1 5 8 10 12]        :Y]
+ :maj7add13 [[1 5 8 10 12]       :Y]
  :maj9      [[1 5 8 12 15]       :Y]
  :maj13     [[1 5 8 12 15 22]    :Y]
  :7         [[1 5 8 11]          :Y]

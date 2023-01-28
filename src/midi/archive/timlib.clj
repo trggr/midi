@@ -1,4 +1,4 @@
-(ns midi.timlib
+(ns midi.archive.timlib
   (:require [clojure.string :as str]
              [clojure.test :refer [is]]))
 

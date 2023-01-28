@@ -1,7 +1,7 @@
 (ns midi.dbload
   (:require [clojure.string :as str]
             [clojure.edn :as edn]
-            [midi.timlib :as tla]))
+            [timlib.core :as tla]))
 
 (def quarter-note-tc 384)                   ; Quarter note in timecode ticks
 (def whole-note-tc   (* quarter-note-tc 4))
@@ -241,7 +241,7 @@
                                [notes major?]  (chord-form-db form)
                                notes           (map #(+ (note-db root) % -1) notes)
                                [a b c d e f g] notes]
-                           (assoc acc id {:root-midi-num (get notes root)
+                           (assoc acc id {:root-midi-num (get note-db root)
                                           :chord-form-cd (name form)
                                           :root-note-cd  r
                                           :major-ind     (name major?)
@@ -260,10 +260,11 @@
    can be a literal representation of note (such as G, G2, etc.) or a MIDI
    note"
   [note semitones]
+  {:pre [(some? note)]}
   (let [note (cond (keyword? note) (note-db note)
                    (string? note) (-> note keyword note-db)
                    (integer? note) note
-                   :else (throw (Exception. "expecting keyword, string or integer")))]
+                   :else (throw (Exception. (str "Musical note must be keyword, string or integer. Got [" (type note) "]"))))]
     (+ note semitones)))
 
 (defn transpose-chord
