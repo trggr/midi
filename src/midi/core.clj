@@ -243,14 +243,9 @@
    a number of its occurrences, e.g. [a a a b b] => [a 3 b 2]"
   [coll]
   (->> coll
-       (partition 2 1 nil)
-       (reduce (fn [[acc n] [x y]]
-                 (if (= x y)
-                   [acc (inc n)]
-                   [(conj acc x n) 1]))
-               [[] 1])
-       first))
-
+       (partition-by identity)
+       (reduce (fn [acc xs] (conj acc (first xs) (count xs)))
+               [])))
 
 (defn walking-bass
   "Takes a chord, number of beats of this chord, and the
