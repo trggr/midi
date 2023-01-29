@@ -29,15 +29,16 @@
 (def chord-strumming-pattern-db (read-edn-file "resources/chord-strumming-patterns.edn"))
 (def instruments (read-edn-file "resources/instruments.edn"))
 
-(defn dbhelper [f & args]
-  (let [conn (java.sql.DriverManager/getConnection (str "jdbc:sqlite:" DBFILE))
-        rc   (apply f conn args)
-        rc   (if (sequential? rc) (doall rc) rc)]
-    (.close conn)
-    rc))
+(defn dbhelper [action & args]
+  (with-open [conn (java.sql.DriverManager/getConnection
+                    (str "jdbc:sqlite:" DBFILE))]
+    (let [rc (apply action conn args)]
+      (if (sequential? rc)
+        (doall rc)
+        rc))))
 
-(def dml     (partial dbhelper tla/batch-update))
-(def query   (partial dbhelper tla/cursor))
+(def dml   (partial dbhelper tla/batch-update))
+(def query (partial dbhelper tla/cursor))
 
 (declare enhance-bass-line-map)
 
