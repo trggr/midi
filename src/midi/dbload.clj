@@ -9,7 +9,7 @@
 (def bass-chan       4)
 (def drum-chan       9)
 (def bass-vel        65)
-(def DBFILE          "resources/synth.db")
+(def default-db      "resources/synth.db")
 
 (defn read-edn-file
   "Returns map stored in extended EDN file, in which the empty lines and comments
@@ -29,16 +29,39 @@
 (def chord-strumming-pattern-db (read-edn-file "resources/chord-strumming-patterns.edn"))
 (def instruments (read-edn-file "resources/instruments.edn"))
 
-(defn dbhelper [action & args]
-  (with-open [conn (java.sql.DriverManager/getConnection
-                    (str "jdbc:sqlite:" DBFILE))]
-    (let [rc (apply action conn args)]
-      (if (sequential? rc)
-        (doall rc)
-        rc))))
+(defn get-connection
+  "Takes file name of SQLite database, 
+   returning JDBC connection. If file name is ommitted, uses synth.db"
+  ([]
+   (get-connection default-db))
+  ([file]
+   (java.sql.DriverManager/getConnection (str "jdbc:sqlite:" file))))
 
-(def dml   (partial dbhelper tla/batch-update))
-(def query (partial dbhelper tla/cursor))
+(defn change
+  "Takes conn, dml and bind parameters. Runs dml returning number of
+   affected db rows"
+  ([dml]
+   (change dml [[]]))
+  ([dml args]
+   (change (get-connection) dml args))
+  ([conn dml args]
+   (with-open [conn conn]
+     (tla/batch-update conn dml args))))
+
+(defn query
+  "Takes conn, SELECT statement and bind parameters.
+   Runs a statement coll of vectors with rows. The first
+   row is the names of returned columns"
+  ([stmt]
+   (query stmt []))
+  ([stmt arg]
+   (query (get-connection) stmt arg))
+  ([conn stmt arg]
+   (with-open [conn conn]
+     (let [rc (tla/cursor conn stmt arg)]
+       (if (sequential? rc)
+         (doall rc)
+         rc)))))
 
 (declare enhance-bass-line-map)
 
@@ -58,20 +81,20 @@
   [song-meta]
   (let [{:keys [id nm numer denom ppq bb bpm bars bbcs
                 drum-pattern bass max-bar song-drums strum-pattern]} song-meta]
-    (dml "delete from song          where song_id = ?" [[id]])
-    (dml "delete from bar           where song_id = ?" [[id]])
-    (dml "delete from song_bar_beat where song_id = ?" [[id]])
-    (dml "delete from song_drum     where song_id = ?" [[id]])
+    (change "delete from song          where song_id = ?" [[id]])
+    (change "delete from bar           where song_id = ?" [[id]])
+    (change "delete from song_bar_beat where song_id = ?" [[id]])
+    (change "delete from song_drum     where song_id = ?" [[id]])
 
-    (dml "insert into song (
+    (change "insert into song (
             song_id, song_nm, time_sig_nmrtr_num, time_sig_denom_num,
             time_sig_ppq_num, time_sig_bb_num, bpm_num, drum_ptrn_cd,
             strum_ptrn_cd, bass_ty_cd, max_bar
          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             [[id nm numer denom ppq bb bpm drum-pattern strum-pattern bass max-bar]])
-    (dml "insert into bar (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)" bars)
-    (dml "insert into song_bar_beat (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)" bbcs)
-    (dml "insert into song_drum (song_id, bar_id, drum_ptrn_cd) values (?, ?, ?)" song-drums)
+    (change "insert into bar (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)" bars)
+    (change "insert into song_bar_beat (song_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)" bbcs)
+    (change "insert into song_drum (song_id, bar_id, drum_ptrn_cd) values (?, ?, ?)" song-drums)
     nm))
 
 (defn sparse-beats
@@ -316,7 +339,7 @@
 (defn save-chords
   "Takes map of chords and saves to CHORD table"
   [chords]
-  (dml (str "insert into chord (chord_id, root_midi_num, chord_form_cd, root_note_cd,"
+  (change (str "insert into chord (chord_id, root_midi_num, chord_form_cd, root_note_cd,"
             "  major_ind, midi1_num, midi2_num, midi3_num, midi4_num,"
             "  midi5_num, midi6_num, midi7_num"
             ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
@@ -327,7 +350,7 @@
             chords)))
 
 (comment
-(dml "delete from chord1" [[]])
+(change "delete from chord1" [[]])
 (save-chords chord-db)
 
 )
@@ -340,15 +363,15 @@
   [bass-line]
   {:pre [(every? bass-line [:id :desc :max-bar :enhanced? :midi-notes])]}
   (let [{:keys [id desc bars midi-notes max-bar]} bass-line]
-    (dml "delete from bass_line       where bass_line_id = ?" [[id]])
-    (dml "delete from bass_line_chord where bass_line_id = ?" [[id]])
-    (dml "delete from bass_line_note  where bass_line_id = ?" [[id]])
+    (change "delete from bass_line       where bass_line_id = ?" [[id]])
+    (change "delete from bass_line_chord where bass_line_id = ?" [[id]])
+    (change "delete from bass_line_note  where bass_line_id = ?" [[id]])
 
-    (dml "insert into bass_line(bass_line_id, bar_cnt, bass_line_desc) values (?, ?, ?)"
+    (change "insert into bass_line(bass_line_id, bar_cnt, bass_line_desc) values (?, ?, ?)"
               [[id max-bar desc]])
-    (dml "insert into bass_line_chord (bass_line_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)"
+    (change "insert into bass_line_chord (bass_line_id, bar_id, beat_id, chord_id) values (?, ?, ?, ?)"
               bars)
-    (dml "insert into bass_line_note (bass_line_id, order_num, midi_num, note_dur_num) values (?, ?, ?, ?)"
+    (change "insert into bass_line_note (bass_line_id, order_num, midi_num, note_dur_num) values (?, ?, ?, ?)"
               midi-notes)
     id))
 
@@ -398,3 +421,19 @@
   (query "select song_id, song_nm, bpm_num, drum_ptrn_cd, bass_ty_cd
           from song
           order by song_nm"))
+
+(comment
+
+  ; Connection to in-memory database is ":memory:", but we are automatically
+  ; closing it, so the next DML doesn't work :)
+
+  (def con (get-connection "tmp.db"))
+  ;=> #'midi.core/con
+  (change con "create table clump (seal varchar)" [[]])
+  ;=> 0
+  (change (get-connection "tmp.db") "insert into clump (seal) values (:1)" [[1] [2] [3]])
+  ;=> 1
+  (query (get-connection "tmp.db") "select * from clump" [])
+  ;=> (["seal"] ["1"] ["2"] ["3"])
+
+  )

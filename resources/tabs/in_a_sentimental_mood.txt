@@ -1,6 +1,7 @@
 {:id 2,
  :nm "IN A SENTIMENTAL MOOD", :numer 4, :denom 4, :ppq 400000, :bb 8, :bpm 60,
  :drum-pattern "drums-swing",
+ :bass "bass-15-68",
  :strum-pattern "freddie-green"
  :drum-fills {0  "drums-intro"
               8  "drums-fill3"

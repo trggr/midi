@@ -416,7 +416,7 @@ Usage: lein run
 --export-all                  - export all songs
 --import [file.edn]           - import song into db
 --import-bass-line [file.edn] - import bass line into db
---list-songs                  - list songs in the db
+--list                        - list songs in the db
 --play [song]                 - play song  TODO: THIS IS NOT WORKING
 --usage                       - this message
 "))
@@ -433,7 +433,7 @@ Usage: lein run
      (-> arg db/import-bass-line)
      "--import"
      (->> arg db/import-song export-song)
-     "--list-songs"
+     "--list"
      (println (tla/view (db/list-songs)))
      "--play"
      (play-song arg)
