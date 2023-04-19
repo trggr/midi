@@ -152,17 +152,6 @@
         (player chan note vel)))))
 
 
-(defn get-song-bbcs
-  "Returns a collection of BBC (bar-beat-chord) elements for a given song ID.
-   For a typical 4/4, 32-bar song this collection is 128 elements
-   long and shows what chord is played on each bar and beat"
-  [song-id]
-  (->> [song-id]
-       (db/query "select bar_id, beat_id, chord_id
-                  from song_bar_beat
-                  where song_id = :1
-                  order by 1, 2")
-       rest))
 
 (defn paste-bass-line [start-bar bass-line-id transposition vel]
   (->> [bass-line-id]
@@ -238,15 +227,6 @@
           (keys pattern)))
 
 
-(defn compress
-  "Takes coll and turns it into collection where each elements is followed by
-   a number of its occurrences, e.g. [a a a b b] => [a 3 b 2]"
-  [coll]
-  (->> coll
-       (partition-by identity)
-       (reduce (fn [acc xs] (conj acc (first xs) (count xs)))
-               [])))
-
 (defn walking-bass
   "Takes a chord, number of beats of this chord, and the
    next chord and generate a walking bass line between them"
@@ -269,7 +249,7 @@
   [bbcs]
   (->> bbcs
        (map tla/third)
-       compress
+       tla/compress
        (partition 3 2 nil)
        (mapcat (partial apply walking-bass))
        (map (fn [note] (- note 24)))    ; lower one octave to make jazzier
@@ -343,7 +323,7 @@
                          from song
                          where upper(song_nm) = ?")
               second)
-        bbcs        (get-song-bbcs song-name)
+        bbcs        (db/get-song-bbcs song-name)
         chord-track (strum-chord-track "rhythm-3-3-2" bbcs)
         ;; TODO - fix this: drum-track  (make-drum-track drum-pattern bbcs)
         bass-track  (if (= bass-method "patterns")
@@ -397,7 +377,7 @@
                         from song
                         where upper(song_nm) = ?" [song-name])
              second)
-         bbcs        (get-song-bbcs song-id)
+         bbcs        (db/get-song-bbcs song-id)
          bass-track  (if (= bass-method "patterns")
                        (patterns-bass-track song-id)
                        (synthetic-bass-track bbcs))
@@ -440,3 +420,4 @@ Usage: lein run
      "--usage"
      (println usage)
      (println usage))))
+

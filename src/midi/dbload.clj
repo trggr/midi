@@ -422,6 +422,18 @@
           from song
           order by song_nm"))
 
+(defn get-song-bbcs
+  "Returns a collection of BBC (bar-beat-chord) elements for a given song ID.
+   For a typical 4/4, 32-bar song this collection is 128 elements
+   long and shows what chord is played on each bar and beat"
+  [song-id]
+  (->> [song-id]
+       (query "select bar_id, beat_id, chord_id
+               from song_bar_beat
+               where song_id = :1
+               order by 1, 2")
+       rest))
+
 (comment
 
   ; Connection to in-memory database is ":memory:", but we are automatically
